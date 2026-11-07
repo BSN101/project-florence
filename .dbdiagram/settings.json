@@ -1,0 +1,14 @@
+{
+  "dbml": {
+    "entry": "./supabase/schema.dbml"
+  },
+  "diagram": {
+    "id": "6aee705cf1d298b573941edd",
+    "workspaceId": ""
+  },
+  "document": {
+    "source": "file",
+    "workspaceUrlName": "https://dbdocs.io/jamir-oasis-andrade/florence-schema",
+    "projectUrlName": "https://dbdiagram.io/d/florence-schema-6aee705cf1d298b573941edd"
+  }
+}

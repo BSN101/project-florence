@@ -1,0 +1,1699 @@
+// Generated documentation conversion; current Markdown remains authoritative.
+Project florence {
+  database_type: 'PostgreSQL'
+  Note: '''
+# DBML conversion contract
+Source: Project_Florence_Schema.md, version 0.5, 2026-11-07, accepted implementation baseline. This is a documentation model, not an applied migration or verification of deployed controls. No application repository, deployed database or SQL handoff was inspected. Required safeguards remain implementation requirements, not claims of enforcement.
+
+All source guidance is retained below and in table/column Markdown Notes. Source column tables are represented by DBML columns; their Notes are copied verbatim. No defaults are specified by the source, so none are invented (including UUIDs, timestamps, booleans and lifecycle values).
+
+The three suggested stable vocabularies are represented as DBML enums; bucket uses its declared type. Columns declared text/text[] remain those types: choosing PostgreSQL enums versus checked text remains a migration decision. Named evolving type candidates have no independently declared type definition; their allowed values and checks remain in the owning column/table notes. Undeclared vocabularies are not invented.
+
+DBML indexes encode unconditional keys and recommended ordinary index candidates. Partial uniqueness, predicates, descending index order, SQL checks, RLS, grants, immutable-history enforcement, request-key designs and multi-row contracts remain normative Markdown Notes, not executable controls. Do not substitute a full unique index for a partial index. Recommended indexes are candidates, not mandatory deployed indexes. Unique context parent keys are modeled where explicitly required. Physical alternatives that require undeclared child context columns remain unresolved as the source requires; independent foreign keys do not satisfy those contracts.
+
+All modeled relationships use non-cascading NO ACTION. Supabase-managed auth/storage tables are external and are not invented as application tables. auth_user_id is an external Auth identity link, not a fabricated application relationship. Polymorphic notification targets and grouping/request UUIDs are not fabricated foreign keys.
+
+# Source project-wide guidance (verbatim)
+# Project Florence — Database Schema
+
+**Version:** 0.5 · **Updated:** 2026-11-07 · **Status:** Accepted implementation baseline
+
+## 1. Purpose and boundaries
+
+This document defines Florence's 31 application tables, relationships and data-integrity rules. The [function list](Project_Florence_Function_List.md) defines scope and permissions; the [architecture](Florence_Architecture.md) defines code organization. All tables, including in-app notifications, are included in V1. Validate migrations against the actual database before deployment.
+
+The schema follows these principles:
+
+- The current function list owns product scope, roles and business states. This document does not add features.
+- Business workflow rules, role-specific action checks, user-facing validation and most state-transition logic belong in the application service layer.
+- PostgreSQL owns structural integrity: primary keys, foreign keys, uniqueness, required values, simple row-local checks, indexes and row-level security.
+- Database procedural logic is exceptional. Use atomic functions only when a multi-row or concurrency-sensitive operation cannot be made safe through ordinary application writes plus constraints.
+- User-context reads use RLS as an authorization backstop, not a replacement for application scope checks. Protected server commands use an isolated service-role client after application authorization; service-role access bypasses RLS and therefore relies on the trusted application boundary plus database constraints and transaction guards.
+- Derived conditions should not become editable flags merely for convenience. Examples include event schedule state, merit expiry, obligation payment standing and service completion outcome.
+- Preserve required record history through actors, timestamps, reasons, source links and supersession. No general audit or workflow engine is required.
+- External effects such as email delivery remain outside PostgreSQL. Supabase Auth, server code or a dedicated integration/Edge Function may perform them as appropriate.
+
+### 1.1 Naming conventions
+
+- Primary keys use `uuid` and are named `id`.
+- Foreign keys use `<entity>_id`.
+- Server timestamps use `timestamptz`.
+- Academic dates that are intentionally day-based use `date`.
+- Soft archival uses `archived_at timestamptz` where the function list requires archived-but-retained records.
+- `created_at` is retained on operational records. `updated_at` is used only where the current row is intentionally editable.
+- Monetary columns use `numeric(12,2)` unless implementation confirms whole-peso-only storage.
+- Office/RLE values use one shared enum or checked text type.
+- Columns without an explicit `NULL` marker are `NOT NULL`. A `CHECK` does not replace `NOT NULL` because SQL checks accept an unknown/null result.
+- Historical financial, disciplinary, attendance, clearance and actor references use `ON DELETE RESTRICT` or non-cascading `NO ACTION`. Do not cascade-delete consequential records or their attribution. Archive domain identities and referenced definitions instead of deleting them; Auth unlinking must preserve the Florence profile and domain history.
+- Redundant ownership/context columns must agree structurally: use composite foreign keys to declared unique parent keys, or remove the redundant column and derive it through the parent. Independent foreign keys alone are insufficient.
+
+### 1.2 Database responsibility boundary
+
+| Concern | Primary owner |
+|---|---|
+| Input parsing and user-facing validation | Application |
+| Workflow/business decisions | Application |
+| Role/action authorization | Application; RLS backstop for user-context access only, not service-role commands |
+| Self-benefit restrictions | Application; DB only when trivial and local |
+| State-transition decisions | Application |
+| Foreign keys / uniqueness / required values | Database |
+| Simple row-local invariants | Database |
+| Data visibility boundary | RLS for user-context reads plus explicit field projections; trusted server checks for privileged internal operations |
+| Concurrency-sensitive multi-row commit | Small atomic DB function when required |
+| Email / provider integration | Application or integration layer |
+
+### 1.3 Trusted mutation and transaction contract
+
+- Protected mutations use authenticated, authorized server services. Revoke direct authenticated-client INSERT/UPDATE/DELETE on protected base tables; read policies do not grant write authority. Student transfer submission, feedback, merit application and optional notification read-state changes also use narrowly scoped server operations unless a separately specified DB policy/privilege contract safely limits every writable field.
+- Protected commands use the agreed server-only service-role client, separate from the request-scoped user client used for authentication and ordinary reads. Do not attach user cookies/sessions to the command client or expose its key in public variables, responses or logs. Service-role bypasses RLS: authorize every command in application code and retain all DB constraints, idempotency and locking. Do not use this client for ordinary directory/report reads; narrowly scoped internal aggregate checks return only the permitted result.
+- The trusted server derives the actor from the authenticated identity and checks the linked active profile, current assignments, beneficiary restrictions and action scope. Never trust a browser-provided actor/logger ID. An archived profile is denied platform access even if assignments or an Auth session remain active; enforce this on server routes, RLS helpers, RPC entry points and storage authorization.
+- Atomic RPCs that rely on server authorization are executable only by the trusted server role, not `anon` or ordinary `authenticated` callers. Any RPC deliberately exposed to clients must itself derive and authorize the actor and validate protected inputs. For `SECURITY DEFINER`, use a fixed safe `search_path`, qualified objects and narrowly granted execution.
+- RLS filters rows, not columns. Restricted directory/attendance projections and profile fields use server response allowlists, column privileges or explicitly secured views/functions; never assume a row policy hides sensitive columns. Any exposed view must preserve the intended underlying authorization boundary.
+- Application-first does not mean read-then-write without a transaction. Every multi-row operation below must commit or roll back together through one server-held PostgreSQL transaction or a narrow RPC. Separate Supabase/PostgREST requests do not form one transaction. The function is optional when a real server transaction suffices; atomicity and serialization are mandatory.
+- All writers affecting a finalized parent participate in the same locking protocol. Attendance capture/import/correction, audience/rule edits and consequence generation acquire the event row lock before rechecking its open/frozen state. Service participant insertion/edit/exclusion, session edits and finalization acquire the session row lock before rechecking `ended_at`. Parent locking by the finalizer alone, or an unlocked RLS state predicate, does not serialize competing writers.
+- Balance-reducing operations acquire a shared transaction-scoped advisory lock keyed by `(student_id, bucket)` before reading balance or locking operation-specific rows. Use a single documented, deterministic key derivation across merit application, demerit waiver and service-credit creation. Acquire multiple balance keys in sorted order; acquire merit units in expiry/ID order. Session finalization acquires its session lock before sorted balance locks; no operation may acquire a session lock while holding a balance lock. Do not lock a demerit first and then its balance scope.
+- Settlement, obligation waiver, refund and correction share obligation-row locking, in sorted obligation-ID order, and recheck payable/effective state after locking. Existing-payment mutations lock their stable receipt identity before obligation rows; multi-payment operations lock receipt identities in sorted order. Define and retain this order across all finance paths. Retry deadlock/serialization failures safely with operation idempotency keys.
+- Creation workflows that can be retried use an operation/request key with a unique constraint at their authoritative parent, or an equivalent source-unit unique key. Reusing a key with different input is rejected; a successful retry returns the committed result rather than creating another record.
+
+### 1.4 Application types and contracts
+
+- Generate and commit one full Supabase definition at `src/server/db/database.types.ts` after applying migrations. Do not edit it manually; regenerate it when tables, enums or RPC signatures change. Both database clients use its `Database` type.
+- Extract generated row, insert, update and enum types where needed using helpers such as `Tables<'payments'>` and `TablesInsert<'payments'>`. Do not predeclare aliases for every table. Share feature-local types only when reused.
+- Infer selected query and join results from the actual query; use `QueryData<typeof query>` when useful. A partial selection is not a complete table row.
+- Database types describe storage, not client permissions. A database-derived subset such as `Pick<Tables<'profiles'>, 'id' | 'first_name' | 'last_name'>` can also be a shared output contract; do not duplicate identical definitions. Define subsets where used and export genuinely shared contracts from the owning feature. Add custom shapes only when needed.
+- Infer input types from runtime validation schemas. Server commands derive protected fields and return only authorized fields; generated insert/update types are not form-input contracts. Select allowed columns explicitly: a type annotation does not remove extra fields from runtime objects.
+
+See the [architecture's feature implementation guide](Florence_Architecture.md#6-feature-implementation-guide) for file responsibilities. TypeScript types do not replace runtime validation, authorization, database constraints or transaction safeguards.
+
+## 2. Shared types
+
+The exact choice between PostgreSQL enums and `text + CHECK` may be decided during migration implementation. Prefer enums only for values that are expected to remain stable.
+
+Suggested stable types:
+
+```text
+bucket: office | rle
+council_access_role: executive | operations | representative
+academic_status: regular | irregular
+```
+
+Likely `text + CHECK` candidates during early development:
+
+```text
+account_status
+invitation_status
+payment_status
+payment_method
+endorsement_status
+record_status
+capture_method
+```
+
+This keeps evolving lifecycle values easier to migrate without weakening database validation.
+
+## 3. Identity and access
+
+## 4. Semester and roster
+
+## 5. Files
+
+## 6. Events, attendance and satisfaction
+
+## 7. Fees, fines, obligations and payments
+
+## 8. Misconduct and demerits
+
+## 9. Merits and endorsements
+
+## 10. Service sessions and credits
+
+## 11. Clearance
+
+## 12. Notifications
+
+## 13. Cross-table derived conditions
+
+The following values should normally be computed from records rather than stored as mutable flags:
+
+| Derived concept | Source |
+|---|---|
+| Semester current/not current | `semesters.is_current` with partial uniqueness |
+| Event active/archived | `events.archived_at` |
+| Event upcoming/ongoing/past | `events.starts_at`, `events.ends_at` |
+| Event attendance open/locked | `events.attendance_locked_at` |
+| Arrival on-time/late | attendance `time_in` + event threshold |
+| Final absence | consequence-generation criteria |
+| Feedback submitted | existence of `event_feedback` row |
+| Obligation waived | `obligations.waived_at` |
+| Obligation paid/unpaid | current authoritative verified allocations, excluding refunded receipts and waived obligations |
+| Pending transfer indicator | pending payment item for obligation |
+| Merit available/applied/expired | merit expiry + `merit_applications` existence |
+| Demerit recorded/waived | waiver fields on `demerits` |
+| Service session open/ended | `service_sessions.ended_at` |
+| Service completion with/without credit | ended session + participant exclusion + credit existence |
+| Service credit valid/revoked | `service_credits.revoked_at` |
+| Clearance not yet cleared/cleared | absence/presence of `clearances` row |
+
+## 14. Recommended indexes
+
+Create only indexes that support known V1 access patterns. Initial candidates:
+
+```text
+profiles(university_id)
+enrollments(semester_id, year_level, academic_status)
+events(semester_id, starts_at)
+event_attendance(event_id, student_id) UNIQUE
+obligations(student_id, semester_id)
+payments(student_id, semester_id, status)
+payment_items(obligation_id)
+demerits(student_id, semester_id, bucket)
+merits(student_id, expires_on)
+merit_applications(student_id, bucket, applied_at)
+service_sessions(semester_id, bucket, duty_on)
+service_participants(session_id, student_id) UNIQUE
+clearances(student_id, semester_id, component) UNIQUE
+notifications(recipient_id, created_at DESC)
+```
+
+Do not add speculative indexes before query patterns exist. Use database query plans during implementation to refine this list.
+
+## 15. RLS strategy summary
+
+RLS controls which rows a user-context query may access. Application code checks action permissions and business rules. Protected service-role commands bypass RLS and must authorize the actor before executing.
+
+### Student
+
+- Own profile/enrollment.
+- Own eligible events and attendance.
+- Own feedback submission.
+- Own obligations/payments/refunds.
+- Own merits/demerits/service history.
+- Own clearances.
+- Own notifications.
+
+### Council Executive
+
+- Council student/roster scope.
+- Full Council events/attendance/consequence/feedback-result scope.
+- Finance and payment scope.
+- Council-origin disciplinary/endorsement scope.
+- Council clearance/reports/semesters.
+- Council membership management for non-Executive assignments.
+- Payment-account management.
+
+### Council Operations
+
+- Same ordinary Council operational data except Executive-only membership management, payment-account management and Council demerit waiver.
+
+### Council Representative
+
+- Events and minimum attendance lookup/capture only.
+- No general roster, finance, disciplinary, feedback-result, member-management or payment-account access.
+
+### Academic / Clinical Instructor
+
+- Student directory/personal information needed for instructor work.
+- Own merit/demerit activity.
+- Assigned merit endorsements.
+- Applicable service sessions/participants/credits.
+- No unrestricted access to other instructors' disciplinary history.
+
+### Academic / RLE Coordinator
+
+- Retains underlying instructor scope.
+- Matching coordinator receives documented disciplinary-history and clearance scope.
+- RLE Coordinator receives external-CI record scope.
+- Coordinator status does not override issuer-only waiver/revocation rules.
+
+### Platform Admin
+
+- Faculty/coordinator/Executive provisioning scope.
+- Misconduct catalog maintenance.
+- No implicit Council finance, payment, disciplinary decision or clearance authority.
+
+## 16. Lean atomic function candidates
+
+Business logic remains in application services. The following functions are the **lean candidate set** for operations where application-only read-then-write logic can fail under concurrency or where several related writes must commit together.
+
+Do not create a DB function merely because an operation is important. The operations below already require atomic transactions and the shared locking protocols in §1.3; use a narrow DB function when the application cannot provide a single server-held transaction.
+
+### 16.1 `generate_event_consequences(p_key, p_actor, p_event, p_bucket)`
+
+**Purpose:** Explicitly finalize event attendance, derive applicable absence/late outcomes and create corresponding obligations and one-day Council demerits exactly once.
+
+**Inputs:** A stable request key, the server-resolved actor, event ID and explicitly selected Office/RLE bucket. Include the bucket in retry identity. Retain it on the event even when no demerits result; reject attempts to change it after generation. The choice applies only to that event.
+
+**Why atomic:**
+
+- Repeated clicks/retries must not duplicate consequences.
+- Attendance must become locked only if consequence generation succeeds.
+- Zero-consequence generation must still lock attendance.
+- Generated obligations/demerits and the lock should commit together.
+
+**Application remains responsible for:**
+
+- Authenticating the actor.
+- Confirming Executive/Operations authorization.
+- Presenting preview data.
+- Validating required configuration and user-facing errors.
+
+**Database function should minimally:**
+
+1. Lock the event row using the same protocol as all audience/configuration and capture writers.
+2. Recheck that attendance is not already locked; an already successful retry returns the existing result without writes.
+3. Freeze the audience/configuration if not already published, including null-attendance rows for absent students; read preserved rules, effective fine amounts and attendance.
+4. Insert missing consequence rows with duplicate protection.
+5. Retain the selected `consequence_bucket` and set `attendance_locked_at` in the same transaction.
+6. Commit or roll back as one transaction.
+
+### 16.2 `verify_payment(payment_id, decision, actor_id?)`
+
+**Purpose:** Verify or reject a transfer submission while preventing double settlement and keeping payment/item state consistent.
+
+**Why atomic:**
+
+- Several obligations may be selected in one payment.
+- Two concurrent payment reviews must not settle the same obligation twice.
+- Verification state and effective allocations must agree at commit.
+
+**Application remains responsible for:**
+
+- Actor authentication and Executive/Operations authorization.
+- Self-verification prevention before call.
+- Confirmation that actual receipt/refund conditions have been checked operationally.
+- User-facing validation/messages.
+
+**Database function should minimally:**
+
+1. Lock the stable receipt identity where present, then the payment and selected obligations in the shared finance lock order. Receipt recognition during verification/rejection uses the same transaction.
+2. Recheck payment is current/pending.
+3. On verify, ensure no selected obligation is already effectively settled by another current verified payment.
+4. Validate same student/semester, complete items, parent-total equality, active/unwaived obligations and actual receipt/refund facts; set decision fields/state. Rejecting returned funds retains its receipt and refund; rejecting duplicate evidence creates no new money movement.
+5. Commit atomically.
+
+If rejection has no multi-row integrity requirement after implementation, rejection may remain a normal application update while verification uses the atomic path.
+
+### 16.3 `record_cash_payment(...)`
+
+**Purpose:** Record one verified cash payment and its complete selected obligation items in one commit.
+
+**Why atomic:**
+
+- Payment row and selected items must either all exist or none exist.
+- Concurrent settlement must not pay the same obligation twice.
+- Same-student/same-semester/full-item rules must be rechecked at commit.
+
+**Application remains responsible for:**
+
+- Actor authorization and self-recording prevention.
+- Building the selected obligation list.
+- Input validation and UI confirmation.
+
+**Database function should minimally:**
+
+1. Lock selected obligations.
+2. Recheck current payable state and same semester/student.
+3. Insert verified cash payment.
+4. Insert complete payment items.
+5. Commit atomically.
+
+### 16.4 `apply_merits(student_id, bucket, days, actor_context?)`
+
+**Purpose:** Consume the student's earliest-expiring available merit units against the chosen Office/RLE balance without overspending or producing a negative balance.
+
+**Why atomic:**
+
+- Concurrent merit applications, demerit waivers and service-credit creation can compete against the same current balance.
+- Merit units must not be consumed twice.
+- Oldest-expiring selection and balance cap must be based on one serialized view.
+
+**Application remains responsible for:**
+
+- Ensuring the authenticated student is applying their own merits.
+- Validating requested positive whole days.
+- Presenting available balance and confirmation.
+
+**Database function should minimally:**
+
+1. Acquire the shared `(student_id, bucket)` transaction advisory lock, then lock candidate merit rows in expiry/ID order.
+2. Recompute current matching-bucket balance.
+3. Recompute available unexpired merit units ordered by expiry.
+4. Cap/reject according to current FL rules.
+5. Insert grouped `merit_applications` rows.
+6. Commit atomically.
+
+### 16.5 `end_service_session(session_id, actor_id?)`
+
+**Purpose:** Finalize valid service attendance once and create eligible one-day service credits only where a positive matching-bucket balance remains.
+
+**Why atomic:**
+
+- All included participants must be validated before completion.
+- Credits must be created at most once.
+- Balance-sensitive credit creation can race with waiver/merit application.
+- Session end and generated credits must agree at commit.
+
+**Application remains responsible for:**
+
+- Session-issuer authorization.
+- Pre-end attendance editing and UI validation.
+- Confirmation that the duty day is complete.
+
+**Database function should minimally:**
+
+1. Lock the service session before reading/locking participants; all participant writers must acquire that same session lock first.
+2. Recheck session is not ended.
+3. Validate required attendance for included participants.
+4. Acquire all included students' matching-bucket advisory locks in sorted key order; recompute each balance and create at most one credit where a positive balance remains.
+5. Set `ended_by/ended_at`.
+6. Commit atomically.
+
+### 16.6 `waive_demerit(demerit_id, actor_id?)`
+
+**Purpose:** Waive one demerit unit only if issuer authority is valid and the current matching-bucket balance remains positive.
+
+**Why atomic:**
+
+- Waiver cannot exceed the current matching-bucket balance.
+- Concurrent waiver, merit application and service-credit creation can otherwise all spend the same remaining balance.
+
+**Application remains responsible for:**
+
+- Resolving waiver authority: any active Council Executive for Council-generated entries, regardless of original Council issuer; the issuing instructor for Faculty entries; or the entering RLE Coordinator for their external-CI entries. Self-waiver is prohibited.
+- Self-benefit prevention.
+- Requiring reason/confirmation.
+
+**Database function should minimally:**
+
+1. Resolve the immutable target owner/bucket, acquire its shared balance advisory lock, then lock the target demerit and revalidate its context.
+2. Recheck demerit is not already waived.
+3. Recompute current balance.
+4. Reject if balance is zero/non-positive.
+5. Set waiver fields.
+6. Commit atomically.
+
+### 16.7 Optional atomic candidates to evaluate during implementation
+
+Do **not** automatically implement these as RPCs. The following transaction contracts are mandatory; a server-held transaction may implement them instead of a DB function:
+
+- `publish_fee_obligations(...)` — snapshot publication and recipients, insert obligations with required duplicate protection and commit together; a retry returns the same publication.
+- `approve_merit_endorsement(...)` — lock pending endorsement, authorize assigned instructor, create all uniquely numbered units and record approval together.
+- `submit_transfer(...)` — insert pending submission and complete selected items together; derive owner and safe initial/decision fields server-side and validate proof ownership/purpose, same semester/student and parent-total equality.
+- `correct_payment(...)` — lock stable receipt/current representation and affected obligations; preserve refund identity, create replacement/items and supersede target together with no double settlement.
+- `record_refund(...)` / `waive_obligation(...)` — coordinate receipt and obligation locks with settlement/correction; recheck refund uniqueness or unpaid state at commit.
+- `confirm_faculty_clearance(...)` — validate same-student/semester Council prerequisite and insert the permanent component confirmation. Council confirmations are immutable, so a committed prerequisite cannot disappear; ordinary authorized SQL with uniqueness may suffice.
+
+## 17. Scope limits
+
+V1 does not include a general audit engine, cash handover tracking, editable permissions, configurable approval workflows, signature tracking, QR token management, partial payments or partial refunds. Use the tables and transaction contracts in this document for required attribution, history and integrity.
+
+## 18. Implementation sequence
+
+Recommended schema implementation order:
+
+1. `profiles`, access assignments and invitations.
+2. `semesters`, `enrollments`, roster imports and files.
+3. Events/attendance/feedback.
+4. Fee/fine definitions, publication snapshots, obligations, receipt identities and payments.
+5. Misconduct, demerits, endorsements and merits.
+6. Service sessions/participants/credits.
+7. Clearance.
+8. Included in-app notifications under FL-044/Q9.
+9. Add only the atomic functions required by implemented workflows.
+10. Add RLS policies alongside each feature rather than in one late security pass.
+'''
+}
+
+Enum bucket {
+  office
+  rle
+}
+
+Enum council_access_role {
+  executive
+  operations
+  representative
+}
+
+Enum academic_status {
+  regular
+  irregular
+}
+
+Table profiles {
+  id uuid [pk, note: "Primary key"]
+  auth_user_id uuid [null, note: "Supabase Auth user link"]
+  university_id text [null, note: "Student number; null for non-student personnel"]
+  email text [null, note: "Current authorized email/contact value"]
+  first_name text [not null, note: "Required given name(s), including compound names"]
+  middle_name text [null, note: "Optional full middle name"]
+  last_name text [not null, note: "Required family name, including compound surnames; verify single-name exceptions before migration"]
+  suffix text [null, note: "Optional name suffix, e.g. Jr., Sr. or III; free text, not an enum"]
+  account_status text [not null, note: "`active` or `archived`"]
+  created_at timestamptz [not null, note: "Server creation time"]
+  updated_at timestamptz [not null, note: "Last profile update"]
+  indexes {
+    auth_user_id [unique]
+    university_id [unique]
+  }
+  Note: '''
+### 3.1 `profiles`
+
+One stable Florence identity per person. Authentication identity and Florence domain identity remain separate.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (auth_user_id)` where non-null.
+- `UNIQUE (university_id)` where non-null.
+- `CHECK (university_id IS NULL OR university_id ~ '^[0-9]{2}-1-[0-9]{5}$')`.
+- `CHECK (btrim(first_name) <> '')` and `CHECK (btrim(last_name) <> '')`.
+- `CHECK (middle_name IS NULL OR btrim(middle_name) <> '')` and `CHECK (suffix IS NULL OR btrim(suffix) <> '')`. Normalize missing/blank optional values to `NULL` and trim surrounding whitespace on authorized writes.
+- Preserve capitalization, Unicode characters, accents, apostrophes, hyphens and compound names. Do not apply letters-only validation, automatic title casing or whitespace-based name splitting. Names are not unique identity keys.
+- Before migration, verify whether the official roster or personnel records contain single-name people. Do not invent a surname to satisfy the proposed required fields; explicitly revise nullability/formatting for that case if confirmed.
+- `CHECK (account_status IN ('active','archived'))`.
+- Consider normalized lowercase uniqueness for email only if email is confirmed as a unique Florence identity attribute; the current function list does not require email to be the stable domain key.
+
+**Name formatting and maintenance**
+
+- Do not store a separately editable `display_name`. Derive it through a shared formatter from the structured fields, omitting absent components and their separators. Normal display: `First Middle Last, Suffix`; sorted listings: `Last, First Middle, Suffix`. Sort by structured surname/given-name fields, not by parsing formatted text.
+- Authorized roster workflows maintain student names; authorized provisioning workflows maintain personnel names. This does not grant general self-editing of protected identity details.
+- Existing full-name data must be reconciled against an authoritative roster/personnel source or manually confirmed. Never automatically split legacy `display_name` values during migration; preserve stable profile IDs and existing record relationships.
+
+**RLS**
+
+- Account holders may read their own permitted profile fields.
+- Student/Council/Faculty directory queries may read only the minimum profile fields allowed by their current function scope.
+- Representatives do not receive general directory access; attendance lookup must use a restricted query path.
+- Only authorized provisioning workflows may create/archive Faculty or Executive-linked profiles.
+- RLS should never treat possession of `auth_user_id` or email as permission to alter role assignments.
+'''
+}
+
+Table role_assignments {
+  id uuid [pk, note: "Primary key"]
+  profile_id uuid [not null, note: "FK → `profiles.id`"]
+  role text [not null, note: "Academic Instructor, Clinical Instructor, Academic Coordinator, RLE Coordinator, Platform Admin"]
+  assigned_by uuid [not null, note: "FK → `profiles.id`"]
+  assigned_at timestamptz [not null, note: "Assignment time"]
+  removed_by uuid [null, note: "FK → `profiles.id`"]
+  removed_at timestamptz [null, note: "Removal time"]
+  Note: '''
+### 3.2 `role_assignments`
+
+Stores non-Council fixed access assignments and coordinator add-ons. Council membership is stored separately because Council position and access-role semantics are distinct.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to `profiles` for subject/actors.
+- `CHECK (role IN (...approved fixed roles...))`.
+- `CHECK ((removed_by IS NULL) = (removed_at IS NULL))`.
+- Partial unique index preventing more than one active row for the same `(profile_id, role)`.
+- Instructor mutual exclusion and coordinator dependency remain application checks because they depend on other rows and are clearer in the service layer.
+
+**RLS**
+
+- Users may read only their own active assignment summary when needed for workspace selection.
+- Platform Admin may read and manage Faculty/coordinator assignments within FL-011 scope.
+- Ordinary Faculty and Council users cannot mutate role assignments directly.
+- Application authorization must still enforce valid role combinations before write.
+'''
+}
+
+Table council_memberships {
+  id uuid [pk, note: "Primary key"]
+  profile_id uuid [not null, note: "FK → `profiles.id`"]
+  access_role text [not null, note: "`executive`, `operations`, `representative`"]
+  position_label text [not null, note: "Descriptive Council position"]
+  assigned_by uuid [not null, note: "FK → `profiles.id`"]
+  assigned_at timestamptz [not null, note: "Assignment time"]
+  removed_by uuid [null, note: "FK → `profiles.id`"]
+  removed_at timestamptz [null, note: "Removal time"]
+  Note: '''
+### 3.3 `council_memberships`
+
+Stores one Council access assignment plus its descriptive position label.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to `profiles`.
+- `CHECK (access_role IN ('executive','operations','representative'))`.
+- `CHECK (btrim(position_label) <> '')`.
+- `CHECK ((removed_by IS NULL) = (removed_at IS NULL))`.
+- Partial unique index allowing at most one active Council membership per profile.
+- Position/access compatibility and who may promote/demote remain application checks.
+
+**RLS**
+
+- Members may read their own Council assignment for workspace selection.
+- Council Executives may read Council membership records and manage Operations/Representative assignments.
+- Platform Admin may manage Executive assignments.
+- Operations/Representatives cannot mutate membership.
+- Position-label edits alone must never be used by RLS as authority; RLS authorization uses `access_role`.
+'''
+}
+
+Table invitations {
+  id uuid [pk, note: "Primary key"]
+  profile_id uuid [not null, note: "FK → `profiles.id`"]
+  email text [not null, note: "Invitation destination"]
+  status text [not null, note: "`pending`, `accepted`, `expired`, `cancelled`"]
+  token_hash text [not null, note: "Hash of invitation token, not raw secret"]
+  expires_at timestamptz [not null, note: "Expiration time"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  accepted_at timestamptz [null, note: "Acceptance time"]
+  cancelled_at timestamptz [null, note: "Cancellation time"]
+  indexes {
+    token_hash [unique]
+  }
+  Note: '''
+### 3.4 `invitations`
+
+Stores invitation business state, independent of provider delivery details.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (token_hash)`.
+- Foreign keys to `profiles`.
+- `CHECK (status IN ('pending','accepted','expired','cancelled'))`.
+- `CHECK (expires_at > created_at)`.
+- Shape checks ensuring `accepted_at` is present only for accepted rows and `cancelled_at` only for cancelled rows.
+- Optional partial uniqueness for one open invitation per profile/email if implementation needs it.
+
+**RLS**
+
+- Invitation records are not general authenticated-user data.
+- Authorized provisioning actors may read/manage invitations within their provisioning scope.
+- Invitation acceptance should use a dedicated server-side flow; raw token hashes are not exposed through ordinary SELECT policies.
+'''
+}
+
+Table semesters {
+  id uuid [pk, note: "Primary key"]
+  academic_year_start integer [not null, note: "Start year"]
+  term text [not null, note: "Current approved term vocabulary"]
+  starts_on date [not null, note: "Inclusive start"]
+  ends_on date [not null, note: "Inclusive end"]
+  is_current boolean [not null, note: "Current ordinary academic context"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    (academic_year_start, term) [unique]
+  }
+  Note: '''
+### 4.1 `semesters`
+
+Represents semester context. Creation and activation are separate; there is no draft/open/closed lifecycle.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (academic_year_start, term)`.
+- `CHECK (ends_on >= starts_on)`.
+- Reasonable year-range check.
+- Partial unique index allowing at most one `is_current = true` row.
+- Before first activation, zero current semesters is allowed and ordinary academic-record creation is blocked with an actionable error. Once initialized, activation locks a shared semester-context scope, clears the previous current row and sets the selected row in one transaction; no ordinary deactivation-only path is exposed. Ordinary record creation resolves the active context in its transaction and retains that semester permanently.
+- Term vocabulary should not include Midyear unless implementation confirms it is needed.
+
+**RLS**
+
+- Students may read semesters associated with their enrollments and historical records.
+- Council Executive/Operations may read all semester rows and manage semester creation/activation.
+- Representatives may receive semester context only through permitted event queries.
+- Faculty may read semester context needed for their authorized records.
+'''
+}
+
+Table enrollments {
+  id uuid [pk, note: "Primary key"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  year_level smallint [not null, note: "1–4"]
+  academic_status text [not null, note: "`regular` / `irregular`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last roster edit"]
+  indexes {
+    (student_id, semester_id) [unique]
+    (semester_id, year_level, academic_status) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 4.2 `enrollments`
+
+One semester roster row per student.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (student_id, semester_id)`.
+- Foreign keys to `profiles` and `semesters`.
+- `CHECK (year_level BETWEEN 1 AND 4)`.
+- `CHECK (academic_status IN ('regular','irregular'))`.
+
+**RLS**
+
+- Students may read their own enrollment rows.
+- Council Executive/Operations may read/manage roster entries.
+- Instructors/coordinators may read roster rows needed for the student directory and authorized student operations.
+- Representatives do not receive direct roster browsing access.
+'''
+}
+
+Table roster_imports {
+  id uuid [pk, note: "Primary key"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  file_id uuid [not null, note: "FK → `files.id`"]
+  status text [not null, note: "`validated`, `applied`, `failed`"]
+  summary jsonb [null, note: "Bounded validation/application summary"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  applied_at timestamptz [null, note: "Apply time"]
+  Note: '''
+### 4.3 `roster_imports`
+
+Tracks validation/application of a fixed CSV roster import without storing a second student system.
+
+**Roster name contract**
+
+- The fixed CSV template uses separate `first_name`, `middle_name`, `last_name` and `suffix` columns rather than an editable full-name/display-name column. Given name and surname are required under the proposed profile model; middle name and suffix may be blank and are normalized to `NULL`.
+- Apply the same name validation and normalization to preview, import application and individual roster entry/edit. Preserve compound values exactly within their respective columns. A legacy full-name-only CSV requires authoritative reconciliation, not heuristic splitting.
+- Resolve students through the university number/stable profile identity, never through a unique-name assumption. Preview identity conflicts before applying; a name change must not create a replacement student identity.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to `semesters`, `files`, `profiles`.
+- `CHECK (status IN ('validated','applied','failed'))`.
+- `CHECK (summary IS NULL OR jsonb_typeof(summary) = 'object')` or agreed fixed shape.
+- Shape check tying `applied_at` to `status = 'applied'`.
+- Required apply-operation idempotency key/uniqueness prevents a retry from reapplying the same import. Same-file/semester uniqueness is an additional optional convenience, not a replacement for operation idempotency.
+
+**RLS**
+
+- Council Executive/Operations may read and create import records.
+- Students, Representatives and Faculty do not read import files or diagnostics.
+- Actual application remains an authorized server workflow, not direct client writes to enrollment rows.
+'''
+}
+
+Table files {
+  id uuid [pk, note: "Primary key"]
+  uploader_id uuid [not null, note: "FK → `profiles.id`"]
+  purpose text [not null, note: "Approved fixed purpose"]
+  storage_key text [not null, note: "Private object locator"]
+  media_type text [not null, note: "Validated MIME type"]
+  byte_size bigint [not null, note: "Positive size"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    storage_key [unique]
+  }
+  Note: '''
+### 5.1 `files`
+
+Private file metadata only. Actual objects remain in private storage.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (storage_key)`.
+- Foreign key to `profiles`.
+- `CHECK (purpose IN ('roster_import','payment_proof','payment_account_qr'))`, extend only when a current FL function requires another stored file purpose.
+- `CHECK (byte_size > 0)`.
+- MIME allowlist and upload-size policy may be enforced in application/storage code rather than encoded as large SQL checks.
+
+**RLS**
+
+- No broad file metadata SELECT.
+- Students may access only their own payment proof metadata where needed.
+- Authorized Council users may access payment proof metadata for payments they may review.
+- Roster import files are limited to Executive/Operations.
+- Payment-account QR metadata is visible only where the associated payment account itself is visible.
+- Object download/upload authorization remains in server/storage code; storage keys alone never grant access.
+'''
+}
+
+Table events {
+  id uuid [pk, note: "Primary key"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  name text [not null, note: "Event name"]
+  venue text [null, note: "Venue"]
+  starts_at timestamptz [not null, note: "Event start"]
+  ends_at timestamptz [not null, note: "Event end"]
+  time_in_from timestamptz [null, note: "Attendance window"]
+  time_in_until timestamptz [null, note: "Attendance window"]
+  time_out_from timestamptz [null, note: "Attendance window"]
+  time_out_until timestamptz [null, note: "Attendance window"]
+  late_after_minutes integer [not null, note: "Lateness threshold offset"]
+  year_levels smallint[] [not null, note: "Explicit audience years"]
+  academic_statuses text[] [not null, note: "Explicit audience statuses"]
+  audience_frozen_at timestamptz [null, note: "First successful audience publication/use; participant roster and effective configuration frozen together"]
+  attendance_locked_at timestamptz [null, note: "Set after successful explicit consequence generation"]
+  consequence_bucket bucket [null, note: "Office/RLE explicitly selected at first consequence generation, not publication; retained immutably even if no demerits result. Finalized legacy events with no bucket evidence remain NULL and cannot regenerate."]
+  archived_at timestamptz [null, note: "Future-list visibility"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last editable update"]
+  indexes {
+    (id, semester_id) [unique]
+    (semester_id, starts_at) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 6.1 `events`
+
+Stores event configuration, audience, schedule and attendance-lock fact. Upcoming/Ongoing/Past are derived from timestamps; Active/Archived is derived from `archived_at`.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to semester/creator.
+- `CHECK (ends_at > starts_at)`.
+- `CHECK (late_after_minutes >= 0)`.
+- Non-empty audience arrays; year levels limited to 1–4; statuses limited to Regular/Irregular.
+- Pairwise schedule checks for configured attendance windows.
+- Council selects one Office/RLE bucket for the event during consequence generation. Store the selection even if no demerits result; include it in retry identity and reject later rebucketing. This is not a global setting and does not change financial consequences.
+- Do not add stored schedule-state enum.
+- Do not use `attendance_locked_at` alone to authorize capture; the application also checks actor and event eligibility.
+- Before an event is exposed to students or first used for capture/consequence generation, one transaction locks the event, snapshots its eligible students into `event_attendance` and sets `audience_frozen_at`. Every eligible student receives a row even with no attendance. Draft Council-only event configuration may remain unfrozen. Later roster changes do not add/remove participants or rewrite eligibility.
+- At that boundary freeze audience filters, semester, attendance windows, lateness threshold and effective consequence rules/amounts. Reject subsequent edits to those fields; descriptive/archival edits must not change historical eligibility or outcomes. Student event/feedback eligibility uses preserved participant rows, not a fresh enrollment-filter query.
+
+**RLS**
+
+- Students read only events for which they are included/eligible under the preserved audience.
+- Representatives may read all events needed for attendance recording, but not management-only data or feedback results.
+- Executive/Operations may read/manage all Council events.
+- Event management writes remain server-authorized; direct client writes should be narrow.
+'''
+}
+
+Table event_consequence_rules {
+  id uuid [pk, note: "Primary key"]
+  event_id uuid [not null, note: "FK → `events.id`"]
+  absence_fine_definition_id uuid [null, note: "FK → `fine_definitions.id`"]
+  late_fine_definition_id uuid [null, note: "FK → `fine_definitions.id`"]
+  absence_demerit_days integer [not null, note: "Whole days; zero disables"]
+  late_demerit_days integer [not null, note: "Whole days; zero disables"]
+  absence_fine_amount numeric(12,2) [null, note: "Effective fine amount frozen at audience publication"]
+  late_fine_amount numeric(12,2) [null, note: "Effective fine amount frozen at audience publication"]
+  requires_time_in boolean [not null, note: "Fixed attendance criterion; must be true for this release"]
+  requires_time_out boolean [not null, note: "Whether missing/out-of-window departure makes the participant absent"]
+  indexes {
+    event_id [unique]
+  }
+  Note: '''
+### 6.2 `event_consequence_rules`
+
+One consequence-configuration row per event. Generated obligations/demerits snapshot their actual amount/units so later definition edits do not rewrite history.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (event_id)`.
+- Foreign keys to event/fine definitions.
+- `CHECK (absence_demerit_days >= 0)`.
+- `CHECK (late_demerit_days >= 0)`.
+- Fine-definition/amount pairs are both null or both present with a positive amount once the event audience is frozen. Copy amounts under the publication transaction; later definition edits never change them.
+- `requires_time_in = true`; a configured time-in window is required. `requires_time_out = true` requires a configured time-out window. Window boundaries are inclusive; configured start/end pairs must be both present and ordered.
+- Lateness is measured in whole-minute configuration units from `events.time_in_from`; equality to the threshold is on time, strictly later is late. Out-of-window entries are invalid capture, not an alternate valid attendance state. Generation treats missing required attendance as absence, including missing time-out only when `requires_time_out` is true.
+- Absence takes precedence over late: generate at most one outcome (`absence` or `late`) per participant, never both. Present/on-time participants receive no consequences. Persist the outcome on generated source records rather than recomputing monetary history from current definitions.
+- Rules become immutable when `events.audience_frozen_at` is set; all mutation paths lock and recheck the event.
+
+**RLS**
+
+- Executive/Operations may read/manage consequence configuration before audience freeze; no post-freeze rule edits.
+- Representatives do not read or change consequence rules unless the application needs minimal non-sensitive timing fields for attendance capture; consequence details themselves are not required for Representative work.
+- Students do not read internal generation configuration; they see resulting obligations/demerits through their own records.
+'''
+}
+
+Table event_attendance {
+  id uuid [pk, note: "Primary key"]
+  event_id uuid [not null, note: "FK → `events.id`"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "Must match event semester via composite FK"]
+  year_level_snapshot smallint [not null, note: "Enrollment classification at audience freeze"]
+  academic_status_snapshot text [not null, note: "Enrollment classification at audience freeze"]
+  time_in timestamptz [null, note: "Actual time-in"]
+  time_out timestamptz [null, note: "Actual time-out"]
+  time_in_method text [null, note: "`qr`, `manual`, `csv`"]
+  time_out_method text [null, note: "`qr`, `manual`, `csv`"]
+  time_in_recorded_by uuid [null, note: "FK → `profiles.id`"]
+  time_out_recorded_by uuid [null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last pre-lock edit"]
+  indexes {
+    (event_id, student_id) [unique]
+    (id, student_id, semester_id) [unique]
+  }
+  Note: '''
+### 6.3 `event_attendance`
+
+One preserved participant/attendance row per student/event, including students with no captured attendance. This table is the event audience snapshot, not only a log of people who arrived.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (event_id, student_id)`.
+- Foreign keys to event/student/semester/recorders.
+- `CHECK (time_out IS NULL OR time_in IS NOT NULL)`.
+- `CHECK (time_out IS NULL OR time_out > time_in)`.
+- Method vocabulary check.
+- Composite FK `(event_id, semester_id)` → declared unique `events(id, semester_id)`; snapshot classifications use the same row-local vocabulary checks as enrollments.
+- Capture resolves an existing preserved participant row; it never creates eligibility by inserting an arbitrary student/event pair. Source-generation paths can therefore reference absent participants.
+- Student/event eligibility and no-self-recording are trusted-server checks. Every capture/edit/import path locks the parent event and rechecks that attendance is not locked before writing; finalization uses the same protocol.
+
+**RLS**
+
+- Students read their own attendance rows.
+- Executive/Operations/Representatives may read and record attendance within FL-017 scope.
+- Representative lookup is limited to attendance-required fields and must not expose general roster/disciplinary/financial data.
+- Attendance updates must be denied after the owning event is locked through the shared parent-lock protocol. A narrow RLS predicate may reinforce this but is not a substitute for serialization.
+'''
+}
+
+Table event_feedback {
+  id uuid [pk, note: "Primary key"]
+  event_id uuid [not null, note: "FK → `events.id`"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  responses jsonb [not null, note: "Fixed questionnaire answers"]
+  submitted_at timestamptz [not null, note: "Final submission time"]
+  indexes {
+    (event_id, student_id) [unique]
+  }
+  Note: '''
+### 6.4 `event_feedback`
+
+One final identified response per student/event.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (event_id, student_id)`.
+- Foreign keys to event/student.
+- `CHECK (jsonb_typeof(responses) = 'object')` or agreed fixed JSON shape.
+- No update/delete path for submitted answers in this release.
+
+**RLS**
+
+- Participating students may insert one response for themselves and may read their own response if the UI requires it.
+- Executive/Operations may read identified responses and summaries.
+- Representatives may not read feedback/results.
+- Students may not read another student's response.
+'''
+}
+
+Table fee_definitions {
+  id uuid [pk, note: "Primary key"]
+  name text [not null, note: "Definition name"]
+  amount numeric(12,2) [not null, note: "Positive amount"]
+  archived_at timestamptz [null, note: "Future-use archive"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last definition edit"]
+  Note: '''
+### 7.1 `fee_definitions`
+
+Reusable fee definitions for future publication.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign key to creator.
+- `CHECK (amount > 0)`.
+- `CHECK (btrim(name) <> '')`.
+- Optional uniqueness on active definition name if product implementation requires it; not mandated by the FL.
+
+**RLS**
+
+- Executive/Operations may read/manage definitions.
+- Students normally read generated obligations, not the full reusable definition catalog.
+- Representatives/Faculty have no fee-definition access.
+'''
+}
+
+Table fine_definitions {
+  id uuid [pk, note: "Primary key"]
+  name text [not null, note: "Definition name"]
+  amount numeric(12,2) [not null, note: "Positive amount"]
+  archived_at timestamptz [null, note: "Future-use archive"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last definition edit"]
+  Note: '''
+### 7.2 `fine_definitions`
+
+Reusable event-fine definitions for future event configuration.
+
+**Basic database checks**
+
+- Same structural checks as `fee_definitions`.
+- Existing generated obligations snapshot their own amount and do not change when this definition changes or is archived.
+
+**RLS**
+
+- Executive/Operations may read/manage definitions.
+- Students/Representatives/Faculty do not browse the reusable catalog.
+'''
+}
+
+Table fee_publications {
+  id uuid [pk, note: "Primary key"]
+  request_key uuid [not null, note: "Unique retry/idempotency key"]
+  fee_definition_id uuid [not null, note: "FK → `fee_definitions.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  year_levels smallint[] [not null, note: "Nonempty selected years, limited to 1–4"]
+  academic_statuses text[] [not null, note: "Nonempty selected Regular/Irregular values"]
+  description text [not null, note: "Frozen nonblank definition label"]
+  amount numeric(12,2) [not null, note: "Frozen positive amount"]
+  published_by uuid [not null, note: "FK → `profiles.id`"]
+  published_at timestamptz [not null, note: "Publication time"]
+  indexes {
+    request_key [unique]
+    (id, fee_definition_id, semester_id) [unique]
+  }
+  Note: '''
+### 7.3a `fee_publications`
+
+One immutable publication snapshot for FL-021, not an approval workflow.
+
+- Snapshot filters, definition amount/description and recipient obligations in one transaction using one consistent roster view. Existing recipients never change after roster edits. Repeated publication for overlapping audiences cannot duplicate a student's same definition/semester obligation.
+- RLS: Executive/Operations only; students read their own resulting obligations, not the publication audience or other recipients. Protected writes are server-only.
+'''
+}
+
+Table obligations {
+  id uuid [pk, note: "Primary key"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  kind text [not null, note: "`fee` / `fine`"]
+  fee_definition_id uuid [null, note: "FK → `fee_definitions.id`; must match publication"]
+  fee_publication_id uuid [null, note: "FK → `fee_publications.id`"]
+  consequence_outcome text [null, note: "Fine source: `absence` / `late`"]
+  event_attendance_id uuid [null, note: "FK → `event_attendance.id`"]
+  description text [not null, note: "Frozen display description"]
+  amount numeric(12,2) [not null, note: "Frozen positive amount"]
+  waived_at timestamptz [null, note: "Waiver time"]
+  waived_by uuid [null, note: "FK → `profiles.id`"]
+  waiver_reason text [null, note: "Attributable context"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    (student_id, semester_id) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 7.3 `obligations`
+
+Immutable original fee/fine debt with optional explicit waiver. Payment standing is derived from effective payment allocations and refunds.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to student, semester and applicable source.
+- `CHECK (kind IN ('fee','fine'))`.
+- `CHECK (amount > 0)`.
+- Source-shape check: fee → fee definition; fine → event attendance.
+- Waiver-shape check tying `waived_at`, `waived_by`, and nonblank `waiver_reason` together.
+- Required partial uniqueness on `(fee_definition_id, student_id, semester_id)` for fees and `(event_attendance_id, consequence_outcome)` for fines.
+- Fee shape requires definition/publication and excludes attendance/outcome; fine shape requires attendance/outcome and excludes fee fields. Composite FKs ensure fee publication matches definition/semester and fine attendance matches student/semester. Declare matching unique parent keys.
+- No `paid` or `partially_paid` column.
+
+**RLS**
+
+- Students read their own obligations and derived standing.
+- Executive/Operations read permitted student financial accounts and may waive unpaid obligations.
+- Representatives/Faculty do not read financial obligations.
+- Self-waiver is application-enforced.
+'''
+}
+
+Table payment_accounts {
+  id uuid [pk, note: "Primary key"]
+  label text [not null, note: "Human-readable destination label"]
+  account_name text [not null, note: "Destination holder"]
+  account_reference text [not null, note: "Account/reference number"]
+  instructions text [null, note: "Student transfer instructions"]
+  qr_file_id uuid [null, note: "FK → `files.id`"]
+  archived_at timestamptz [null, note: "Future-use archive"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last edit"]
+  Note: '''
+### 7.4 `payment_accounts`
+
+Current and archived student transfer destinations.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to creator/file.
+- Nonblank label/name/reference.
+- No hard delete for accounts referenced by historical payments.
+- Existing payments snapshot destination details so edits do not rewrite submission history.
+
+**RLS**
+
+- Students may read active payment accounts needed for transfer submission.
+- Council Executives may manage accounts.
+- Operations/Representatives may not manage destination accounts.
+- Operations may read historical destination snapshots through payment records where needed for review; they do not need edit access to `payment_accounts`.
+'''
+}
+
+Table payment_receipts {
+  id uuid [pk, note: "Primary key; stable across payment corrections"]
+  request_key uuid [not null, note: "Unique receipt-recognition retry key"]
+  received_at timestamptz [not null, note: "Actual externally confirmed receipt time"]
+  recognized_by uuid [not null, note: "FK → `profiles.id`; actual recording actor"]
+  created_at timestamptz [not null, note: "Recognition time"]
+  indexes {
+    request_key [unique]
+  }
+  Note: '''
+### 7.5a `payment_receipts`
+
+Minimal stable identity for one actual receipt of money across submission decisions and corrected representations. This is not bank integration or an approval workflow.
+
+- Pending/no-receipt submissions have no receipt identity. Recognize one only when staff confirm actual receipt; duplicate evidence links to the existing receipt, never creates another receipt/refund. Actual transfer deduplication remains manual, as agreed in FL-025.
+- Exactly one current authoritative payment representation per receipt contributes its amount to gross receipts. A duplicate-evidence submission is non-authoritative and contributes neither allocations nor money totals. An independently received transfer returned before rejection has its own receipt, authoritative rejected representation and completed refund.
+- Recognition, selection of authoritative representation and any required refund/rejection commit together. Missing authoritative representation at commit is rejected by the trusted transaction workflow. Historical representations are retained.
+- RLS: no direct client writes. Executive/Operations access only through permitted finance workflows; students receive receipt context only through their own payment history, never through another student's linked evidence.
+'''
+}
+
+Table payments {
+  id uuid [pk, note: "Primary key"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  method text [not null, note: "`transfer` / `cash`"]
+  status text [not null, note: "Transfer: pending/verified/rejected; cash: verified"]
+  record_status text [not null, note: "`current` / `superseded`"]
+  request_key uuid [not null, note: "Unique creation/correction retry key"]
+  receipt_id uuid [null, note: "FK → `payment_receipts.id`; stable actual-money identity"]
+  is_receipt_record boolean [not null, note: "Authoritative representation of receipt, not duplicate evidence"]
+  payment_account_id uuid [null, note: "FK → `payment_accounts.id`"]
+  destination_label text [null, note: "Snapshot for transfer"]
+  destination_account_name text [null, note: "Snapshot for transfer"]
+  destination_account_reference text [null, note: "Snapshot for transfer"]
+  reference_number text [null, note: "Transfer reference"]
+  proof_file_id uuid [null, note: "FK → `files.id`"]
+  amount numeric(12,2) [not null, note: "Total selected amount"]
+  submitted_by uuid [not null, note: "FK → `profiles.id`"]
+  submitted_at timestamptz [not null, note: "Submission/recording time"]
+  decided_by uuid [null, note: "FK → `profiles.id`"]
+  decided_at timestamptz [null, note: "Verification/rejection time"]
+  decision_reason text [null, note: "Required on rejection/correction context as applicable"]
+  supersedes_payment_id uuid [null, note: "FK → `payments.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    request_key [unique]
+    (id, receipt_id) [unique]
+    supersedes_payment_id [unique]
+    (student_id, semester_id, status) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 7.5 `payments`
+
+Represents transfer submissions, verified transfers, recorded cash payments and superseding corrections.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to student/semester/account/file/actors/superseded payment.
+- `CHECK (method IN ('transfer','cash'))`.
+- `CHECK (status IN ('pending','verified','rejected'))` with method-shape rules.
+- `CHECK (record_status IN ('current','superseded'))`.
+- `CHECK (amount > 0)`.
+- Transfer-shape check requires destination/reference/proof as defined by implementation; cash-shape check excludes transfer-only fields.
+- Decision-shape check ties `decided_by/decided_at` together and requires reason for rejection.
+- `supersedes_payment_id IS DISTINCT FROM id`.
+- `UNIQUE (supersedes_payment_id)` where non-null: each version has at most one immediate successor, including historical successors. Trusted correction transactions require a current target and forbid links to ancestors/cycles.
+- Required partial unique index on `receipt_id` where `is_receipt_record AND record_status = 'current'`. `is_receipt_record` requires non-null receipt; verified/cash rows require authoritative receipt recognition. Rejected authoritative received transfers require a recorded full return. Duplicate evidence is non-authoritative and cannot settle obligations.
+- A correction preserves `receipt_id`, beneficiary and existing refund identity, with a required nonblank correction reason in `decision_reason`. It does not create a receipt or refund. Correcting the authoritative amount also validates any full-refund amount; reject a change that would invalidate recorded money-return history and handle unsupported exceptions off-platform.
+- Correction locks the receipt, target current representation and old/new obligation union, validates no double settlement, inserts replacement/items, supersedes the old row and updates effective allocations/totals in one transaction. Never expose intermediate validity states.
+- Same-semester item rule remains application/atomic-function validation because it spans child rows.
+
+**RLS**
+
+- Students read their own payments and may create their own transfer submissions.
+- Executive/Operations read permitted payments, record cash, verify/reject transfers, record completed refunds and corrections.
+- Representatives/Faculty have no payment access.
+- Students cannot update decision fields.
+- Self-recording/self-verification/self-correction restrictions remain application checks.
+'''
+}
+
+Table payment_items {
+  id uuid [pk, note: "Primary key"]
+  payment_id uuid [not null, note: "FK → `payments.id`"]
+  obligation_id uuid [not null, note: "FK → `obligations.id`"]
+  amount numeric(12,2) [not null, note: "Full payable amount captured at payment time"]
+  indexes {
+    (payment_id, obligation_id) [unique]
+    obligation_id [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 7.6 `payment_items`
+
+Links a payment to complete selected obligations.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (payment_id, obligation_id)`.
+- Foreign keys to payment/obligation.
+- `CHECK (amount > 0)`.
+- Required composite FKs tie payment and obligation to the same student/semester, using child context columns if needed; alternatively derive context without redundant storage and enforce the equivalent relationship in the protected transaction. The physical migration must select one explicit design, not leave independent ownership references.
+- Full selected-item amount, no double settlement and parent-total equality are revalidated by the protected payment transaction under shared obligation locks.
+
+**RLS**
+
+- Students read items for their own payments.
+- Executive/Operations read items for payments in their financial scope.
+- Child inserts are not exposed as arbitrary client mutations; the payment workflow creates them as one operation.
+'''
+}
+
+Table payment_refunds {
+  id uuid [pk, note: "Primary key"]
+  receipt_id uuid [not null, note: "FK → `payment_receipts.id`; stable refund identity"]
+  payment_id uuid [not null, note: "Payment representation used when the return was recorded; retained attribution"]
+  amount numeric(12,2) [not null, note: "Full actual receipt amount returned"]
+  reason text [not null, note: "Required note/reason"]
+  recorded_by uuid [not null, note: "FK → `profiles.id`"]
+  refunded_at timestamptz [not null, note: "Actual external refund time"]
+  created_at timestamptz [not null, note: "Record creation time"]
+  indexes {
+    receipt_id [unique]
+  }
+  Note: '''
+### 7.7 `payment_refunds`
+
+Records a completed full-payment refund performed outside the platform.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (receipt_id)` for the V1 full-receipt refund rule; superseding a payment cannot permit a second refund.
+- Composite FK `(payment_id, receipt_id)` → declared unique `payments(id, receipt_id)` ensures the recorded representation belongs to that receipt.
+- Foreign keys to payment/recorder.
+- `CHECK (amount > 0)`.
+- `CHECK (btrim(reason) <> '')`.
+- Lock receipt and affected obligations; require confirmed actual receipt, no existing refund and equality to the authoritative full receipt amount. A returned transfer may be recorded together with rejection; verified is not a prerequisite for recognition of actual received-and-returned money.
+- Refund history remains attached to the receipt across corrections; its original payment reference is never rewritten. Gross receipts count each receipt's current authoritative amount once; refunds count its one recorded return once; net is gross minus refunds. Only current authoritative verified payments without a receipt refund settle active obligations. Pending, rejected, superseded and duplicate-evidence rows never settle debt.
+- Waiver and settlement recheck under the same obligation locks; a refund reopens only active obligations, not waived ones. A pending transfer does not reserve an obligation.
+
+**RLS**
+
+- Students read refunds for their own payments.
+- Executive/Operations may create/read refunds.
+- Representatives/Faculty have no access.
+- No requested/approved/processing write path exists.
+'''
+}
+
+Table misconduct_catalog {
+  id uuid [pk, note: "Primary key"]
+  label text [not null, note: "Option label"]
+  is_other boolean [not null, note: "Marks the required Other option"]
+  archived_at timestamptz [null, note: "Future-use archive"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last edit"]
+  Note: '''
+### 8.1 `misconduct_catalog`
+
+Future-selectable misconduct options maintained by Platform Admin. Every selection yields one demerit unit per created demerit row; `Other` remains available and requires incident description when used.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign key to creator.
+- `CHECK (btrim(label) <> '')`.
+- Partial unique index ensuring at most one active `is_other = true` row.
+- Do not store configurable default sanction days; the current FL fixes every catalog option to one demerit per generated unit.
+
+**RLS**
+
+- Platform Admin may read/manage catalog options.
+- Instructors/RLE Coordinators may read active options for demerit entry.
+- Council users read catalog data only if an implementation path genuinely needs it; Council-generated event demerits do not imply catalog management authority.
+- Students may see the frozen description on their demerit records rather than browse the catalog.
+'''
+}
+
+Table demerits {
+  id uuid [pk, note: "Primary key"]
+  incident_group_id uuid [not null, note: "Groups units from one incident"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  bucket bucket [not null, note: "Office/RLE"]
+  source text [not null, note: "`faculty`, `council`, `external_ci`"]
+  misconduct_id uuid [null, note: "FK → `misconduct_catalog.id`"]
+  description text [not null, note: "Frozen incident description"]
+  incident_on date [not null, note: "Incident date"]
+  event_attendance_id uuid [null, note: "FK → `event_attendance.id` for Council generation"]
+  consequence_outcome text [null, note: "Council source: `absence` / `late`"]
+  source_unit_index integer [null, note: "Council source: positive unit ordinal within generated outcome"]
+  issued_by uuid [not null, note: "FK → `profiles.id`"]
+  external_source_name text [null, note: "External CI attribution"]
+  waived_at timestamptz [null, note: "Waiver time"]
+  waived_by uuid [null, note: "FK → `profiles.id`"]
+  waiver_reason text [null, note: "Required waiver reason"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    (student_id, semester_id, bucket) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 8.2 `demerits`
+
+One row equals one whole-day demerit unit. Multi-day sanctions create multiple rows sharing one `incident_group_id`.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to student/semester/catalog/attendance/actors.
+- `CHECK (source IN ('faculty','council','external_ci'))`.
+- Manual multi-unit incident creation commits all rows together and uses a stable request/group key plus unit ordinal uniqueness so retries cannot create another incident or duplicate its units.
+- Source-shape checks: Council source requires event attendance; external source requires external attribution; ordinary Faculty source may reference catalog.
+- `CHECK (btrim(description) <> '')`.
+- Waiver-shape check tying waiver actor/time/reason together.
+- No `days` quantity column because one row is one day.
+- Council source requires positive `source_unit_index` and valid outcome; non-Council sources exclude those fields. Required partial uniqueness on `(event_attendance_id, consequence_outcome, source_unit_index)` makes multi-unit generation retry-safe.
+- Composite FK ties source attendance to the same student/semester. An authorized Council Executive/Operations user selects Office or RLE during event consequence generation. The server validates the selection, and generated demerits must match the event's retained consequence bucket.
+
+**RLS**
+
+- Students read their own Office/RLE demerits.
+- Council Executive/Operations read Council-generated demerits only. Any active Council Executive may waive an eligible Council-generated demerit, regardless of its original Council issuer. Operations and Representatives cannot waive. Self-waiver remains prohibited.
+- Ordinary instructors read their own issued activity, not other instructors' unrestricted history.
+- Coordinators receive only their documented history scope.
+- RLE Coordinator may read/manage external-CI records they entered within FL-035 scope.
+- Waiver authority and self-benefit restrictions remain application checks plus atomic balance validation when required.
+'''
+}
+
+Table merit_endorsements {
+  id uuid [pk, note: "Primary key"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  assigned_instructor_id uuid [not null, note: "FK → `profiles.id`"]
+  description text [not null, note: "Endorsement basis"]
+  requested_days integer [not null, note: "Positive whole days"]
+  status text [not null, note: "`pending`, `approved`, `rejected`"]
+  submitted_by uuid [not null, note: "FK → `profiles.id`"]
+  submitted_at timestamptz [not null, note: "Submission time"]
+  decided_by uuid [null, note: "FK → `profiles.id`"]
+  decided_at timestamptz [null, note: "Decision time"]
+  decision_reason text [null, note: "Required on rejection if implementation adopts that rule"]
+  indexes {
+    (id, student_id, semester_id) [unique]
+  }
+  Note: '''
+### 9.1 `merit_endorsements`
+
+Council-origin recommendation awaiting one assigned instructor decision.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to student/semester/assigned instructor/actors.
+- `CHECK (requested_days > 0)`.
+- `CHECK (status IN ('pending','approved','rejected'))`.
+- Decision-shape check tying `decided_by/decided_at` to a non-pending status.
+- No extra approval state.
+
+**RLS**
+
+- Executive/Operations may create/read Council endorsements.
+- Assigned Academic/Clinical Instructor may read and decide only endorsements assigned to them.
+- Students may read resulting merit records; whether they also see pending endorsement details is a UI/product choice not required by the FL.
+- Representatives may not access endorsements.
+'''
+}
+
+Table merits {
+  id uuid [pk, note: "Primary key"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  source text [not null, note: "`direct`, `endorsement`, `external_ci`"]
+  endorsement_id uuid [null, note: "FK → `merit_endorsements.id`"]
+  endorsement_unit_index integer [null, note: "Positive unit ordinal for endorsement-generated awards"]
+  description text [not null, note: "Frozen award description"]
+  awarded_on date [not null, note: "Actual award date"]
+  expires_on date [not null, note: "One year from award date"]
+  awarded_by uuid [not null, note: "FK → `profiles.id`"]
+  external_source_name text [null, note: "External source attribution"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    (id, student_id) [unique]
+    (endorsement_id, endorsement_unit_index) [unique]
+    (student_id, expires_on) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 9.2 `merits`
+
+One row equals one whole-day merit unit. Availability is derived from consumption and expiry rather than stored as an editable state.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to student/semester/endorsement/awarder.
+- `CHECK (source IN ('direct','endorsement','external_ci'))`.
+- Award creation uses a unique request/source-unit key for direct and external multi-unit awards as well as endorsement unit uniqueness; a retry must not create extra merit units.
+- `CHECK (expires_on = (awarded_on + INTERVAL '1 year')::date)` or equivalent date-safe implementation.
+- Source-shape check tying endorsement/external fields to source.
+- No stored Available/Applied/Expired flag.
+- Approval and all requested unit inserts commit together under an endorsement row lock; recheck pending status and assigned instructor before writing. Required unique `(endorsement_id, endorsement_unit_index)` plus positive ordinal/source-shape checks prevents duplicate units. Validate count equals approved `requested_days` before commit.
+- Composite FK `(endorsement_id, student_id, semester_id)` ties the award to its endorsement owner/context. No approved endorsement may commit without its complete awards.
+
+**RLS**
+
+- Students read their own merits.
+- Awarding instructors read their own activity.
+- Coordinators read permitted student disciplinary history.
+- Council reads only Council-origin endorsement/award activity within FL visibility scope.
+- Representatives do not read merit records through Council access.
+'''
+}
+
+Table merit_applications {
+  id uuid [pk, note: "Primary key"]
+  application_group_id uuid [not null, note: "Groups one student request"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  merit_id uuid [not null, note: "FK → `merits.id`"]
+  bucket bucket [not null, note: "Office/RLE target"]
+  applied_at timestamptz [not null, note: "Consumption time"]
+  indexes {
+    merit_id [unique]
+    (student_id, bucket, applied_at) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 9.3 `merit_applications`
+
+Records student-elected merit consumption against one target bucket. A grouped request may consume several one-day merit rows.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (merit_id)` so a merit unit cannot be consumed twice.
+- Foreign keys to student/merit.
+- Required composite FK `(merit_id, student_id)` → declared unique `merits(id, student_id)`.
+- Application group may be indexed for display/reconstruction.
+- Oldest-expiring selection, requested amount cap and matching outstanding balance require atomic workflow validation.
+
+**RLS**
+
+- Students read their own applications and initiate the application workflow for themselves.
+- Council/ordinary instructors do not write application rows on behalf of the student except through the server-side atomic workflow required to commit the student's election.
+- Coordinators may read applications as part of permitted disciplinary history.
+'''
+}
+
+Table service_sessions {
+  id uuid [pk, note: "Primary key"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  bucket bucket [not null, note: "Office/RLE"]
+  duty_on date [not null, note: "Duty day"]
+  scheduled_start timestamptz [not null, note: "Scheduled start"]
+  scheduled_end timestamptz [not null, note: "Scheduled end"]
+  location text [null, note: "Location"]
+  late_after_minutes integer [not null, note: "Minutes after `time_in_from`; strictly later is late"]
+  time_in_from timestamptz [not null, note: "Inclusive valid arrival-window start"]
+  time_in_until timestamptz [not null, note: "Inclusive valid arrival-window end"]
+  time_out_from timestamptz [not null, note: "Inclusive valid departure-window start"]
+  time_out_until timestamptz [not null, note: "Inclusive valid departure-window end"]
+  created_by uuid [not null, note: "FK → `profiles.id`"]
+  ended_by uuid [null, note: "FK → `profiles.id`"]
+  ended_at timestamptz [null, note: "Explicit finalization time"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last pre-end edit"]
+  indexes {
+    (semester_id, bucket, duty_on) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 10.1 `service_sessions`
+
+One-day Office/RLE duty session. Open/Ended is derived from `ended_at`.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign keys to semester/actors.
+- `CHECK (scheduled_end > scheduled_start)`.
+- `CHECK (late_after_minutes >= 0)`.
+- End-shape check tying `ended_by/ended_at` together.
+- Both attendance windows are required and ordered; included participants need valid time-in and time-out, with departure after arrival. Reuse event inclusive-window and strict-lateness validation, but lateness alone does not reduce/deny service credit. No event fines or absence consequences apply.
+- Validate `duty_on` and the scheduled times against one configured institutional timezone, with the entire scheduled session on that duty day. No overnight or fractional service workflow is introduced.
+- No Draft/Published/Cancelled states unless later added explicitly to the function list.
+
+**RLS**
+
+- Matching Academic/Clinical Instructor and coordinators in their instructor capacity may read/manage their applicable bucket sessions.
+- Students may read service-session context only where they are participants and only fields needed for their own history.
+- Council users have no service-session access.
+'''
+}
+
+Table service_participants {
+  id uuid [pk, note: "Primary key"]
+  session_id uuid [not null, note: "FK → `service_sessions.id`"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  time_in timestamptz [null, note: "Actual time-in"]
+  time_out timestamptz [null, note: "Actual time-out"]
+  recorded_by uuid [null, note: "FK → `profiles.id`"]
+  excluded_at timestamptz [null, note: "Excluded participant"]
+  excluded_by uuid [null, note: "FK → `profiles.id`"]
+  created_at timestamptz [not null, note: "Created time"]
+  updated_at timestamptz [not null, note: "Last pre-end edit"]
+  indexes {
+    (session_id, student_id) [unique]
+    (id, student_id) [unique]
+  }
+  Note: '''
+### 10.2 `service_participants`
+
+Selected student attendance/completion evidence for one service session.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (session_id, student_id)`.
+- Foreign keys to session/student/actors.
+- `CHECK (time_out IS NULL OR time_in IS NOT NULL)`.
+- `CHECK (time_out IS NULL OR time_out > time_in)`.
+- Exclusion-shape check tying `excluded_at/excluded_by` together.
+- Participant outcome remains derived from session end, exclusion and presence/absence of a valid service credit.
+
+**RLS**
+
+- Students read only their own participation rows.
+- Applicable session issuer/instructor may read/update participants before session end.
+- No Council access.
+- Every participant insert/edit/exclusion locks its session first and rechecks `ended_at IS NULL`; finalization follows the same protocol. Post-end changes are denied, optionally reinforced by RLS.
+'''
+}
+
+Table service_credits {
+  id uuid [pk, note: "Primary key"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  bucket bucket [not null, note: "Office/RLE"]
+  service_participant_id uuid [not null, note: "FK → `service_participants.id`"]
+  issued_by uuid [not null, note: "FK → `profiles.id`"]
+  issued_at timestamptz [not null, note: "Credit creation time"]
+  revoked_by uuid [null, note: "FK → `profiles.id`"]
+  revoked_at timestamptz [null, note: "Revocation time"]
+  revocation_reason text [null, note: "Required reason"]
+  indexes {
+    service_participant_id [unique]
+  }
+  Note: '''
+### 10.3 `service_credits`
+
+One valid one-day service offset created only when a positive matching-bucket balance remains at session end.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (service_participant_id)`.
+- Foreign keys to student/semester/participant/actors.
+- Revocation-shape check tying actor/time/reason together.
+- No row exists for Completed without credit.
+- Credit creation and revocation must not silently rewrite service attendance.
+- Composite FK `(service_participant_id, student_id)` → declared unique `service_participants(id, student_id)`. Derive semester/bucket through the participant's session instead of permitting independent values, or enforce an equivalent composite parent-context relationship in the physical design.
+- Completed with credit is derived from existence of the original credit row, even after revocation. Display Credit revoked separately; only a non-revoked credit reduces current balance.
+
+**RLS**
+
+- Students read their own credits.
+- Credit issuer reads and may revoke only credits they issued. Revocation locks and rechecks the credit, records actor/time/reason once and uses the shared balance lock to serialize its effect with other balance operations.
+- Coordinators do not gain override solely by coordinator title.
+- Council users have no service-credit access.
+'''
+}
+
+Table clearances {
+  id uuid [pk, note: "Primary key"]
+  student_id uuid [not null, note: "FK → `profiles.id`"]
+  semester_id uuid [not null, note: "FK → `semesters.id`"]
+  component text [not null, note: "`council`, `academic`, `rle`"]
+  confirmed_by uuid [not null, note: "FK → `profiles.id`"]
+  confirmed_at timestamptz [not null, note: "Permanent confirmation time"]
+  indexes {
+    (student_id, semester_id, component) [unique]
+  }
+  Note: '''
+### 11.1 `clearances`
+
+Permanent semester-level confirmation for one component. Absence of a row means Not yet cleared.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- `UNIQUE (student_id, semester_id, component)`.
+- Foreign keys to student/semester/confirmer.
+- `CHECK (component IN ('council','academic','rle'))`.
+- No update/delete workflow in ordinary application use.
+- Academic/RLE dependency on prior Council clearance is an application/atomic insert check if concurrency needs DB serialization.
+
+**RLS**
+
+- Students read their own clearances.
+- Executive/Operations read/create Council clearances.
+- Academic Coordinator reads/creates Academic clearances.
+- RLE Coordinator reads/creates RLE clearances.
+- Ordinary instructors and Representatives cannot confirm clearance.
+- Platform Admin has no implicit business-clearance authority.
+- Self-clearance is application-enforced.
+'''
+}
+
+Table notifications {
+  id uuid [pk, note: "Primary key"]
+  recipient_id uuid [not null, note: "FK → `profiles.id`"]
+  kind text [not null, note: "Fixed safe notice category"]
+  message text [not null, note: "Minimal non-sensitive message"]
+  target_type text [null, note: "Optional navigation target type"]
+  target_id uuid [null, note: "Optional navigation target id"]
+  read_at timestamptz [null, note: "Read time"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    (recipient_id, created_at) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+  }
+  Note: '''
+### 12.1 `notifications`
+
+Included V1 recipient-scoped in-app business notice table under FL-044/Q9. In-app delivery is adopted, not conditional. The baseline contains 31 application tables including `notifications`; Supabase-managed Auth/Storage tables are not included in that count. Business email delivery is not adopted by this decision; invitations and password recovery continue to use email.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`.
+- Foreign key to recipient.
+- Shape check requiring `target_type` and `target_id` together or both null.
+- `CHECK (read_at IS NULL OR read_at >= created_at)`.
+- Index `(recipient_id, created_at DESC)`.
+
+**RLS**
+
+- Recipients read only their own notifications.
+- Recipients may update only their own `read_at` field if read-state functionality is adopted.
+- Business workflows create notifications server-side; users do not create arbitrary notices.
+- Navigation target does not grant authorization to the destination record.
+'''
+}
+
+Ref: role_assignments.profile_id > profiles.id [delete: no action, update: no action]
+Ref: role_assignments.assigned_by > profiles.id [delete: no action, update: no action]
+Ref: role_assignments.removed_by > profiles.id [delete: no action, update: no action]
+Ref: council_memberships.profile_id > profiles.id [delete: no action, update: no action]
+Ref: council_memberships.assigned_by > profiles.id [delete: no action, update: no action]
+Ref: council_memberships.removed_by > profiles.id [delete: no action, update: no action]
+Ref: invitations.profile_id > profiles.id [delete: no action, update: no action]
+Ref: invitations.created_by > profiles.id [delete: no action, update: no action]
+Ref: semesters.created_by > profiles.id [delete: no action, update: no action]
+Ref: enrollments.student_id > profiles.id [delete: no action, update: no action]
+Ref: enrollments.semester_id > semesters.id [delete: no action, update: no action]
+Ref: roster_imports.semester_id > semesters.id [delete: no action, update: no action]
+Ref: roster_imports.file_id > files.id [delete: no action, update: no action]
+Ref: roster_imports.created_by > profiles.id [delete: no action, update: no action]
+Ref: files.uploader_id > profiles.id [delete: no action, update: no action]
+Ref: events.semester_id > semesters.id [delete: no action, update: no action]
+Ref: events.created_by > profiles.id [delete: no action, update: no action]
+Ref: event_consequence_rules.event_id > events.id [delete: no action, update: no action]
+Ref: event_consequence_rules.absence_fine_definition_id > fine_definitions.id [delete: no action, update: no action]
+Ref: event_consequence_rules.late_fine_definition_id > fine_definitions.id [delete: no action, update: no action]
+Ref: event_attendance.event_id > events.id [delete: no action, update: no action]
+Ref: event_attendance.student_id > profiles.id [delete: no action, update: no action]
+Ref: event_attendance.time_in_recorded_by > profiles.id [delete: no action, update: no action]
+Ref: event_attendance.time_out_recorded_by > profiles.id [delete: no action, update: no action]
+Ref: event_feedback.event_id > events.id [delete: no action, update: no action]
+Ref: event_feedback.student_id > profiles.id [delete: no action, update: no action]
+Ref: fee_definitions.created_by > profiles.id [delete: no action, update: no action]
+Ref: fine_definitions.created_by > profiles.id [delete: no action, update: no action]
+Ref: fee_publications.fee_definition_id > fee_definitions.id [delete: no action, update: no action]
+Ref: fee_publications.semester_id > semesters.id [delete: no action, update: no action]
+Ref: fee_publications.published_by > profiles.id [delete: no action, update: no action]
+Ref: obligations.student_id > profiles.id [delete: no action, update: no action]
+Ref: obligations.semester_id > semesters.id [delete: no action, update: no action]
+Ref: obligations.fee_definition_id > fee_definitions.id [delete: no action, update: no action]
+Ref: obligations.fee_publication_id > fee_publications.id [delete: no action, update: no action]
+Ref: obligations.event_attendance_id > event_attendance.id [delete: no action, update: no action]
+Ref: obligations.waived_by > profiles.id [delete: no action, update: no action]
+Ref: payment_accounts.qr_file_id > files.id [delete: no action, update: no action]
+Ref: payment_accounts.created_by > profiles.id [delete: no action, update: no action]
+Ref: payment_receipts.recognized_by > profiles.id [delete: no action, update: no action]
+Ref: payments.student_id > profiles.id [delete: no action, update: no action]
+Ref: payments.semester_id > semesters.id [delete: no action, update: no action]
+Ref: payments.receipt_id > payment_receipts.id [delete: no action, update: no action]
+Ref: payments.payment_account_id > payment_accounts.id [delete: no action, update: no action]
+Ref: payments.proof_file_id > files.id [delete: no action, update: no action]
+Ref: payments.submitted_by > profiles.id [delete: no action, update: no action]
+Ref: payments.decided_by > profiles.id [delete: no action, update: no action]
+Ref: payments.supersedes_payment_id > payments.id [delete: no action, update: no action]
+Ref: payment_items.payment_id > payments.id [delete: no action, update: no action]
+Ref: payment_items.obligation_id > obligations.id [delete: no action, update: no action]
+Ref: payment_refunds.receipt_id > payment_receipts.id [delete: no action, update: no action]
+Ref: payment_refunds.recorded_by > profiles.id [delete: no action, update: no action]
+Ref: misconduct_catalog.created_by > profiles.id [delete: no action, update: no action]
+Ref: demerits.student_id > profiles.id [delete: no action, update: no action]
+Ref: demerits.semester_id > semesters.id [delete: no action, update: no action]
+Ref: demerits.misconduct_id > misconduct_catalog.id [delete: no action, update: no action]
+Ref: demerits.event_attendance_id > event_attendance.id [delete: no action, update: no action]
+Ref: demerits.issued_by > profiles.id [delete: no action, update: no action]
+Ref: demerits.waived_by > profiles.id [delete: no action, update: no action]
+Ref: merit_endorsements.student_id > profiles.id [delete: no action, update: no action]
+Ref: merit_endorsements.semester_id > semesters.id [delete: no action, update: no action]
+Ref: merit_endorsements.assigned_instructor_id > profiles.id [delete: no action, update: no action]
+Ref: merit_endorsements.submitted_by > profiles.id [delete: no action, update: no action]
+Ref: merit_endorsements.decided_by > profiles.id [delete: no action, update: no action]
+Ref: merits.student_id > profiles.id [delete: no action, update: no action]
+Ref: merits.semester_id > semesters.id [delete: no action, update: no action]
+Ref: merits.endorsement_id > merit_endorsements.id [delete: no action, update: no action]
+Ref: merits.awarded_by > profiles.id [delete: no action, update: no action]
+Ref: merit_applications.student_id > profiles.id [delete: no action, update: no action]
+Ref: merit_applications.merit_id > merits.id [delete: no action, update: no action]
+Ref: service_sessions.semester_id > semesters.id [delete: no action, update: no action]
+Ref: service_sessions.created_by > profiles.id [delete: no action, update: no action]
+Ref: service_sessions.ended_by > profiles.id [delete: no action, update: no action]
+Ref: service_participants.session_id > service_sessions.id [delete: no action, update: no action]
+Ref: service_participants.student_id > profiles.id [delete: no action, update: no action]
+Ref: service_participants.recorded_by > profiles.id [delete: no action, update: no action]
+Ref: service_participants.excluded_by > profiles.id [delete: no action, update: no action]
+Ref: service_credits.student_id > profiles.id [delete: no action, update: no action]
+Ref: service_credits.semester_id > semesters.id [delete: no action, update: no action]
+Ref: service_credits.service_participant_id > service_participants.id [delete: no action, update: no action]
+Ref: service_credits.issued_by > profiles.id [delete: no action, update: no action]
+Ref: service_credits.revoked_by > profiles.id [delete: no action, update: no action]
+Ref: clearances.student_id > profiles.id [delete: no action, update: no action]
+Ref: clearances.semester_id > semesters.id [delete: no action, update: no action]
+Ref: clearances.confirmed_by > profiles.id [delete: no action, update: no action]
+Ref: notifications.recipient_id > profiles.id [delete: no action, update: no action]
+Ref: event_attendance.(event_id, semester_id) > events.(id, semester_id) [delete: no action, update: no action]
+Ref: obligations.(fee_publication_id, fee_definition_id, semester_id) > fee_publications.(id, fee_definition_id, semester_id) [delete: no action, update: no action]
+Ref: obligations.(event_attendance_id, student_id, semester_id) > event_attendance.(id, student_id, semester_id) [delete: no action, update: no action]
+Ref: demerits.(event_attendance_id, student_id, semester_id) > event_attendance.(id, student_id, semester_id) [delete: no action, update: no action]
+Ref: payment_refunds.(payment_id, receipt_id) > payments.(id, receipt_id) [delete: no action, update: no action]
+Ref: merits.(endorsement_id, student_id, semester_id) > merit_endorsements.(id, student_id, semester_id) [delete: no action, update: no action]
+Ref: merit_applications.(merit_id, student_id) > merits.(id, student_id) [delete: no action, update: no action]
+Ref: service_credits.(service_participant_id, student_id) > service_participants.(id, student_id) [delete: no action, update: no action]

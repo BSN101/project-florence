@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Supabase-generated types are UTF-16 LE and cannot be parsed by ESLint.
+    "src/server/db/database.types.ts",
   ]),
 ]);
 

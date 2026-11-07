@@ -1,26 +1,133 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-info: var(--info);
+  --color-info-container: var(--info-container);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-error-surface: var(--error-surface);
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
+  --color-neutral: var(--neutral);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
+  --radius-sm: 0.75rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 1.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* Florence light palette. Dark-mode adoption and contrast corrections await sign-off. */
+  --background: #fff8f2;
+  --foreground: #211d1a;
+  --card: #f5ebe6;
+  --card-foreground: #211d1a;
+  --popover: #e8dcd6;
+  --popover-foreground: #211d1a;
+  --primary: #7b5844;
+  --primary-foreground: #ffffff;
+  --secondary: #fbceb1;
+  --secondary-foreground: #2e1500;
+  --muted: #efe4df;
+  --muted-foreground: #4d4541;
+  --accent: #bcdce6;
+  --accent-foreground: #0f2a33;
+  --destructive: #c4161c;
+  --error-surface: #ffdad6;
+  --info: #46636e;
+  --info-container: #bcdce6;
+  --info-foreground: #0f2a33;
+  --success: #d6ebd8;
+  --success-foreground: #4f7a5a;
+  --warning: #f8e3b8;
+  --warning-foreground: #9a6a1f;
+  --inverse: #353230;
+  --inverse-foreground: #fff8f2;
+  --neutral: #7c7673;
+  --border: #cfc6c1;
+  /* Neutral is legible as a non-text input boundary; outline is for dividers. */
+  --input: #7c7673;
+  --ring: #7b5844;
+  --radius: 1rem;
+  /* Font files are not yet bundled. The documented faces take effect if installed locally. */
+  --font-body: "Inter", Arial, sans-serif;
+  --font-display: "Be Vietnam Pro", Arial, sans-serif;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: var(--font-body);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  :disabled {
+    cursor: not-allowed;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 2.25rem;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
