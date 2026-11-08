@@ -1,4 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  createRecoveryIntent,
+  recoveryIntentCookieName,
+  recoveryIntentCookieOptions,
+} from "@/features/auth/recovery-intent";
 import { createUserClient } from "@/server/db/user-client";
 
 export async function GET(request: NextRequest) {
@@ -16,5 +21,8 @@ export async function GET(request: NextRequest) {
   const { data: { user }, error: userError } = await client.auth.getUser();
   if (userError || !user || user.is_anonymous) return NextResponse.redirect(destination);
 
-  return NextResponse.redirect(new URL("/reset-password", request.url));
+  const response = NextResponse.redirect(new URL("/reset-password", request.url));
+  response.cookies.set(recoveryIntentCookieName, createRecoveryIntent(user.id), recoveryIntentCookieOptions);
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
 }

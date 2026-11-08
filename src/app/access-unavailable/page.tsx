@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { signOut } from "@/app/(auth)/sign-out/action";
+import { signOut } from "@/features/auth/actions";
 import { getAccessContext } from "@/server/auth/access-context";
 
 export const instant = false;

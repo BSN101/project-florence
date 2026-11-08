@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { AuthShell, buttonClass, fieldClass } from "../auth-ui";
-import { signIn } from "./action";
-import { safeDestination } from "./destination";
+import { signIn } from "@/features/auth/actions";
+import { AuthShell, buttonClass, fieldClass } from "@/features/auth/components/auth-shell";
+import { safeDestination } from "@/features/auth/destinations";
+import { redirectAuthenticatedUser } from "@/features/auth/redirects";
 
 export const instant = false;
 
@@ -14,6 +15,7 @@ const messages: Record<string, string> = {
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reset?: string }> }) {
   const params = await searchParams;
+  await redirectAuthenticatedUser();
   const next = safeDestination(params.next);
   return (
     <AuthShell title="Sign in" description="Access your nursing records and permitted workspace with your Florence account.">

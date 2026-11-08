@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { AuthShell, buttonClass, fieldClass } from "../auth-ui";
-import { requestReset } from "./action";
+import { requestReset } from "@/features/auth/actions";
+import { AuthShell, buttonClass, fieldClass } from "@/features/auth/components/auth-shell";
+import { redirectAuthenticatedUser } from "@/features/auth/redirects";
 
 export const instant = false;
 
 export default async function ForgotPasswordPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status } = await searchParams;
+  await redirectAuthenticatedUser();
   return (
     <AuthShell title="Reset your password" description="Enter your account email address and we’ll send you a recovery link if an account exists.">
       {status === "sent" && <p role="status" className="mb-5 rounded-lg bg-success p-3">If an account exists, check your email for a recovery link.</p>}

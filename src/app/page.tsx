@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { redirectAuthenticatedUser } from "@/features/auth/redirects";
 
-export default function Home() {
+export const instant = false;
+
+export default async function Home() {
+  await redirectAuthenticatedUser();
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-8 px-6 py-12 sm:px-8 sm:py-20">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
