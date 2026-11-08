@@ -8,7 +8,7 @@ export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
-    if (/^\/(student|council|faculty|admin)(\/|$)/.test(request.nextUrl.pathname)) {
+    if (/^\/(student|council|faculty|admin|account)(\/|$)/.test(request.nextUrl.pathname)) {
       return new NextResponse(null, { status: 503, headers: { "Cache-Control": "private, no-store" } });
     }
     return response;
@@ -30,14 +30,14 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data, error } = await client.auth.getClaims();
-  const protectedPath = /^\/(student|council|faculty|admin)(\/|$)/.test(request.nextUrl.pathname);
+  const protectedPath = /^\/(student|council|faculty|admin|account)(\/|$)/.test(request.nextUrl.pathname);
   if (protectedPath && error && error.name !== "AuthSessionMissingError" && error.status !== 401 && error.status !== 403) {
     response.headers.set("Cache-Control", "private, no-store");
     return new NextResponse(null, { status: 503, headers: response.headers });
   }
   if (protectedPath && (!data?.claims || data.claims.is_anonymous)) {
     const destination = new URL("/sign-in", request.url);
-    if (["/student", "/council", "/faculty", "/admin"].includes(request.nextUrl.pathname)) {
+    if (["/student", "/council", "/faculty", "/admin", "/account"].includes(request.nextUrl.pathname)) {
       destination.searchParams.set("next", request.nextUrl.pathname);
     }
     const redirect = NextResponse.redirect(destination);

@@ -8,7 +8,7 @@ export type AccessContext =
   | { status: "unauthenticated" }
   | { status: "unavailable" }
   | { status: "error" }
-  | ({ status: "ready"; profile: AccessProfile; enrollments: AccessEnrollment[];
+  | ({ status: "ready"; email: string | null; profile: AccessProfile; enrollments: AccessEnrollment[];
       semesters: SemesterOption[]; currentSemester: CurrentSemester | null } & AccessGrants);
 
 /** Only a verified Auth user and the RLS-visible own profile can establish access. */
@@ -46,7 +46,7 @@ export async function getAccessContext(): Promise<AccessContext> {
     const grants = resolveAccess(profile, roles.data, memberships.data, enrollments.data);
     if (!grants) return { status: "unavailable" };
     return {
-      status: "ready", profile, ...grants, enrollments: enrollments.data,
+      status: "ready", email: user.email ?? null, profile, ...grants, enrollments: enrollments.data,
       semesters: semesters.data,
       currentSemester: semesters.data.find((semester) => semester.is_current) ?? null,
     };
