@@ -2,7 +2,8 @@
 
 ## Start here
 
-- Read `README.md`, then relevant project instructions.
+- Before working, read `README.md`, then `docs/Florence_Architecture.md`
+  and any other relevant project instructions.
 - The function list defines agreed V1 scope and fixed roles.
 - The architecture defines code responsibilities and security boundaries.
 - The navigation map defines destinations, not permissions.
