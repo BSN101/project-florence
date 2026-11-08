@@ -87,6 +87,137 @@ to an active profile with the relevant assignments or enrollment.
 Testing accounts need both their Auth identity and the corresponding
 Florence records. Do not commit passwords or production account data.
 
+The public landing page links to `/sign-in` and `/forgot-password`. The
+request-scoped SSR client needs `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the existing
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` fallback); never use `SUPABASE_SECRET_KEY` for
+interactive sessions. Sign-in checks the verified Auth user, RLS-visible active
+profile and current assignments before selecting a workspace. `/student`,
+`/council`, `/faculty`, `/admin` and the shared `/account` destination are
+server-guarded; switching a workspace changes navigation, not authority. An
+inactive seed semester does not block sign-in, but current-semester workflows
+are unavailable until a valid context exists. `/account` shows permitted,
+read-only identity details, provides current-password-confirmed password changes
+and allows navigation back to every authorized workspace.
+
+Password recovery emails redirect to `<application-origin>/reset-password/callback`.
+Add that exact URL to the development project's Supabase Auth redirect URL
+allowlist, configure SMTP and test the callback on the intended app origin.
+For SSR recovery, configure the Supabase **Reset password** email template to
+link to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`; the callback
+only accepts recovery token hashes (or PKCE codes) and never accepts a
+user-submitted destination. Default email templates that return credentials in
+URL fragments cannot complete a server-only callback. Do not change hosted
+Auth settings without reviewing the intended project first.
+The callback issues a signed, short-lived recovery-intent cookie using
+`AUTH_RECOVERY_INTENT_SECRET` when configured, with `SUPABASE_SECRET_KEY` as the
+existing server-only fallback. Signed-in password changes and email recovery use
+separate actions; recovery signs out after completion. Reset and invitation
+acceptance must be tested separately from the dev seed.
+The `/invitation` page currently explains that acceptance is unavailable; it
+is not a provisioning flow. Do not enable public signup to bypass it. The
+workspace pages remain placeholders for domain data/actions, and local static
+checks do not establish deployed RLS behavior.
+
+### Development-only account seed
+
+Use Node.js 24+ and `npm install`. The CLI seed uses the Auth Admin API and
+Postgres.js (a development dependency); it is not an application provisioning
+or invitation flow. Run it only against an explicitly approved development
+project. Keep public signup disabled.
+
+Add the entries documented in `.env.example` to your ignored `.env.local`
+without overwriting existing settings, or supply them through the process
+environment. Required configuration:
+
+- `ENABLE_DEV_ACCOUNT_SEED=true` and `SEED_EXPECTED_PROJECT_REF`.
+- `NEXT_PUBLIC_SUPABASE_URL` for that exact hosted project and its server-only
+  `SUPABASE_SECRET_KEY` (the existing environment convention).
+- `SEED_DATABASE_URL`: that project's direct PostgreSQL or Supavisor connection,
+  using the `postgres` database/user (pooler username `postgres.<ref>`).
+  URL-encode credentials; omit query parameters. TLS certificate verification
+  is mandatory. If needed, configure `NODE_EXTRA_CA_CERTS` with the trusted
+  project CA PEM path; do not disable certificate verification.
+- Nine distinct password values, each 12–72 UTF-8 bytes:
+  `SEED_ADMIN_PASSWORD`, `SEED_EXECUTIVE_PASSWORD`, `SEED_OPERATIONS_PASSWORD`,
+  `SEED_STUDENT_PASSWORD`, `SEED_REPRESENTATIVE_PASSWORD`,
+  `SEED_ACADEMIC_INSTRUCTOR_PASSWORD`, `SEED_ACADEMIC_COORDINATOR_PASSWORD`,
+  `SEED_CLINICAL_INSTRUCTOR_PASSWORD`, and `SEED_RLE_COORDINATOR_PASSWORD`.
+  There are no default passwords; keep them out of Git and logs. The five new
+  Representative/Faculty variables are listed here even if your environment
+  template still contains only the original four.
+- `SEED_SEMESTER_YEAR`, `SEED_SEMESTER_TERM`, `SEED_SEMESTER_STARTS_ON`,
+  `SEED_SEMESTER_ENDS_ON`, and explicit `SEED_SEMESTER_IS_CURRENT=true|false`.
+  Dates use `YYYY-MM-DD`. Supply the team's agreed term: migrations currently
+  enforce nonblank text, not a finalized term vocabulary.
+
+Validate configuration locally without network access, then seed **only after
+approval of the target**:
+
+```sh
+npm run seed:dev-accounts -- --check-config
+npm run seed:dev-accounts
+```
+
+| Synthetic login | Florence records |
+|---|---|
+| `florence.dev.admin@example.com` | Active non-student profile; Platform Admin assignment |
+| `florence.dev.executive@example.com` | Active student `99-1-99001`; enrollment; Executive membership, President label |
+| `florence.dev.operations@example.com` | Active student `99-1-99002`; enrollment; Operations membership, Treasurer label |
+| `florence.dev.student@example.com` | Active student `99-1-99003`; enrollment; no staff/Council assignments |
+| `florence.dev.representative@example.com` | Active student `99-1-99004`; enrollment; Representative membership and label |
+| `florence.dev.academic_instructor@example.com` | Active non-student profile; Academic Instructor assignment |
+| `florence.dev.academic_coordinator@example.com` | Active non-student profile; Academic Instructor then Academic Coordinator assignments |
+| `florence.dev.clinical_instructor@example.com` | Active non-student profile; Clinical Instructor assignment |
+| `florence.dev.rle_coordinator@example.com` | Active non-student profile; Clinical Instructor then RLE Coordinator assignments |
+
+All nine are synthetic, email-confirmed Auth accounts explicitly linked by Auth
+UUID to active Florence profiles. The four students are first-year Regular
+enrollments in one synthetic semester. Faculty and Platform Admin have no
+university numbers, enrollments or Council memberships. A fresh run inserts
+24 Florence rows: nine profiles, seven role assignments, three Council
+memberships, four enrollments and one semester.
+
+The administrator is bootstrapped first, with the explicitly permitted
+self-attributed initial assignment; subsequent roles and memberships use that
+administrator for attribution. Each coordinator's underlying instructor
+assignment is inserted first. This bootstrap exception is not an application
+capability.
+
+The seed checks existing Auth and database state before creating accounts,
+then rechecks database state under locks before inserting. It never replaces
+another current semester. Choose `false` to create an inactive synthetic
+semester alongside an existing context; current-context workflows may then
+remain unavailable for these enrollments. Choose `true` only when there is no
+other current semester. Existing seed semester configuration must match exactly;
+rerunning is not an activation/deactivation mechanism.
+
+Keep configuration unchanged on reruns. Stable fixture IDs plus server-managed
+Auth metadata identify seed-owned accounts; matching email alone is never
+accepted. Conflicting/archived profiles, changed links, removed/extra assignments,
+and unrelated university-number/year-term collisions stop the run without
+repairing records. Partial Florence fixture sets are rejected because all seed
+Florence rows commit together; only partial Auth-only creation is resumable.
+An already-created four-account database fixture from the earlier script is
+also rejected as incomplete; this version does not automatically upgrade it
+or restore missing privileges. Inspect such a target before arranging a
+separately reviewed extension.
+Existing passwords and rows are never updated. A successful
+second run should report zero new Auth users and zero inserted Florence rows.
+
+Auth creation and Florence writes are **not atomic together**. All Florence
+inserts use one real transaction with the semester-context lock and existing
+constraints/triggers. Auth users created before a failure remain marked for
+safe reuse on rerun; the script reports the failed stage and never deletes
+accounts. An ambiguous network/commit result must be inspected by rerunning,
+not by cleanup. Do not run account-management changes concurrently with seeding.
+No migration, invitation, recovery, UI, RLS permission test, or sign-in flow is
+performed by this script. Verify those separately before release.
+
+Focused offline checks: `npm run test:seed`, `npm run lint`, and
+`npx tsc --noEmit`. Account creation and twice-run idempotency require separate
+verification against the approved development target.
+
 ## Database migrations
 
 The team uses code-first SQL migrations against a linked development project.
