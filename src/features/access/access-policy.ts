@@ -10,8 +10,9 @@ export type AccessMembership = Pick<Tables["council_memberships"]["Row"],
   "access_role" | "profile_id" | "removed_at">;
 export type AccessEnrollment = Pick<Tables["enrollments"]["Row"],
   "semester_id" | "student_id" | "year_level" | "academic_status">;
-export type CurrentSemester = Pick<Tables["semesters"]["Row"],
-  "id" | "academic_year_start" | "term" | "starts_on" | "ends_on">;
+export type SemesterOption = Pick<Tables["semesters"]["Row"],
+  "id" | "academic_year_start" | "term" | "starts_on" | "ends_on" | "is_current">;
+export type CurrentSemester = SemesterOption;
 
 export type AccessGrants = {
   workspaces: Workspace[];

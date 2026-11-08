@@ -1,6 +1,7 @@
 import "server-only";
 
-import { resolveAccess, type AccessEnrollment, type AccessGrants, type AccessProfile, type CurrentSemester } from "../../features/access/access-policy";
+import { connection } from "next/server";
+import { resolveAccess, type AccessEnrollment, type AccessGrants, type AccessProfile, type CurrentSemester, type SemesterOption } from "../../features/access/access-policy";
 import { createUserClient } from "../db/user-client";
 
 export type AccessContext =
@@ -8,10 +9,11 @@ export type AccessContext =
   | { status: "unavailable" }
   | { status: "error" }
   | ({ status: "ready"; profile: AccessProfile; enrollments: AccessEnrollment[];
-      currentSemester: CurrentSemester | null } & AccessGrants);
+      semesters: SemesterOption[]; currentSemester: CurrentSemester | null } & AccessGrants);
 
 /** Only a verified Auth user and the RLS-visible own profile can establish access. */
 export async function getAccessContext(): Promise<AccessContext> {
+  await connection();
   try {
     const client = await createUserClient();
     const { data: { user }, error: authError } = await client.auth.getUser();
@@ -34,18 +36,19 @@ export async function getAccessContext(): Promise<AccessContext> {
         .eq("profile_id", profile.id).is("removed_at", null),
       client.from("enrollments").select("semester_id,student_id,year_level,academic_status")
         .eq("student_id", profile.id),
-      client.from("semesters").select("id,academic_year_start,term,starts_on,ends_on")
-        .eq("is_current", true).limit(2),
+      client.from("semesters").select("id,academic_year_start,term,starts_on,ends_on,is_current")
+        .order("starts_on", { ascending: false }),
     ]);
     if (roles.error || memberships.error || enrollments.error || semesters.error ||
       !roles.data || !memberships.data || !enrollments.data || !semesters.data ||
-      semesters.data.length > 1) return { status: "error" };
+      semesters.data.filter((semester) => semester.is_current).length > 1) return { status: "error" };
 
     const grants = resolveAccess(profile, roles.data, memberships.data, enrollments.data);
     if (!grants) return { status: "unavailable" };
     return {
       status: "ready", profile, ...grants, enrollments: enrollments.data,
-      currentSemester: semesters.data[0] ?? null,
+      semesters: semesters.data,
+      currentSemester: semesters.data.find((semester) => semester.is_current) ?? null,
     };
   } catch {
     return { status: "error" };
