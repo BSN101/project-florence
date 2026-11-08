@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { semesterFilterSchema } from "./semester-filter-schema.ts";
+import { semesterFilterSchema } from "./schemas.ts";
 
 test("semester filter accepts one UUID and rejects malformed or repeated values", () => {
   assert.equal(semesterFilterSchema.safeParse({}).success, true);

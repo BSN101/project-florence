@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import {
   Bell,
   BookOpenCheck,
@@ -23,7 +27,8 @@ import {
   Users,
 } from "lucide-react";
 
-import { signOut } from "@/app/(auth)/sign-out/action";
+import { LinkPendingIndicator, NavigationOverlay } from "@/components/layout/navigation-overlay";
+import { signOut } from "@/features/auth/actions";
 import type { AccessContext } from "@/server/auth/access-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -74,11 +79,24 @@ export function AppSidebar({ workspace, navigation, currentSlug, access }: {
   currentSlug: string;
   access: ReadyAccess;
 }) {
+  const router = useRouter();
+  const [isWorkspacePending, startWorkspaceTransition] = useTransition();
   const fullName = [access.profile.first_name, access.profile.middle_name, access.profile.last_name, access.profile.suffix]
     .filter(Boolean).join(" ");
   const initials = `${access.profile.first_name[0] ?? ""}${access.profile.last_name[0] ?? ""}`.toUpperCase();
 
+  function switchWorkspace(event: React.MouseEvent<HTMLAnchorElement>, nextWorkspace: Workspace) {
+    if (nextWorkspace === workspace || isWorkspacePending) {
+      event.preventDefault();
+      return;
+    }
+    event.preventDefault();
+    startWorkspaceTransition(() => router.push(`/${nextWorkspace}`));
+  }
+
   return (
+    <>
+      <NavigationOverlay visible={isWorkspacePending} label="Switching workspace…" />
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
@@ -108,6 +126,7 @@ export function AppSidebar({ workspace, navigation, currentSlug, access }: {
                       render={<Link href={destinationHref(workspace, item.slug)} />}>
                       <Icon />
                       <span>{item.label}</span>
+                      <LinkPendingIndicator />
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -147,7 +166,7 @@ export function AppSidebar({ workspace, navigation, currentSlug, access }: {
                   <DropdownMenuGroup>
                     <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
                     {access.workspaces.map((item) => (
-                      <DropdownMenuItem key={item} render={<Link href={`/${item}`} />}>
+                      <DropdownMenuItem key={item} render={<Link href={`/${item}`} onClick={(event) => switchWorkspace(event, item)} aria-disabled={item === workspace || isWorkspacePending} />}>
                         {item === workspace ? <Check /> : <span className="size-4" />}
                         {workspaceLabels[item]}
                       </DropdownMenuItem>
@@ -155,7 +174,8 @@ export function AppSidebar({ workspace, navigation, currentSlug, access }: {
                   </DropdownMenuGroup>
                 </>}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem render={<Link href="/reset-password" />}><KeyRound />Change password</DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/account" />}><UserRoundCog />Account</DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/account#password" />}><KeyRound />Change password</DropdownMenuItem>
                 <DropdownMenuItem render={<form action={signOut}><button type="submit" className="flex w-full items-center gap-1.5"><LogOut />Sign out</button></form>} />
               </DropdownMenuContent>
             </DropdownMenu>
@@ -164,5 +184,6 @@ export function AppSidebar({ workspace, navigation, currentSlug, access }: {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+    </>
   );
 }

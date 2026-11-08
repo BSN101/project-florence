@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
 
 import {
   Select,
@@ -9,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { NavigationOverlay } from "@/components/layout/navigation-overlay";
 import type { SemesterOption } from "@/features/access/access-policy";
 
 function semesterLabel(semester: SemesterOption) {
@@ -22,6 +24,7 @@ export function SemesterFilter({ semesters, selectedId, enrollmentLimited = fals
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
   const items = semesters.map((semester) => ({
     value: semester.id,
@@ -29,16 +32,17 @@ export function SemesterFilter({ semesters, selectedId, enrollmentLimited = fals
   }));
 
   function selectSemester(value: string | null) {
-    if (!value) return;
+    if (!value || value === selectedId || isPending) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("semester", value);
-    router.push(`${pathname}?${params.toString()}`);
+    startTransition(() => router.push(`${pathname}?${params.toString()}`));
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3" aria-busy={isPending}>
+      <NavigationOverlay visible={isPending} label="Switching semester…" />
       <label className="font-medium" htmlFor="semester-filter">View semester</label>
-      <Select items={items} value={selectedId} onValueChange={selectSemester}>
+      <Select items={items} value={selectedId} onValueChange={selectSemester} disabled={isPending}>
         <SelectTrigger id="semester-filter" className="min-w-64">
           <SelectValue />
         </SelectTrigger>

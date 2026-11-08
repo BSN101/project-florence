@@ -3,11 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { Workspace } from "@/features/access/access-policy";
 import { destinationHref, getWorkspaceNavigation, workspaceLabels } from "@/features/access/workspace-navigation";
-import { SemesterFilter } from "@/features/semesters/semester-filter";
-import { semesterFilterSchema } from "@/features/semesters/semester-filter-schema";
+import { SemesterContext } from "@/features/semesters/components/semester-context";
+import { SemesterFilter } from "@/features/semesters/components/semester-filter";
+import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 import { AppSidebar } from "./app-sidebar";
-import { SemesterContext } from "./semester-context";
 import { WorkspaceHeader } from "./workspace-header";
 
 export async function WorkspaceShell({ workspace, destination = "", semester, children }: {
