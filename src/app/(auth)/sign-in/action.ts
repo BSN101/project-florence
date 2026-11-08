@@ -1,24 +1,23 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { signInSchema } from "@/features/auth/auth-schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 import { createUserClient } from "@/server/db/user-client";
 
 import { safeDestination } from "./destination";
 
 export async function signIn(formData: FormData) {
-  const email = formData.get("email");
-  const password = formData.get("password");
   const next = safeDestination(formData.get("next"));
   const errorUrl = (error: string) => `/sign-in?${new URLSearchParams({ error, ...(next ? { next } : {}) })}`;
-
-  if (typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
-    typeof password !== "string" || !password || password.length > 1024) {
-    redirect(errorUrl("invalid"));
-  }
+  const parsed = signInSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) redirect(errorUrl("invalid"));
 
   const client = await createUserClient();
-  const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
+  const { error } = await client.auth.signInWithPassword(parsed.data);
   if (error) redirect(errorUrl("credentials"));
 
   const access = await getAccessContext();
