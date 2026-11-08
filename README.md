@@ -93,10 +93,12 @@ request-scoped SSR client needs `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` fallback); never use `SUPABASE_SECRET_KEY` for
 interactive sessions. Sign-in checks the verified Auth user, RLS-visible active
 profile and current assignments before selecting a workspace. `/student`,
-`/council`, `/faculty` and `/admin` are server-guarded; switching a workspace
-changes navigation, not authority. An inactive seed semester does not block
-sign-in, but current-semester workflows are unavailable until a valid context
-exists. Account controls show the current profile and allow sign-out.
+`/council`, `/faculty`, `/admin` and the shared `/account` destination are
+server-guarded; switching a workspace changes navigation, not authority. An
+inactive seed semester does not block sign-in, but current-semester workflows
+are unavailable until a valid context exists. `/account` shows permitted,
+read-only identity details, provides current-password-confirmed password changes
+and allows navigation back to every authorized workspace.
 
 Password recovery emails redirect to `<application-origin>/reset-password/callback`.
 Add that exact URL to the development project's Supabase Auth redirect URL
@@ -107,7 +109,11 @@ only accepts recovery token hashes (or PKCE codes) and never accepts a
 user-submitted destination. Default email templates that return credentials in
 URL fragments cannot complete a server-only callback. Do not change hosted
 Auth settings without reviewing the intended project first.
-Reset and invitation acceptance must be tested separately from the dev seed.
+The callback issues a signed, short-lived recovery-intent cookie using
+`AUTH_RECOVERY_INTENT_SECRET` when configured, with `SUPABASE_SECRET_KEY` as the
+existing server-only fallback. Signed-in password changes and email recovery use
+separate actions; recovery signs out after completion. Reset and invitation
+acceptance must be tested separately from the dev seed.
 The `/invitation` page currently explains that acceptance is unavailable; it
 is not a provisioning flow. Do not enable public signup to bypass it. The
 workspace pages remain placeholders for domain data/actions, and local static

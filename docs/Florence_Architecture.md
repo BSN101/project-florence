@@ -38,6 +38,7 @@ florence/
 │   ├── app/
 │   │   ├── (auth)/
 │   │   ├── (portal)/
+│   │   │   ├── account/
 │   │   │   ├── student/
 │   │   │   ├── council/
 │   │   │   ├── faculty/
@@ -47,6 +48,8 @@ florence/
 │   │   └── globals.css
 │   ├── features/
 │   │   ├── access/
+│   │   ├── account/
+│   │   ├── auth/
 │   │   ├── students/
 │   │   ├── semesters/
 │   │   ├── events/
@@ -104,6 +107,8 @@ The application root `README.md` covers setup, commands, environment configurati
 
 - `src/proxy.ts` refreshes Supabase SSR cookies and performs early sign-in redirects. Validate authentication rather than trusting cookie presence. Skip static assets through its matcher.
 - Pages compose screens and call feature queries. Layouts provide shared shells. Route groups and workspace names do not grant permissions.
+- `src/app/(portal)/account/` is the shared protected account destination outside every workspace. It displays the signed-in user's permitted identity fields and owns no workspace authority; `src/features/account/` owns signed-in account actions such as current-password-confirmed password changes.
+- `src/app/(auth)/reset-password/` and its callback are public recovery entry points. Recovery uses a verified Supabase session plus a signed, short-lived, HTTP-only recovery-intent marker; it does not reuse the authenticated account password action.
 - Server actions validate form input, resolve the actor and run an authorized command.
 - API route handlers support downloads or other actual HTTP integration needs. Do not create an endpoint for every feature or make server code fetch its own API.
 - Add loading, error and not-found screens where needed.
@@ -129,9 +134,11 @@ Use `import 'server-only'` in trusted modules and `'use server'` in Server Actio
 
 ### Actor resolution
 
-Validate the user's session and resolve the linked active Florence profile and current assignments. An Auth user alone does not establish application access.
+Validate the user's session and resolve the linked active Florence profile and current assignments. An Auth user alone does not establish application access. The shared `/account` route uses the same active-profile requirement as workspaces, while password recovery may restore an inactive linked Auth identity without granting Florence workspace access.
 
 Every command checks action scope, beneficiary restrictions and current state. Deny archived profiles even if a session or assignment remains active. Never accept a browser-provided actor ID as identity. Session redirects do not replace authorization in pages, queries, actions, handlers or services.
+
+Signed-in password changes belong to `features/account/`, require the current password through Supabase Auth and keep the verified session active. Email recovery belongs to `features/auth/`, requires callback-established recovery intent, clears that marker after use and signs the recovery session out. The marker distinguishes intent but never replaces verification of the Supabase user session.
 
 ### Separate database clients
 
