@@ -32,6 +32,14 @@
   --color-inverse: var(--inverse);
   --color-inverse-foreground: var(--inverse-foreground);
   --color-neutral: var(--neutral);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: var(--font-body);
   --font-heading: var(--font-display);
   --radius-sm: 0.75rem;
@@ -71,6 +79,14 @@
   --inverse: #353230;
   --inverse-foreground: #fff8f2;
   --neutral: #7c7673;
+  --sidebar: #f5ebe6;
+  --sidebar-foreground: #211d1a;
+  --sidebar-primary: #7b5844;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8dcd6;
+  --sidebar-accent-foreground: #211d1a;
+  --sidebar-border: #cfc6c1;
+  --sidebar-ring: #7b5844;
   --border: #cfc6c1;
   /* Neutral is legible as a non-text input boundary; outline is for dividers. */
   --input: #7c7673;
