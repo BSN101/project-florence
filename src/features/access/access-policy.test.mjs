@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveAccess } from "./access-policy.ts";
+import { getWorkspaceNavigation } from "./workspace-navigation.ts";
 
 const profile = { id: "p", account_status: "active", university_id: "99-1-99001", first_name: "Test", middle_name: null, last_name: "User", suffix: null };
 const enrollment = { student_id: "p", semester_id: "old", year_level: 1, academic_status: "regular" };
@@ -52,4 +53,37 @@ test("admin is exclusive; invalid assignments and archived profiles fail closed"
   assert.equal(resolveAccess(profile, [], [membership("executive"), membership("operations")], [enrollment]), null);
   assert.equal(resolveAccess(profile, [], [{ ...membership("executive"), removed_at: "yesterday" }], [enrollment]), null);
   assert.equal(resolveAccess({ ...profile, account_status: "archived" }, [], [], [enrollment]), null);
+});
+
+const grants = (roles = [], councilRole = null) => ({ workspaces: [], roles, councilRole });
+const slugs = (workspace, access) => getWorkspaceNavigation(workspace, access).map((item) => item.slug);
+
+test("Council navigation enforces Representative and Executive visibility", () => {
+  assert.deepEqual(slugs("council", grants([], "representative")), ["events"]);
+  assert.equal(slugs("council", grants([], "operations")).includes("council-members"), false);
+  assert.equal(slugs("council", grants([], "operations")).includes("payment-accounts"), false);
+  assert.equal(slugs("council", grants([], "executive")).includes("council-members"), true);
+  assert.equal(slugs("council", grants([], "executive")).includes("payment-accounts"), true);
+});
+
+test("Faculty navigation exposes only matching coordinator destinations", () => {
+  const instructor = slugs("faculty", grants(["Academic Instructor"]));
+  const academic = slugs("faculty", grants(["Academic Instructor", "Academic Coordinator"]));
+  const rle = slugs("faculty", grants(["Clinical Instructor", "RLE Coordinator"]));
+  assert.equal(instructor.includes("academic-clearance"), false);
+  assert.equal(instructor.includes("rle-clearance"), false);
+  assert.equal(academic.includes("academic-clearance"), true);
+  assert.equal(academic.includes("external-ci-records"), false);
+  assert.equal(rle.includes("academic-clearance"), false);
+  assert.equal(rle.includes("rle-clearance"), true);
+  assert.equal(rle.includes("external-ci-records"), true);
+});
+
+test("Student and Admin navigation remain isolated", () => {
+  assert.deepEqual(slugs("admin", grants(["Platform Admin"])), ["", "misconduct-catalog"]);
+  assert.deepEqual(slugs("student", grants()), ["", "events", "fees-and-fines", "merits-demerits-and-services", "clearance", "notifications"]);
+  const student = getWorkspaceNavigation("student", grants());
+  assert.equal(student.find((item) => item.slug === "events")?.semesterScoped, true);
+  assert.equal(student.find((item) => item.slug === "notifications")?.semesterScoped, undefined);
+  assert.equal(getWorkspaceNavigation("admin", grants(["Platform Admin"])).some((item) => item.semesterScoped), false);
 });
