@@ -2,8 +2,9 @@ import { WorkspaceShell } from "@/components/layout/workspace-shell";
 
 export const instant = false;
 
-export default function AdminPage() {
-  return <WorkspaceShell workspace="admin">
-    <p className="text-muted-foreground">Platform administration access does not grant Council or Faculty authority. Account management and catalog tools are not implemented yet.</p>
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ semester?: string | string[] }> }) {
+  const { semester } = await searchParams;
+  return <WorkspaceShell workspace="admin" semester={semester}>
+    <p className="text-muted-foreground">This is the Users and access page.</p>
   </WorkspaceShell>;
 }

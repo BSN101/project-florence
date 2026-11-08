@@ -2,8 +2,9 @@ import { WorkspaceShell } from "@/components/layout/workspace-shell";
 
 export const instant = false;
 
-export default function FacultyPage() {
-  return <WorkspaceShell workspace="faculty">
-    <p className="text-muted-foreground">Instructor and matching coordinator assignments share this workspace. Faculty records and actions are not implemented yet.</p>
+export default async function FacultyPage({ searchParams }: { searchParams: Promise<{ semester?: string | string[] }> }) {
+  const { semester } = await searchParams;
+  return <WorkspaceShell workspace="faculty" semester={semester}>
+    <p className="text-muted-foreground">This is the Students page.</p>
   </WorkspaceShell>;
 }

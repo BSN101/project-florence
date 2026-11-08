@@ -1,20 +1,20 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { signOut } from "@/app/(auth)/sign-out/action";
-import { getAccessContext } from "@/server/auth/access-context";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { Workspace } from "@/features/access/access-policy";
+import { destinationHref, getWorkspaceNavigation, workspaceLabels } from "@/features/access/workspace-navigation";
+import { SemesterFilter } from "@/features/semesters/semester-filter";
+import { semesterFilterSchema } from "@/features/semesters/semester-filter-schema";
+import { getAccessContext } from "@/server/auth/access-context";
+import { AppSidebar } from "./app-sidebar";
+import { SemesterContext } from "./semester-context";
+import { WorkspaceHeader } from "./workspace-header";
 
-const labels: Record<Workspace, string> = {
-  student: "Student",
-  council: "Council",
-  faculty: "Faculty",
-  admin: "Platform administration",
-};
-
-export async function WorkspaceShell({ workspace, children }: {
+export async function WorkspaceShell({ workspace, destination = "", semester, children }: {
   workspace: Workspace;
-  children: React.ReactNode;
+  destination?: string;
+  semester?: string | string[];
+  children?: React.ReactNode;
 }) {
   const access = await getAccessContext();
   if (access.status === "unauthenticated") redirect(`/sign-in?next=/${workspace}`);
@@ -22,31 +22,51 @@ export async function WorkspaceShell({ workspace, children }: {
   if (access.status === "unavailable") redirect("/access-unavailable");
   if (!access.workspaces.includes(workspace)) notFound();
 
-  const fullName = `${access.profile.first_name} ${access.profile.last_name}`;
-  const currentEnrollment = access.enrollments.find((item) => item.semester_id === access.currentSemester?.id);
+  const navigation = getWorkspaceNavigation(workspace, access);
+  if (destination === "" && !navigation.some((item) => item.slug === "")) {
+    redirect(destinationHref(workspace, navigation[0].slug));
+  }
+  if (!navigation.some((item) => item.slug === destination)) notFound();
+
+  const currentItem = navigation.find((item) => item.slug === destination)!;
+  const visibleSemesters = workspace === "student"
+    ? access.semesters.filter((item) => access.enrollments.some((enrollment) => enrollment.semester_id === item.id))
+    : access.semesters;
+  const parsedFilter = semesterFilterSchema.safeParse(currentItem.semesterScoped ? { semester } : {});
+  if (!parsedFilter.success) notFound();
+  if (parsedFilter.data.semester && !visibleSemesters.some((item) => item.id === parsedFilter.data.semester)) notFound();
+  const selectedSemester = parsedFilter.data.semester
+    ?? visibleSemesters.find((item) => item.is_current)?.id
+    ?? visibleSemesters[0]?.id;
+
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-10 sm:px-8">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
-        <Link href="/" className="font-heading font-semibold text-primary">Project Florence</Link>
-        <div className="flex items-center gap-5"><Link href="/reset-password" className="font-medium text-primary underline underline-offset-4">Change password</Link><form action={signOut}><button type="submit" className="font-medium text-primary underline underline-offset-4">Sign out</button></form></div>
-      </header>
-      <nav aria-label="Workspaces" className="flex flex-wrap gap-3">
-        {access.workspaces.map((item) => <Link key={item} href={`/${item}`} aria-current={item === workspace ? "page" : undefined}
-          className={`rounded-lg border px-4 py-2 font-medium ${item === workspace ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"}`}>{labels[item]}</Link>)}
-      </nav>
-      <section>
-        <p className="text-sm text-muted-foreground">Signed in as {fullName}</p>
-        <h1 className="page-title">{labels[workspace]} workspace</h1>
-        <div className="mt-4 text-sm text-muted-foreground">
-          {access.profile.university_id && <p>University number: {access.profile.university_id}</p>}
-          {access.roles.length > 0 && <p>Assignments: {access.roles.join(", ")}</p>}
-          {access.councilRole && <p>Council role: {access.councilRole}</p>}
-          {access.currentSemester
-            ? <p>Current semester: {access.currentSemester.academic_year_start} · {access.currentSemester.term}{access.profile.university_id && !currentEnrollment ? " (you are not enrolled in this context)" : ""}</p>
-            : <p>No current semester is configured. Semester-dependent actions are unavailable.</p>}
+    <SidebarProvider>
+      <AppSidebar workspace={workspace} navigation={navigation} currentSlug={destination} access={access} />
+      <SidebarInset>
+        <WorkspaceHeader title={currentItem.label} />
+        <div className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-10">
+          <div className="mx-auto flex max-w-5xl flex-col gap-8">
+            <section className="flex flex-col gap-5">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">{workspaceLabels[workspace]} workspace</p>
+                <h1 className="page-title">{currentItem.label}</h1>
+              </div>
+              <SemesterContext semester={access.currentSemester} profile={access.profile} enrollments={access.enrollments} />
+            </section>
+            <section className="flex flex-col gap-6">
+              {currentItem.semesterScoped && selectedSemester &&
+                <SemesterFilter
+                  semesters={visibleSemesters}
+                  selectedId={selectedSemester}
+                  enrollmentLimited={workspace === "student"}
+                />}
+              {currentItem.semesterScoped && !selectedSemester &&
+                <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">No semester is available for this page.</p>}
+              {children ?? <p className="text-muted-foreground">This is the {currentItem.label} page.</p>}
+            </section>
+          </div>
         </div>
-      </section>
-      {children}
-    </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
