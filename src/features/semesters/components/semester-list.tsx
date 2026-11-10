@@ -28,6 +28,8 @@ export function SemesterList({
   semesters: SemesterListItem[];
   canManage: boolean;
 }) {
+  const currentSemester = semesters.find((s) => s.is_current) ?? null;
+
   if (semesters.length === 0) {
     return (
       <Card className="flex flex-col items-center justify-center gap-4 p-8 text-center sm:p-12">
@@ -94,7 +96,10 @@ export function SemesterList({
                           Current Context
                         </span>
                       ) : canManage ? (
-                        <ActivateSemesterDialog semester={semester} />
+                        <ActivateSemesterDialog
+                          semester={semester}
+                          currentSemester={currentSemester}
+                        />
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
