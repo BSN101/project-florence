@@ -50,13 +50,13 @@ export function CreateSemesterDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button className="gap-2 font-medium">
+          <Button className="w-full gap-2 font-medium sm:w-auto">
             <Plus className="size-4" />
             New Semester
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Create New Semester</DialogTitle>
           <DialogDescription>
@@ -113,7 +113,7 @@ export function CreateSemesterDialog() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="starts_on" className="text-xs font-medium text-foreground">
                 Start Date
@@ -143,16 +143,17 @@ export function CreateSemesterDialog() {
             </div>
           </div>
 
-          <DialogFooter className="mt-4 flex-row justify-end gap-2 sm:gap-2">
+          <DialogFooter className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isPending}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending} className="gap-2">
+            <Button type="submit" disabled={isPending} className="w-full gap-2 sm:w-auto">
               {isPending && <Loader2 className="size-4 animate-spin" />}
               Create Semester
             </Button>
