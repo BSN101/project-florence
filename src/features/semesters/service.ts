@@ -1,5 +1,6 @@
 import "server-only";
 
+import { readFileSync } from "node:fs";
 import { revalidatePath } from "next/cache";
 import postgres from "postgres";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -125,10 +126,15 @@ export async function activateSemester(rawInput: unknown): Promise<SemesterActio
 
   let result: SemesterActionResult;
   try {
+    const caPath = process.env.NODE_EXTRA_CA_CERTS;
+    const ca = process.env.DATABASE_CA_CERT || (caPath ? readFileSync(caPath, "utf8") : undefined);
     const sql = postgres(dbUrl, {
       max: 1,
       prepare: false,
-      ssl: { rejectUnauthorized: true },
+      ssl: {
+        rejectUnauthorized: true,
+        ...(ca ? { ca } : {}),
+      },
       connect_timeout: 15,
       connection: { statement_timeout: 30_000, lock_timeout: 10_000 },
     });

@@ -68,7 +68,14 @@ feature files and folders when useful, not merely to match an example tree.
 3. Configure the Supabase URL, public client key and separate server-only
    privileged key. Semester activation also requires a server-only `DATABASE_URL`
    pointing to that same project's direct PostgreSQL or Supavisor connection.
-   Use verified TLS (set `NODE_EXTRA_CA_CERTS` if your project requires its CA).
+   Use verified TLS. If the connection requires the Supabase CA, set
+   `NODE_EXTRA_CA_CERTS=prod-ca-2021.crt` in `.env.local` when the certificate
+   is at the project root (the path is relative to the server's working
+   directory). For Vercel, set server-only `DATABASE_CA_CERT` to the full PEM
+   certificate contents, including the BEGIN/END lines and line breaks.
+   Activation uses `DATABASE_CA_CERT` when present, or reads the file at
+   `NODE_EXTRA_CA_CERTS`; the local `.crt` file is gitignored and is not
+   available in Vercel deployments.
    The development seed's `SEED_DATABASE_URL` is not used by the application.
 4. Run the development command defined in `package.json`.
 
