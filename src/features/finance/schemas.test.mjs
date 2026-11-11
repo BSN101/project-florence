@@ -43,9 +43,20 @@ test("fine creation schema rejects zero, negative, and non-numeric amounts", () 
   assert.equal(createFineDefinitionSchema.safeParse({ name: "Fine", amount: "not-a-number" }).success, false);
 });
 
+test("fine schemas accept cent amounts despite binary floating-point representation", () => {
+  for (const amount of ["0.07", "0.29", "1.13"]) {
+    const created = createFineDefinitionSchema.safeParse({ name: "Fine", amount });
+    assert.equal(created.success, true, `Creation rejected ${amount}`);
+    const updated = updateFineDefinitionSchema.safeParse({ id: validUuid, name: "Fine", amount });
+    assert.equal(updated.success, true, `Update rejected ${amount}`);
+  }
+});
+
 test("fine creation schema rejects amounts with more than two decimal places", () => {
   assert.equal(createFineDefinitionSchema.safeParse({ name: "Fine", amount: 50.125 }).success, false);
   assert.equal(createFineDefinitionSchema.safeParse({ name: "Fine", amount: "75.999" }).success, false);
+  assert.equal(createFineDefinitionSchema.safeParse({ name: "Fine", amount: "1.005" }).success, false);
+  assert.equal(updateFineDefinitionSchema.safeParse({ id: validUuid, name: "Fine", amount: 1.005 }).success, false);
 });
 
 test("fine update schema requires a valid UUID, name, and amount", () => {

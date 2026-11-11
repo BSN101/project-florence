@@ -11,7 +11,7 @@ const fineAmount = z.coerce
   .positive("Amount must be greater than zero")
   .max(9999999.99, "Amount exceeds maximum permitted value")
   .refine(
-    (val) => Number.isFinite(val) && Math.round(val * 100) === val * 100,
+    (val) => Number.isFinite(val) && /^\d+(?:\.\d{1,2})?$/.test(String(val)),
     { message: "Amount can have at most 2 decimal places" }
   );
 
