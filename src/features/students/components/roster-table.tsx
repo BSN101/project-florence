@@ -10,7 +10,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import type { StudentRosterItem } from "../contracts";
 import { EditStudentDialog } from "./edit-student-dialog";
@@ -53,9 +52,19 @@ export function RosterTable({
     });
   }, [students, search, yearFilter, statusFilter]);
 
+  const yearLabel =
+    yearFilter === "all" ? "Year: All Years" : `Year: Year ${yearFilter}`;
+
+  const statusLabel =
+    statusFilter === "all"
+      ? "Status: All Statuses"
+      : statusFilter === "regular"
+        ? "Status: Regular"
+        : "Status: Irregular";
+
   if (students.length === 0) {
     return (
-      <Card className="flex flex-col items-center justify-center gap-4 p-8 text-center sm:p-12">
+      <Card className="flex flex-col items-center justify-center gap-4 p-6 text-center sm:p-12">
         <div className="flex size-12 items-center justify-center rounded-full bg-muted">
           <GraduationCap className="size-6 text-muted-foreground" />
         </div>
@@ -75,52 +84,54 @@ export function RosterTable({
   return (
     <div className="flex flex-col gap-4">
       {/* Search and Filters Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by student number or name..."
-            className="pl-9 text-xs sm:text-sm"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Year Level Filter */}
-          <div className="w-[130px]">
-            <Select value={yearFilter} onValueChange={(val) => setYearFilter(val ?? "all")}>
-              <SelectTrigger className="w-full text-xs">
-                <SelectValue placeholder="All Years" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Years</SelectItem>
-                <SelectItem value="1">Year 1</SelectItem>
-                <SelectItem value="2">Year 2</SelectItem>
-                <SelectItem value="3">Year 3</SelectItem>
-                <SelectItem value="4">Year 4</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-0 flex-1 sm:min-w-[300px] lg:min-w-[340px]">
+            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by student number or name..."
+              className="pl-9 text-xs sm:text-sm"
+            />
           </div>
 
-          {/* Academic Status Filter */}
-          <div className="w-[140px]">
-            <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "all")}>
-              <SelectTrigger className="w-full text-xs">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="regular">Regular</SelectItem>
-                <SelectItem value="irregular">Irregular</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid w-full grid-cols-2 gap-2.5 shrink-0 sm:grid-cols-2 md:grid-cols-2 lg:flex lg:w-auto lg:items-center lg:gap-2.5">
+            {/* Year Level Filter */}
+            <div className="w-full lg:w-[170px]">
+              <Select value={yearFilter} onValueChange={(val) => setYearFilter(val ?? "all")}>
+                <SelectTrigger className="w-full text-xs">
+                  <span className="truncate">{yearLabel}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  <SelectItem value="1">Year 1</SelectItem>
+                  <SelectItem value="2">Year 2</SelectItem>
+                  <SelectItem value="3">Year 3</SelectItem>
+                  <SelectItem value="4">Year 4</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Academic Status Filter */}
+            <div className="w-full lg:w-[170px]">
+              <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "all")}>
+                <SelectTrigger className="w-full text-xs">
+                  <span className="truncate">{statusLabel}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="regular">Regular</SelectItem>
+                  <SelectItem value="irregular">Irregular</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Roster Counter */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+      <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
         <span>
           Showing <strong>{filteredStudents.length}</strong> of {students.length} students
         </span>
@@ -135,8 +146,8 @@ export function RosterTable({
         </Card>
       ) : (
         <>
-          {/* Mobile Card View (< md) */}
-          <div className="flex flex-col gap-3 md:hidden">
+          {/* Mobile & Tablet Card View (< lg: 1 col on mobile, 2 cols on tablet / iPad) */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:hidden">
             {filteredStudents.map((student) => {
               const fullName = `${student.last_name}, ${student.first_name}${
                 student.middle_name ? ` ${student.middle_name}` : ""
@@ -145,30 +156,34 @@ export function RosterTable({
               return (
                 <div
                   key={student.enrollment_id}
-                  className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors"
+                  className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-col">
+                    <div className="min-w-0 flex-1">
                       <span className="font-mono text-xs font-semibold text-primary">
                         {student.university_id}
                       </span>
-                      <span className="font-heading text-sm font-semibold text-foreground">
+                      <h4 className="font-heading text-sm font-semibold text-foreground break-words">
                         {fullName}
-                      </span>
+                      </h4>
                       {student.email && (
-                        <span className="text-[11px] text-muted-foreground">{student.email}</span>
+                        <p className="text-[11px] text-muted-foreground break-all">
+                          {student.email}
+                        </p>
                       )}
                     </div>
 
                     {canManage && (
-                      <EditStudentDialog
-                        student={student}
-                        activeSemesterId={activeSemesterId}
-                      />
+                      <div className="shrink-0">
+                        <EditStudentDialog
+                          student={student}
+                          activeSemesterId={activeSemesterId}
+                        />
+                      </div>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2.5 text-xs">
                     <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
                       Year {student.year_level}
                     </span>
@@ -198,8 +213,8 @@ export function RosterTable({
             })}
           </div>
 
-          {/* Desktop Table View (>= md) */}
-          <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block">
+          {/* Desktop Table View (>= lg) */}
+          <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground">

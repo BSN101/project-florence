@@ -73,8 +73,8 @@ export default async function CouncilPage({
         ) : (
           <>
             {/* Header and Action Controls */}
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0 flex-1 space-y-1">
                 <h2 className="font-heading text-lg font-medium text-foreground">
                   Student Roster
                 </h2>
@@ -92,12 +92,16 @@ export default async function CouncilPage({
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <DownloadTemplateButton />
-                {canManage && <AddStudentDialog activeSemesterId={selectedSemesterId} />}
+              <div className="flex w-full flex-col gap-2 shrink-0 md:w-56 lg:w-60 xl:w-auto xl:flex-row xl:items-center">
+                <DownloadTemplateButton className="w-full justify-center xl:w-auto" />
+                {canManage && (
+                  <AddStudentDialog
+                    activeSemesterId={selectedSemesterId}
+                    className="w-full justify-center xl:w-auto"
+                  />
+                )}
               </div>
             </div>
-
             {/* Roster Table */}
             <RosterTable
               students={students}

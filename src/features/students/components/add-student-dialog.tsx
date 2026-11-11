@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { AlertCircle, CheckCircle2, Loader2, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,13 @@ import {
 import { createStudentAction, lookupStudentAction } from "../actions";
 import type { StudentActionResult, StudentConflictPreview } from "../contracts";
 
-export function AddStudentDialog({ activeSemesterId }: { activeSemesterId: string }) {
+export function AddStudentDialog({
+  activeSemesterId,
+  className,
+}: {
+  activeSemesterId: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [universityId, setUniversityId] = useState("");
   const [lastName, setLastName] = useState("");
@@ -94,9 +101,9 @@ export function AddStudentDialog({ activeSemesterId }: { activeSemesterId: strin
     >
       <DialogTrigger
         render={
-          <Button className="w-full gap-2 font-medium sm:w-auto">
-            <UserPlus className="size-4" />
-            Add Student
+          <Button className={cn("gap-2 font-medium whitespace-nowrap", className)}>
+            <UserPlus className="size-4 shrink-0" />
+            <span>Add Student</span>
           </Button>
         }
       />
