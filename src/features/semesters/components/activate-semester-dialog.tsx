@@ -163,6 +163,7 @@ export function ActivateSemesterDialog({
 
         <form action={formAction}>
           <input type="hidden" name="semester_id" value={semester.id} />
+          <input type="hidden" name="expected_current_semester_id" value={currentSemester?.id ?? ""} />
           <DialogFooter className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2.5">
             <Button
               type="button"

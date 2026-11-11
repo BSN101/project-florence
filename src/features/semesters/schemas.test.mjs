@@ -25,7 +25,7 @@ describe("semesterFilterSchema", () => {
 
 describe("APPROVED_SEMESTER_TERMS", () => {
   test("contains exactly the approved V1 vocabulary", () => {
-    assert.deepEqual(APPROVED_SEMESTER_TERMS, ["1st Semester", "2nd Semester"]);
+    assert.deepEqual(APPROVED_SEMESTER_TERMS, ["1st Semester", "2nd Semester", "Midyear"]);
   });
 });
 
@@ -39,14 +39,11 @@ describe("createSemesterSchema", () => {
 
   test("accepts valid inputs for all approved terms", () => {
     assert.equal(createSemesterSchema.safeParse(validBase).success, true);
-    assert.equal(
-      createSemesterSchema.safeParse({ ...validBase, term: "2nd Semester" }).success,
-      true,
-    );
+    assert.equal(createSemesterSchema.safeParse({ ...validBase, term: "2nd Semester" }).success, true);
+    assert.equal(createSemesterSchema.safeParse({ ...validBase, term: "Midyear" }).success, true);
   });
 
-  test("rejects unapproved terms like Midyear, Summer, or empty string", () => {
-    assert.equal(createSemesterSchema.safeParse({ ...validBase, term: "Midyear" }).success, false);
+  test("rejects unapproved terms like Summer or empty string", () => {
     assert.equal(createSemesterSchema.safeParse({ ...validBase, term: "Summer" }).success, false);
     assert.equal(createSemesterSchema.safeParse({ ...validBase, term: "" }).success, false);
     assert.equal(createSemesterSchema.safeParse({ ...validBase, term: "Trimester" }).success, false);
@@ -114,16 +111,18 @@ describe("createSemesterSchema", () => {
 });
 
 describe("activateSemesterSchema", () => {
-  test("accepts a valid UUID", () => {
-    assert.equal(
-      activateSemesterSchema.safeParse({ semesterId: "11111111-1111-4111-8111-111111111111" }).success,
-      true,
-    );
+  const semesterId = "11111111-1111-4111-8111-111111111111";
+  const priorId = "22222222-2222-4222-8222-222222222222";
+
+  test("accepts first activation and a switch from a known current semester", () => {
+    assert.equal(activateSemesterSchema.safeParse({ semesterId, expectedCurrentSemesterId: null }).success, true);
+    assert.equal(activateSemesterSchema.safeParse({ semesterId, expectedCurrentSemesterId: priorId }).success, true);
   });
 
-  test("rejects invalid or missing UUID", () => {
-    assert.equal(activateSemesterSchema.safeParse({ semesterId: "not-a-uuid" }).success, false);
-    assert.equal(activateSemesterSchema.safeParse({}).success, false);
-    assert.equal(activateSemesterSchema.safeParse({ semesterId: "" }).success, false);
+  test("rejects missing or invalid target and expected current IDs", () => {
+    assert.equal(activateSemesterSchema.safeParse({ semesterId: "not-a-uuid", expectedCurrentSemesterId: null }).success, false);
+    assert.equal(activateSemesterSchema.safeParse({ expectedCurrentSemesterId: null }).success, false);
+    assert.equal(activateSemesterSchema.safeParse({ semesterId, expectedCurrentSemesterId: "" }).success, false);
+    assert.equal(activateSemesterSchema.safeParse({ semesterId }).success, false);
   });
 });
