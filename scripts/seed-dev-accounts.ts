@@ -85,7 +85,7 @@ export function readConfig(env: NodeJS.ProcessEnv) {
   const year = Number(yearText);
   requireCondition(/^\d{4}$/.test(yearText) && year >= 1900 && year <= 9998, "SEED_SEMESTER_YEAR must be between 1900 and 9998.");
   const term = required("SEED_SEMESTER_TERM");
-  requireCondition(term === term.trim() && term.length <= 100 && !/[\r\n\x00]/.test(term), "SEED_SEMESTER_TERM must be trimmed nonblank text of at most 100 characters; use the team's agreed term.");
+  requireCondition(["1st Semester", "2nd Semester", "Midyear"].includes(term), "SEED_SEMESTER_TERM must be 1st Semester, 2nd Semester or Midyear.");
   function date(name: string) {
     const value = required(name);
     const parsed = new Date(`${value}T00:00:00Z`);
