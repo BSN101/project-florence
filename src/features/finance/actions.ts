@@ -119,7 +119,7 @@ export async function updateFineDefinition(
       return { success: false, error: "Archived fine definitions cannot be modified" };
     }
 
-    const { error: updateError } = await commandClient
+    const { data: updated, error: updateError } = await commandClient
       .from("fine_definitions")
       .update({
         name: parsed.data.name,
@@ -127,10 +127,15 @@ export async function updateFineDefinition(
         updated_at: new Date().toISOString(),
       })
       .eq("id", parsed.data.id)
-      .is("archived_at", null);
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
 
     if (updateError) {
       return { success: false, error: updateError.message };
+    }
+    if (!updated) {
+      return { success: false, error: "Fine definition is no longer active. Refresh and try again." };
     }
 
     revalidatePath("/council/fees-and-fines");
@@ -184,17 +189,22 @@ export async function archiveFineDefinition(
     }
 
     const now = new Date().toISOString();
-    const { error: archiveError } = await commandClient
+    const { data: archived, error: archiveError } = await commandClient
       .from("fine_definitions")
       .update({
         archived_at: now,
         updated_at: now,
       })
       .eq("id", parsed.data.id)
-      .is("archived_at", null);
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
 
     if (archiveError) {
       return { success: false, error: archiveError.message };
+    }
+    if (!archived) {
+      return { success: false, error: "Fine definition is already archived. Refresh and try again." };
     }
 
     revalidatePath("/council/fees-and-fines");
