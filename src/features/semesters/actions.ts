@@ -25,6 +25,10 @@ export async function activateSemesterAction(
   _prevState: SemesterActionResult | null,
   formData: FormData,
 ): Promise<SemesterActionResult> {
-  const semesterId = formData.get("semester_id") ?? formData.get("semesterId");
-  return await activateSemester({ semesterId });
+  const semesterId = formData.get("semester_id");
+  const expectedCurrentSemesterId = formData.get("expected_current_semester_id");
+  return await activateSemester({
+    semesterId,
+    expectedCurrentSemesterId: expectedCurrentSemesterId === "" ? null : expectedCurrentSemesterId,
+  });
 }

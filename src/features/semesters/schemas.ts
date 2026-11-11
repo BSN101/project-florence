@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const APPROVED_SEMESTER_TERMS = ["1st Semester", "2nd Semester"] as const;
+export const APPROVED_SEMESTER_TERMS = ["1st Semester", "2nd Semester", "Midyear"] as const;
 
 export type SemesterTerm = (typeof APPROVED_SEMESTER_TERMS)[number];
 
@@ -22,6 +22,7 @@ export const createSemesterSchema = z.object({
 
 export const activateSemesterSchema = z.object({
   semesterId: z.string().uuid(),
+  expectedCurrentSemesterId: z.string().uuid().nullable(),
 });
 
 export type SemesterFilterInput = z.infer<typeof semesterFilterSchema>;

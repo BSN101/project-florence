@@ -1,9 +1,11 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import postgres from "postgres";
 import { getAccessContext } from "@/server/auth/access-context";
 import { createCommandClient } from "@/server/db/command-client";
 import type { SemesterActionResult } from "./contracts";
+import { activateSemesterInTransaction, isMatchingSemesterDatabase } from "./activation";
 import {
   activateSemesterSchema,
   createSemesterSchema,
@@ -113,86 +115,35 @@ export async function activateSemester(rawInput: unknown): Promise<SemesterActio
     return { success: false, error: "Invalid semester ID provided." };
   }
 
-  const { semesterId } = parsed.data;
-  const commandClient = createCommandClient();
-
-  // Verify target semester exists
-  const { data: target, error: targetError } = await commandClient
-    .from("semesters")
-    .select("id, academic_year_start, term, starts_on, ends_on, is_current, created_at")
-    .eq("id", semesterId)
-    .maybeSingle();
-
-  if (targetError || !target) {
-    return { success: false, error: "Target semester not found." };
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    return { success: false, error: "Semester activation is unavailable: DATABASE_URL is not configured." };
+  }
+  if (!isMatchingSemesterDatabase(dbUrl, process.env.NEXT_PUBLIC_SUPABASE_URL)) {
+    return { success: false, error: "DATABASE_URL must point to the same Supabase project as the application." };
   }
 
-  if (target.is_current) {
-    return {
-      success: true,
-      message: `${target.term} (AY ${target.academic_year_start}–${target.academic_year_start + 1}) is already active.`,
-      semester: target,
-    };
-  }
-
-  // Atomic update:
-  // If direct database connection is provided, run with explicit transaction & advisory lock
-  const dbUrl = process.env.DATABASE_URL || process.env.SEED_DATABASE_URL;
-  if (dbUrl) {
+  let result: SemesterActionResult;
+  try {
+    const sql = postgres(dbUrl, {
+      max: 1,
+      prepare: false,
+      ssl: { rejectUnauthorized: true },
+      connect_timeout: 15,
+      connection: { statement_timeout: 30_000, lock_timeout: 10_000 },
+    });
     try {
-      const postgres = (await import("postgres")).default;
-      const sql = postgres(dbUrl, { max: 1, ssl: "require" });
-      try {
-        await sql.begin(async (tx) => {
-          await tx`select pg_advisory_xact_lock(hashtextextended('florence:semester-context', 0))`;
-          await tx`update public.semesters set is_current = false where is_current = true`;
-          await tx`update public.semesters set is_current = true where id = ${semesterId}`;
-        });
-      } finally {
-        await sql.end();
-      }
-    } catch (pgError: unknown) {
-      const message = pgError instanceof Error ? pgError.message : "Database transaction failed";
-      return { success: false, error: `Failed to activate semester: ${message}` };
+      result = await sql.begin((tx) => activateSemesterInTransaction(tx, parsed.data));
+    } finally {
+      await sql.end();
     }
-  } else {
-    // Via service_role command client:
-    // The database trigger `semester_context_lock` on public.semesters automatically acquires
-    // `pg_advisory_xact_lock(hashtextextended('florence:semester-context', 0))` before each update.
-    const { error: deactivateError } = await commandClient
-      .from("semesters")
-      .update({ is_current: false })
-      .eq("is_current", true);
-
-    if (deactivateError) {
-      return {
-        success: false,
-        error: `Failed to deactivate current semester: ${deactivateError.message}`,
-      };
-    }
-
-    const { data: activated, error: activateError } = await commandClient
-      .from("semesters")
-      .update({ is_current: true })
-      .eq("id", semesterId)
-      .select("id, academic_year_start, term, starts_on, ends_on, is_current, created_at")
-      .single();
-
-    if (activateError || !activated) {
-      return {
-        success: false,
-        error: `Failed to activate semester: ${activateError?.message ?? "Unknown error"}`,
-      };
-    }
+  } catch {
+    return { success: false, error: "Activation could not be confirmed. Refresh the page to check the current semester before retrying." };
   }
-
+  if (!result.success) return result;
   revalidatePath("/council/semesters");
   revalidatePath("/council");
   revalidatePath("/student");
   revalidatePath("/faculty");
-
-  return {
-    success: true,
-    message: `Activated ${target.term} (AY ${target.academic_year_start}–${target.academic_year_start + 1}) as the current semester context.`,
-  };
+  return result;
 }
