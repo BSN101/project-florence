@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { FineDefinitionList } from "@/features/finance/components/fine-definition-list";
 import { getFineDefinitions } from "@/features/finance/queries";
@@ -9,6 +11,7 @@ export default async function CouncilFeesAndFinesPage({
 }: {
   searchParams: Promise<{ semester?: string | string[] }>;
 }) {
+  await connection();
   const { semester } = await searchParams;
   const fineDefinitions = await getFineDefinitions({ includeArchived: true });
 

@@ -945,7 +945,9 @@ Table fine_definitions {
   Note: '''
 ### 7.2 `fine_definitions`
 
-Reusable event-fine definitions for future event configuration.
+Reusable event-fine definitions for future event configuration. The Council catalog
+uses `florence_fine_definitions()` to display the creator's current profile name
+for active and archived definitions without broadening profile reads.
 
 **Basic database checks**
 
@@ -954,7 +956,9 @@ Reusable event-fine definitions for future event configuration.
 
 **RLS**
 
-- Executive/Operations may read/manage definitions.
+- Executive/Operations may read/manage definitions. The catalog function checks
+  active Executive/Operations membership and projects only definition fields and
+  the creator's display name; only authenticated users can execute it.
 - Students/Representatives/Faculty do not browse the reusable catalog.
 '''
 }

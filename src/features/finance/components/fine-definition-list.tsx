@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Edit2, Archive, CheckCircle2, History } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { FineDefinitionDTO } from "../contracts";
+import type { FineDefinitionCatalogItem } from "../contracts";
 import { CreateFineDialog } from "./create-fine-dialog";
 import { EditFineDialog } from "./edit-fine-dialog";
 import { ArchiveFineDialog } from "./archive-fine-dialog";
@@ -12,12 +12,12 @@ import { ArchiveFineDialog } from "./archive-fine-dialog";
 export function FineDefinitionList({
   definitions,
 }: {
-  definitions: FineDefinitionDTO[];
+  definitions: FineDefinitionCatalogItem[];
 }) {
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingDefinition, setEditingDefinition] = useState<FineDefinitionDTO | null>(null);
-  const [archivingDefinition, setArchivingDefinition] = useState<FineDefinitionDTO | null>(null);
+  const [editingDefinition, setEditingDefinition] = useState<FineDefinitionCatalogItem | null>(null);
+  const [archivingDefinition, setArchivingDefinition] = useState<FineDefinitionCatalogItem | null>(null);
 
   const activeFines = definitions.filter((f) => f.archived_at === null);
   const archivedFines = definitions.filter((f) => f.archived_at !== null);
@@ -106,6 +106,7 @@ export function FineDefinitionList({
                 <tr>
                   <th scope="col" className="px-6 py-3">Fine Name</th>
                   <th scope="col" className="px-6 py-3">Default Amount</th>
+                  <th scope="col" className="px-6 py-3">Created By</th>
                   <th scope="col" className="px-6 py-3">Status</th>
                   <th scope="col" className="px-6 py-3">
                     {activeTab === "active" ? "Last Updated" : "Archived On"}
@@ -121,6 +122,9 @@ export function FineDefinitionList({
                     </td>
                     <td className="px-6 py-4 font-mono font-semibold text-foreground">
                       {currencyFormatter.format(item.amount)}
+                    </td>
+                    <td className="px-6 py-4 text-foreground">
+                      {item.creator_name}
                     </td>
                     <td className="px-6 py-4">
                       {item.archived_at ? (
