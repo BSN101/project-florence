@@ -66,7 +66,10 @@ feature files and folders when useful, not merely to match an example tree.
 2. Obtain development environment values through the team's secure channel.
    Use the repository's environment example when available.
 3. Configure the Supabase URL, public client key and separate server-only
-   privileged key.
+   privileged key. Semester activation also requires a server-only `DATABASE_URL`
+   pointing to that same project's direct PostgreSQL or Supavisor connection.
+   Use verified TLS (set `NODE_EXTRA_CA_CERTS` if your project requires its CA).
+   The development seed's `SEED_DATABASE_URL` is not used by the application.
 4. Run the development command defined in `package.json`.
 
 Never commit credentials. The privileged key must never use a public
@@ -148,8 +151,8 @@ environment. Required configuration:
   template still contains only the original four.
 - `SEED_SEMESTER_YEAR`, `SEED_SEMESTER_TERM`, `SEED_SEMESTER_STARTS_ON`,
   `SEED_SEMESTER_ENDS_ON`, and explicit `SEED_SEMESTER_IS_CURRENT=true|false`.
-  Dates use `YYYY-MM-DD`. Supply the team's agreed term: migrations currently
-  enforce nonblank text, not a finalized term vocabulary.
+  Dates use `YYYY-MM-DD`. Once the semester-term migration is applied, the
+  accepted terms are `1st Semester`, `2nd Semester` and `Midyear`.
 
 Validate configuration locally without network access, then seed **only after
 approval of the target**:

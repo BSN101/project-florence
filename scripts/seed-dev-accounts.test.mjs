@@ -15,12 +15,18 @@ function environment() {
     SEED_DATABASE_URL: `postgresql://postgres:not-a-credential@db.${ref}.supabase.co:5432/postgres`,
     ...Object.fromEntries(fixtures.map((f) => [`SEED_${f.key.toUpperCase()}_PASSWORD`, `test-input-only-${f.key}`])),
     SEED_SEMESTER_YEAR: "2026",
-    SEED_SEMESTER_TERM: "Test Term",
+    SEED_SEMESTER_TERM: "1st Semester",
     SEED_SEMESTER_STARTS_ON: "2026-08-01",
     SEED_SEMESTER_ENDS_ON: "2026-12-31",
     SEED_SEMESTER_IS_CURRENT: "false",
   };
 }
+
+test("accepts all approved seed semester terms", () => {
+  for (const term of ["1st Semester", "2nd Semester", "Midyear"]) {
+    assert.equal(readConfig({ ...environment(), SEED_SEMESTER_TERM: term }).term, term);
+  }
+});
 
 test("accepts a matching direct or Supavisor target", () => {
   assert.equal(readConfig(environment()).isCurrent, false);
@@ -44,6 +50,7 @@ for (const [name, value] of [
   ["SEED_ADMIN_PASSWORD", "short"],
   ["SEED_SEMESTER_YEAR", "9999"],
   ["SEED_SEMESTER_TERM", " "],
+  ["SEED_SEMESTER_TERM", "Summer"],
   ["SEED_SEMESTER_STARTS_ON", "2026-02-30"],
   ["SEED_SEMESTER_ENDS_ON", "2026-01-01"],
   ["SEED_SEMESTER_IS_CURRENT", "yes"],

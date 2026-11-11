@@ -595,7 +595,7 @@ Stores invitation business state, independent of provider delivery details.
 Table semesters {
   id uuid [pk, note: "Primary key"]
   academic_year_start integer [not null, note: "Start year"]
-  term text [not null, note: "Current approved term vocabulary"]
+  term text [not null, note: "1st Semester, 2nd Semester or Midyear; fixed legacy development seed exception"]
   starts_on date [not null, note: "Inclusive start"]
   ends_on date [not null, note: "Inclusive end"]
   is_current boolean [not null, note: "Current ordinary academic context"]
@@ -612,12 +612,13 @@ Represents semester context. Creation and activation are separate; there is no d
 **Basic database checks**
 
 - `PRIMARY KEY (id)`.
-- `UNIQUE (academic_year_start, term)`.
+- `UNIQUE (academic_year_start, term)`: each term can appear once per academic year; no required term order.
+- `CHECK` permits only `1st Semester`, `2nd Semester` or `Midyear`, except the existing development fixture with ID `ae2fa3de-7aa6-4a10-ad86-d7c6d5a8fe34` may retain exactly `Development Seed`. No other row may use that term.
 - `CHECK (ends_on >= starts_on)`.
 - Reasonable year-range check.
 - Partial unique index allowing at most one `is_current = true` row.
 - Before first activation, zero current semesters is allowed and ordinary academic-record creation is blocked with an actionable error. Once initialized, activation locks a shared semester-context scope, clears the previous current row and sets the selected row in one transaction; no ordinary deactivation-only path is exposed. Ordinary record creation resolves the active context in its transaction and retains that semester permanently.
-- Term vocabulary should not include Midyear unless implementation confirms it is needed.
+- Activation compares the confirmed prior current semester under the shared lock; if it changed, the switch is rejected without changing context.
 
 **RLS**
 
