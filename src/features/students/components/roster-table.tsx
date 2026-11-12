@@ -147,70 +147,72 @@ export function RosterTable({
       ) : (
         <>
           {/* Mobile & Tablet Card View (< lg: 1 col on mobile, 2 cols on tablet / iPad) */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:hidden">
-            {filteredStudents.map((student) => {
-              const fullName = `${student.last_name}, ${student.first_name}${
-                student.middle_name ? ` ${student.middle_name}` : ""
-              }${student.suffix ? ` ${student.suffix}` : ""}`;
+          <div className="min-h-[360px] max-h-[600px] overflow-y-auto pr-1 pb-1 lg:hidden">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {filteredStudents.map((student) => {
+                const fullName = `${student.last_name}, ${student.first_name}${
+                  student.middle_name ? ` ${student.middle_name}` : ""
+                }${student.suffix ? ` ${student.suffix}` : ""}`;
 
-              return (
-                <div
-                  key={student.enrollment_id}
-                  className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <span className="font-mono text-xs font-semibold text-primary">
-                        {student.university_id}
-                      </span>
-                      <h4 className="font-heading text-sm font-semibold text-foreground break-words">
-                        {fullName}
-                      </h4>
-                      {student.email && (
-                        <p className="text-[11px] text-muted-foreground break-all">
-                          {student.email}
-                        </p>
+                return (
+                  <div
+                    key={student.enrollment_id}
+                    className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <span className="font-mono text-xs font-semibold text-primary">
+                          {student.university_id}
+                        </span>
+                        <h4 className="font-heading text-sm font-semibold text-foreground break-words">
+                          {fullName}
+                        </h4>
+                        {student.email && (
+                          <p className="text-[11px] text-muted-foreground break-all">
+                            {student.email}
+                          </p>
+                        )}
+                      </div>
+
+                      {canManage && (
+                        <div className="shrink-0">
+                          <EditStudentDialog
+                            student={student}
+                            activeSemesterId={activeSemesterId}
+                          />
+                        </div>
                       )}
                     </div>
 
-                    {canManage && (
-                      <div className="shrink-0">
-                        <EditStudentDialog
-                          student={student}
-                          activeSemesterId={activeSemesterId}
-                        />
-                      </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2.5 text-xs">
+                      <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                        Year {student.year_level}
+                      </span>
+
+                      {student.academic_status === "regular" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                          Regular
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-600/30 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                          Irregular
+                        </span>
+                      )}
+
+                      {student.has_auth_account ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600/30 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                          Uninvited / Pending
+                        </span>
+                      )}
+                    </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2.5 text-xs">
-                    <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
-                      Year {student.year_level}
-                    </span>
-
-                    {student.academic_status === "regular" ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                        Regular
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-600/30 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                        Irregular
-                      </span>
-                    )}
-
-                    {student.has_auth_account ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600/30 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        Uninvited / Pending
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
           {/* Desktop Table View (>= lg) */}
