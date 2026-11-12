@@ -24,13 +24,7 @@ import {
 import { updateStudentAction } from "../actions";
 import type { StudentActionResult, StudentRosterItem } from "../contracts";
 
-export function EditStudentDialog({
-  student,
-  activeSemesterId,
-}: {
-  student: StudentRosterItem;
-  activeSemesterId: string;
-}) {
+export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
   const [open, setOpen] = useState(false);
   const [lastName, setLastName] = useState(student.last_name);
   const [firstName, setFirstName] = useState(student.first_name);
@@ -41,6 +35,20 @@ export function EditStudentDialog({
   const [academicStatus, setAcademicStatus] = useState<"regular" | "irregular">(
     student.academic_status,
   );
+
+  // Re-read the latest roster values each time the dialog opens.
+  const handleOpenChange = (next: boolean) => {
+    if (next) {
+      setLastName(student.last_name);
+      setFirstName(student.first_name);
+      setMiddleName(student.middle_name ?? "");
+      setSuffix(student.suffix ?? "");
+      setEmail(student.email ?? "");
+      setYearLevel(student.year_level.toString());
+      setAcademicStatus(student.academic_status);
+    }
+    setOpen(next);
+  };
 
   const [state, formAction, isPending] = useActionState(
     async (prev: StudentActionResult | null, formData: FormData) => {
@@ -54,7 +62,7 @@ export function EditStudentDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
           <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
@@ -69,7 +77,7 @@ export function EditStudentDialog({
             Edit Student Details
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Update demographic profile and active semester enrollment attributes. Identity continuity is strictly maintained.
+            Update the student’s name, email and current-semester enrollment. The student number cannot change.
           </DialogDescription>
         </DialogHeader>
 
@@ -83,7 +91,6 @@ export function EditStudentDialog({
         )}
 
         <form action={formAction} className="flex flex-col gap-4 py-1">
-          <input type="hidden" name="semester_id" value={activeSemesterId} />
           <input type="hidden" name="student_id" value={student.student_id} />
           <input type="hidden" name="year_level" value={yearLevel} />
           <input type="hidden" name="academic_status" value={academicStatus} />
@@ -178,7 +185,7 @@ export function EditStudentDialog({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="edit_year_select" className="text-xs font-medium text-foreground">
-                Year Level (Active Semester) <span className="text-destructive">*</span>
+                Year Level <span className="text-destructive">*</span>
               </label>
               <Select value={yearLevel} onValueChange={(val) => setYearLevel(val ?? "1")}>
                 <SelectTrigger id="edit_year_select" className="w-full">

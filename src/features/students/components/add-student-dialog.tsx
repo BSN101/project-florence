@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { AlertCircle, CheckCircle2, Loader2, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { sortName } from "@/features/access/components/provisioning-ui";
 import {
   Select,
   SelectContent,
@@ -23,15 +24,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createStudentAction, lookupStudentAction } from "../actions";
-import type { StudentActionResult, StudentConflictPreview } from "../contracts";
+import type { RosterCandidate, StudentActionResult } from "../contracts";
 
-export function AddStudentDialog({
-  activeSemesterId,
-  className,
-}: {
-  activeSemesterId: string;
-  className?: string;
-}) {
+export function AddStudentDialog({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [universityId, setUniversityId] = useState("");
   const [lastName, setLastName] = useState("");
@@ -42,19 +37,28 @@ export function AddStudentDialog({
   const [yearLevel, setYearLevel] = useState("1");
   const [academicStatus, setAcademicStatus] = useState<"regular" | "irregular">("regular");
 
-  const [preview, setPreview] = useState<StudentConflictPreview | null>(null);
+  const [preview, setPreview] = useState<RosterCandidate | null>(null);
+  const [lookupFailed, setLookupFailed] = useState(false);
   const [isLookingUp, startLookup] = useTransition();
+  // Ignores lookup responses for a number the user has since changed.
+  const latestLookup = useRef("");
+
+  const setIdentity = (p: Pick<RosterCandidate, "last_name" | "first_name" | "middle_name" | "suffix" | "email"> | null) => {
+    setLastName(p?.last_name ?? "");
+    setFirstName(p?.first_name ?? "");
+    setMiddleName(p?.middle_name ?? "");
+    setSuffix(p?.suffix ?? "");
+    setEmail(p?.email ?? "");
+  };
 
   const resetForm = () => {
     setUniversityId("");
-    setLastName("");
-    setFirstName("");
-    setMiddleName("");
-    setSuffix("");
-    setEmail("");
+    setIdentity(null);
     setYearLevel("1");
     setAcademicStatus("regular");
     setPreview(null);
+    setLookupFailed(false);
+    latestLookup.current = "";
   };
 
   const [state, formAction, isPending] = useActionState(
@@ -72,24 +76,28 @@ export function AddStudentDialog({
   const handleUniversityIdChange = (val: string) => {
     setUniversityId(val);
     const trimmed = val.trim();
-    if (/^[0-9]{2}-1-[0-9]{5}$/.test(trimmed)) {
-      startLookup(async () => {
-        const res = await lookupStudentAction(trimmed, activeSemesterId);
+    latestLookup.current = trimmed;
+    // Drop details pre-filled from a previously found profile.
+    if (preview) setIdentity(null);
+    setPreview(null);
+    setLookupFailed(false);
+    if (!/^[0-9]{2}-1-[0-9]{5}$/.test(trimmed)) return;
+    startLookup(async () => {
+      try {
+        const res = await lookupStudentAction(trimmed);
+        if (latestLookup.current !== trimmed) return;
         setPreview(res);
-        if (res.exists && !res.is_enrolled_in_active_semester) {
-          if (res.last_name) setLastName(res.last_name);
-          if (res.first_name) setFirstName(res.first_name);
-          if (res.middle_name) setMiddleName(res.middle_name);
-          if (res.suffix) setSuffix(res.suffix);
-          if (res.email) setEmail(res.email);
-        }
-      });
-    } else {
-      setPreview(null);
-    }
+        if (res) setIdentity(res);
+      } catch {
+        if (latestLookup.current === trimmed) setLookupFailed(true);
+      }
+    });
   };
 
-  const isDuplicate = preview?.exists && preview.is_enrolled_in_active_semester;
+  const isDuplicate = Boolean(preview?.enrolled_in_current);
+  const isArchived = Boolean(preview && preview.account_status !== "active");
+  // An existing profile keeps its identity; names are changed through Edit.
+  const isExisting = Boolean(preview);
 
   return (
     <Dialog
@@ -113,7 +121,7 @@ export function AddStudentDialog({
             Add Student to Roster
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Enroll an individual student for the active academic semester. Re-entering an existing student preserves their historical record relationships.
+            Enroll an individual student in the current semester. Re-entering an existing student reuses their profile and keeps their history.
           </DialogDescription>
         </DialogHeader>
 
@@ -127,7 +135,6 @@ export function AddStudentDialog({
         )}
 
         <form action={formAction} className="flex flex-col gap-4 py-1">
-          <input type="hidden" name="semester_id" value={activeSemesterId} />
           <input type="hidden" name="year_level" value={yearLevel} />
           <input type="hidden" name="academic_status" value={academicStatus} />
 
@@ -158,29 +165,38 @@ export function AddStudentDialog({
           </div>
 
           {/* Conflict / Identity Preview Banner */}
-          {isDuplicate && (
+          {lookupFailed && (
+            <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-error-surface p-3 text-xs text-foreground">
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <p>We couldn&rsquo;t check this student number. You can still submit; Florence checks it again when saving.</p>
+            </div>
+          )}
+
+          {preview && (isDuplicate || isArchived) && (
             <div
               role="alert"
               className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-error-surface p-3 text-xs text-foreground"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
               <div>
-                <p className="font-semibold text-destructive">Already Enrolled</p>
+                <p className="font-semibold text-destructive">{isArchived ? "Archived Account" : "Already Enrolled"}</p>
                 <p className="mt-0.5 text-muted-foreground">
-                  Student {preview.last_name ? `(${preview.last_name}, ${preview.first_name})` : ""}{" "}
-                  is already enrolled in the active semester. Duplicate enrollment is blocked.
+                  {sortName(preview)}{" "}
+                  {isArchived
+                    ? "has an archived account and can\u2019t be enrolled. Contact a Platform Admin."
+                    : "is already enrolled in the current semester."}
                 </p>
               </div>
             </div>
           )}
 
-          {preview?.exists && !isDuplicate && (
+          {preview && !isDuplicate && !isArchived && (
             <div className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-foreground">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <p className="font-semibold text-primary">Identity Continuity</p>
+                <p className="font-semibold text-primary">Existing Student</p>
                 <p className="mt-0.5 text-muted-foreground">
-                  Found existing profile for <strong>{preview.last_name}, {preview.first_name}</strong>. Re-enrolling will link to their existing student profile without altering historical records.
+                  Found <strong>{sortName(preview)}</strong>. Enrolling links to their existing profile and keeps their history. Change their name or email with Edit after enrolling.
                 </p>
               </div>
             </div>
@@ -195,6 +211,7 @@ export function AddStudentDialog({
               <Input
                 id="last_name"
                 name="last_name"
+                readOnly={isExisting}
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Dela Cruz"
@@ -208,6 +225,7 @@ export function AddStudentDialog({
               <Input
                 id="first_name"
                 name="first_name"
+                readOnly={isExisting}
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="Juan Carlos"
@@ -224,6 +242,7 @@ export function AddStudentDialog({
               <Input
                 id="middle_name"
                 name="middle_name"
+                readOnly={isExisting}
                 value={middleName}
                 onChange={(e) => setMiddleName(e.target.value)}
                 placeholder="Santos"
@@ -236,6 +255,7 @@ export function AddStudentDialog({
               <Input
                 id="suffix"
                 name="suffix"
+                readOnly={isExisting}
                 value={suffix}
                 onChange={(e) => setSuffix(e.target.value)}
                 placeholder="Jr., III"
@@ -251,6 +271,7 @@ export function AddStudentDialog({
             <Input
               id="email"
               name="email"
+              readOnly={isExisting}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -311,7 +332,7 @@ export function AddStudentDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isPending || Boolean(isDuplicate)}
+              disabled={isPending || isDuplicate || isArchived}
               className="w-full gap-2 font-medium sm:w-auto"
             >
               {isPending && <Loader2 className="size-4 animate-spin" />}
