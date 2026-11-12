@@ -1,6 +1,6 @@
 {
   "dbml": {
-    "entry": "./supabase/schema.dbml"
+    "entry": "./docs/database/schema.dbml"
   },
   "diagram": {
     "id": "6aee705cf1d298b573941edd",

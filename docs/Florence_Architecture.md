@@ -12,7 +12,7 @@ Florence is a feature-based modular monolith: one Next.js 16 application, deploy
 | Supabase Auth | Authentication and account recovery |
 | Supabase PostgreSQL | Records, constraints, read policies and atomic operations |
 | Cloudflare R2 | Private files |
-| SMTP provider | Supabase Auth email delivery; Mailtrap for current testing, Brevo for the planned business-email integration |
+| SMTP provider | Supabase Auth recovery email, and Florence invitation email sent by the app through nodemailer. Mailtrap for current testing, Brevo planned. |
 
 The function list defines capabilities and permissions. The schema defines records and transaction rules. This document defines code organization and application boundaries.
 
@@ -109,6 +109,7 @@ The application root `README.md` covers setup, commands, environment configurati
 - Pages compose screens and call feature queries. Layouts provide shared shells. Route groups and workspace names do not grant permissions.
 - `src/app/(portal)/account/` is the shared protected account destination outside every workspace. It displays the signed-in user's permitted identity fields and owns no workspace authority; `src/features/account/` owns signed-in account actions such as current-password-confirmed password changes.
 - `src/app/(auth)/reset-password/` and its callback are public recovery entry points. Recovery uses a verified Supabase session plus a signed, short-lived, HTTP-only recovery-intent marker; it does not reuse the authenticated account password action.
+- `src/app/(auth)/invitation/accept/` is the public first-access entry point. The invitation token is the only credential. It is read from the URL fragment and posted to a Server Action that re-checks it in the database; opening the link changes nothing.
 - Server actions validate form input, resolve the actor and run an authorized command.
 - API route handlers support downloads or other actual HTTP integration needs. Do not create an endpoint for every feature or make server code fetch its own API.
 - Add loading, error and not-found screens where needed.
@@ -134,7 +135,7 @@ Use `import 'server-only'` in trusted modules and `'use server'` in Server Actio
 
 ### Actor resolution
 
-Validate the user's session and resolve the linked active Florence profile and current assignments. An Auth user alone does not establish application access. The shared `/account` route uses the same active-profile requirement as workspaces, while password recovery may restore an inactive linked Auth identity without granting Florence workspace access.
+Validate the user's session and resolve the linked active Florence profile and current assignments. An Auth user alone does not establish application access. An invited profile gets its Auth user only at invitation acceptance, linked in the same transaction that accepts the invitation; before that there is no account to sign in to or recover. The shared `/account` route uses the same active-profile requirement as workspaces, while password recovery may restore an inactive linked Auth identity without granting Florence workspace access.
 
 Every command checks action scope, beneficiary restrictions and current state. Deny archived profiles even if a session or assignment remains active. Never accept a browser-provided actor ID as identity. Session redirects do not replace authorization in pages, queries, actions, handlers or services.
 
@@ -181,7 +182,17 @@ Storage helpers configure R2 and issue short-lived URLs. The owning feature auth
 
 Support customized invitations, acceptance and password recovery/reset. The access feature owns provisioning authority, invitation expiry/cancellation, identity linkage and acceptance. The provider adapter handles delivery only.
 
-Use the approved Auth integration for token generation/verification. Coordinate custom delivery with Supabase Auth configuration to avoid duplicate messages. Delivery failure must not undo successful roster creation or create duplicate identities on retry. Accepted or cancelled invitations cannot be reused.
+**Invitations (first access).** Florence owns the token, not Supabase.
+- The server creates a 32-byte random token and stores only its SHA-256 hash in `invitations.token_hash`.
+- The app sends the invitation email over SMTP (`server/email/`). The link is `/invitation/accept#t=<token>`; the fragment keeps the token out of server logs.
+- Supabase invite links and OTPs are not used, and no temporary password is issued.
+- At acceptance the server re-checks the invitation and creates the Auth user with the chosen password through the server-only client. `accept_invitation` then links `profiles.auth_user_id` and marks the invitation accepted in one transaction.
+- If linking fails, the new Auth user is deleted only when no profile links to it. An existing Auth user is never modified by acceptance.
+- Expiry uses `expires_at` whatever the stored status. Accepted, expired or cancelled invitations cannot be reused, and reissuing cancels the previous one.
+
+**Recovery.** Supabase Auth still sends password-recovery email for established accounts.
+
+**Delivery** is a separate outcome. A failed send never undoes the profile or invitation, and a retried command never sends a second email or creates a second identity. The admin reissues instead.
 
 Operational email for payments, merits or demerits is not included by this auth-email support.
 
