@@ -80,7 +80,7 @@ test("Faculty navigation exposes only matching coordinator destinations", () => 
 });
 
 test("Student and Admin navigation remain isolated", () => {
-  assert.deepEqual(slugs("admin", grants(["Platform Admin"])), ["", "misconduct-catalog"]);
+  assert.deepEqual(slugs("admin", grants(["Platform Admin"])), ["users/faculty", "users/executives", "misconduct-catalog"]);
   assert.deepEqual(slugs("student", grants()), ["", "events", "fees-and-fines", "merits-demerits-and-services", "clearance", "notifications"]);
   const student = getWorkspaceNavigation("student", grants());
   assert.equal(student.find((item) => item.slug === "events")?.semesterScoped, true);
