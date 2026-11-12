@@ -53,11 +53,11 @@ export async function saveEvent(input: SaveEventInput): Promise<EventActionResul
       p_starts_at: d.startsAt,
       p_ends_at: d.endsAt,
       p_time_in_from: d.timeInFrom,
-      // Capture stays open from time-in opening until the event ends, so late arrivals and
-      // time-outs can be recorded live; generation decides late/absent from the times.
+      // Both windows close at the event end so late arrivals can be recorded live; time-out
+      // opens later to stop early exits. No time-out opening means no time-out recording.
       p_time_in_until: d.endsAt,
-      p_time_out_from: d.timeInFrom,
-      p_time_out_until: d.endsAt,
+      p_time_out_from: nullable(d.timeOutFrom),
+      p_time_out_until: nullable(d.timeOutFrom && d.endsAt),
       p_late_after_minutes: d.lateAfterMinutes,
       p_year_levels: d.yearLevels,
       p_academic_statuses: d.academicStatuses,

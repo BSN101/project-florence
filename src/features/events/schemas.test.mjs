@@ -12,6 +12,7 @@ const valid = {
   startsAt: "2026-11-20T00:00:00.000Z",
   endsAt: "2026-11-20T04:00:00.000Z",
   timeInFrom: "2026-11-19T23:30:00.000Z",
+  timeOutFrom: null,
   lateAfterMinutes: "15",
   yearLevels: [1, 2],
   academicStatuses: ["regular"],
@@ -38,8 +39,12 @@ test("rejects end before start and time-in opening at or after the end", () => {
   assert.ok(paths.includes("timeInFrom"));
 });
 
-test("time-out requirement needs no separate window", () => {
-  assert.equal(saveEventSchema.safeParse({ ...valid, requiresTimeOut: true }).success, true);
+test("time-out opening is required only when time-out is required, and must sit inside the event", () => {
+  assert.equal(saveEventSchema.safeParse({ ...valid, requiresTimeOut: true }).success, false);
+  assert.equal(saveEventSchema.safeParse({ ...valid, requiresTimeOut: true, timeOutFrom: "2026-11-20T03:30:00.000Z" }).success, true);
+  assert.equal(saveEventSchema.safeParse({ ...valid, timeOutFrom: "2026-11-20T03:30:00.000Z" }).success, true);
+  assert.equal(saveEventSchema.safeParse({ ...valid, timeOutFrom: "2026-11-19T23:00:00.000Z" }).success, false); // before time-in opens
+  assert.equal(saveEventSchema.safeParse({ ...valid, timeOutFrom: valid.endsAt }).success, false); // at event end
 });
 
 test("rejects empty audience, bad year levels and fractional demerits", () => {

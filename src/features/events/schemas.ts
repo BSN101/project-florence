@@ -16,6 +16,7 @@ export const saveEventSchema = z
     startsAt: instant,
     endsAt: instant,
     timeInFrom: instant,
+    timeOutFrom: instant.nullable(),
     lateAfterMinutes: wholeNumber,
     yearLevels: z.array(z.number().int().min(1).max(4)).min(1, "Select at least one year level"),
     academicStatuses: z.array(z.enum(ACADEMIC_STATUSES)).min(1, "Select at least one academic status"),
@@ -30,6 +31,11 @@ export const saveEventSchema = z
     const issue = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
     if (t(data.endsAt) <= t(data.startsAt)) issue("endsAt", "End must be after start");
     if (t(data.timeInFrom) >= t(data.endsAt)) issue("timeInFrom", "Time-in must open before the event ends");
+    if (data.timeOutFrom === null) {
+      if (data.requiresTimeOut) issue("timeOutFrom", "Set when time-out opens, or stop requiring time-out");
+    } else if (t(data.timeOutFrom) < t(data.timeInFrom) || t(data.timeOutFrom) >= t(data.endsAt)) {
+      issue("timeOutFrom", "Time-out must open after time-in opens and before the event ends");
+    }
   });
 
 export const eventIdSchema = z.object({ eventId: id });

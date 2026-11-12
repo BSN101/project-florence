@@ -28,6 +28,7 @@ function initialState(event: EventDTO | null, rules: EventRulesDTO | null) {
     startsAt: isoToManilaInput(event?.starts_at ?? null),
     endsAt: isoToManilaInput(event?.ends_at ?? null),
     timeInFrom: isoToManilaInput(event?.time_in_from ?? null),
+    timeOutFrom: isoToManilaInput(event?.time_out_from ?? null),
     lateAfterMinutes: String(event?.late_after_minutes ?? 15),
     yearLevels: event?.year_levels ?? [...YEAR_LEVELS],
     academicStatuses: (event?.academic_statuses ?? [...ACADEMIC_STATUSES]) as string[],
@@ -81,6 +82,7 @@ export function EventFormDialog({
         startsAt: manilaInputToIso(form.startsAt) ?? "",
         endsAt: manilaInputToIso(form.endsAt) ?? "",
         timeInFrom: manilaInputToIso(form.timeInFrom) ?? "",
+        timeOutFrom: manilaInputToIso(form.timeOutFrom),
         lateAfterMinutes: form.lateAfterMinutes,
         yearLevels: form.yearLevels,
         academicStatuses: form.academicStatuses as (typeof ACADEMIC_STATUSES)[number][],
@@ -102,10 +104,10 @@ export function EventFormDialog({
   const fieldError = (key: string) =>
     issues[key]?.[0] ? <p className="mt-1 text-xs text-destructive">{issues[key][0]}</p> : null;
 
-  const dateField = (key: "startsAt" | "endsAt" | "timeInFrom", label: string) => (
+  const dateField = (key: "startsAt" | "endsAt" | "timeInFrom" | "timeOutFrom", label: string, required = true) => (
     <div>
       <label htmlFor={`event-${key}`} className="mb-1 block text-xs font-medium text-foreground">{label}</label>
-      <Input id={`event-${key}`} type="datetime-local" value={form[key]} required
+      <Input id={`event-${key}`} type="datetime-local" value={form[key]} required={required}
         onChange={(e) => set(key, e.target.value)} disabled={locked} />
       {fieldError(key)}
     </div>
@@ -173,10 +175,12 @@ export function EventFormDialog({
           <fieldset className="grid gap-3 sm:grid-cols-2">
             <legend className="mb-2 text-sm font-semibold text-foreground">Attendance</legend>
             <p className="text-xs text-muted-foreground sm:col-span-2">
-              Time-in and time-out can be recorded from when time-in opens until the event ends. Arrivals after the
-              late threshold count as late; students with no time-in count as absent.
+              Time-in and time-out each stay open until the event ends. Arrivals after the late threshold count as
+              late; students with no time-in count as absent. Time-outs before the time-out opening are refused, which
+              stops students from timing out right after timing in. Leave time-out opening blank to skip time-outs.
             </p>
             {dateField("timeInFrom", "Time-in opens")}
+            {dateField("timeOutFrom", form.requiresTimeOut ? "Time-out opens" : "Time-out opens (optional)", form.requiresTimeOut)}
             {numberField("lateAfterMinutes", "Late after (minutes from time-in opening)")}
             <label className="flex items-center gap-2 self-end pb-2 text-sm text-foreground">
               <input type="checkbox" checked={form.requiresTimeOut} disabled={locked}
