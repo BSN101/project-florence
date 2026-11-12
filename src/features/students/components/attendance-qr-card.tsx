@@ -87,6 +87,7 @@ export function AttendanceQrCard({
       {/* Action: Download QR */}
       <div className="w-full flex flex-col gap-3">
         <Button
+          nativeButton={false}
           render={
             <a
               href={qrDataUrl}
