@@ -11,9 +11,6 @@ export type FineDefinitionDTO = Pick<
   "id" | "name" | "amount" | "archived_at" | "created_by" | "created_at" | "updated_at"
 >;
 
-/**
- * Standardized action result contract for fine definition mutations.
- */
 export type FineDefinitionCatalogItem = FineDefinitionDTO & { creator_name: string };
 
 /**
@@ -27,13 +24,8 @@ export type FeeDefinitionDTO = Pick<
 export type FeeDefinitionCatalogItem = FeeDefinitionDTO & { creator_name: string };
 
 /**
- * Standardized action result for fee definition mutations.
+ * Standardized action result for fee and fine definition mutations.
  */
-export type FeeActionResult =
+export type DefinitionActionResult =
   | { success: true; id: string; message?: string }
   | { success: false; error: string; issues?: Record<string, string[]> };
-
-export type FineActionResult =
-  | { success: true; id: string; message?: string }
-  | { success: false; error: string; issues?: Record<string, string[]> };
-

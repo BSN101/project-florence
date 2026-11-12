@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 
-import type { FeeActionResult, FineActionResult } from "./contracts";
+import type { DefinitionActionResult } from "./contracts";
 import {
   archiveFeeDefinitionSchema,
   archiveFineDefinitionSchema,
@@ -39,7 +39,7 @@ async function assertAuthorizedCouncilManager() {
  */
 export async function createFineDefinition(
   input: CreateFineDefinitionInput
-): Promise<FineActionResult> {
+): Promise<DefinitionActionResult> {
   try {
     const context = await assertAuthorizedCouncilManager();
     const parsed = createFineDefinitionSchema.safeParse(input);
@@ -98,7 +98,7 @@ export async function createFineDefinition(
  */
 export async function updateFineDefinition(
   input: UpdateFineDefinitionInput
-): Promise<FineActionResult> {
+): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
     const parsed = updateFineDefinitionSchema.safeParse(input);
@@ -171,7 +171,7 @@ export async function updateFineDefinition(
  */
 export async function archiveFineDefinition(
   input: ArchiveFineDefinitionInput
-): Promise<FineActionResult> {
+): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
     const parsed = archiveFineDefinitionSchema.safeParse(input);
@@ -240,7 +240,7 @@ export async function archiveFineDefinition(
  */
 export async function createFeeDefinition(
   input: CreateFeeDefinitionInput
-): Promise<FeeActionResult> {
+): Promise<DefinitionActionResult> {
   try {
     const context = await assertAuthorizedCouncilManager();
     const parsed = createFeeDefinitionSchema.safeParse(input);
@@ -292,7 +292,7 @@ export async function createFeeDefinition(
  */
 export async function updateFeeDefinition(
   input: UpdateFeeDefinitionInput
-): Promise<FeeActionResult> {
+): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
     const parsed = updateFeeDefinitionSchema.safeParse(input);
@@ -361,7 +361,7 @@ export async function updateFeeDefinition(
  */
 export async function archiveFeeDefinition(
   input: ArchiveFeeDefinitionInput
-): Promise<FeeActionResult> {
+): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
     const parsed = archiveFeeDefinitionSchema.safeParse(input);
