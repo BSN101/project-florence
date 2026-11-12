@@ -6,15 +6,15 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { changeCouncilMemberAction } from "../council-membership-actions";
 import {
   archiveFacultyAction, archivePreviewAction, changeFacultyAssignmentsAction, replaceExecutiveAction,
   updateFacultyIdentityAction,
 } from "../provisioning-actions";
-import type { ArchiveBlockers, ProvisioningAccount, ProvisioningResult } from "../provisioning-contracts";
+import type { ArchiveBlockers, CouncilMember, ProvisioningAccount, ProvisioningResult } from "../provisioning-contracts";
 import { coordinatorFor, instructorRoles } from "../provisioning-schemas";
-import { Field, InstructorFields, ResultMessage, displayName } from "./provisioning-ui";
+import { CouncilRoleSelect, Field, InstructorFields, ResultMessage, displayName } from "./provisioning-ui";
 import { useProvisioningCommand } from "./use-provisioning-command";
 
 type DialogProps = { account: ProvisioningAccount; onClose: () => void };
@@ -147,20 +147,31 @@ export function ReplaceExecutiveDialog({ account, onClose }: DialogProps) {
     <Shell title="Replace Executive access" description={`${displayName(account)} keeps their Student access and account. Choose the Council access that replaces Executive.`} onClose={onClose} pending={isPending}>
       <ResultMessage result={result} />
       <form className="flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); run({ profileId: account.id, accessRole, label }); }}>
-        <div className="flex flex-col gap-1.5">
-          <span id="replacement-role-label" className="text-xs font-medium">Replace with</span>
-          <Select value={accessRole} onValueChange={(value) => setAccessRole(value as typeof accessRole)}>
-            <SelectTrigger aria-labelledby="replacement-role-label" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="operations">Operations</SelectItem>
-              <SelectItem value="representative">Representative</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <CouncilRoleSelect id="replacement-role-label" label="Replace with" value={accessRole} onChange={setAccessRole} />
         <Field label="New position label" hint="Descriptive only, for example Treasurer.">
           <Input value={label} onChange={(e) => setLabel(e.target.value)} required maxLength={100} />
         </Field>
         <Footer result={result} pending={isPending} onClose={onClose} submitLabel="Replace access" />
+      </form>
+    </Shell>
+  );
+}
+
+/** Executive reassigns Operations/Representative or edits the label; the database keeps the old row as history. */
+export function ChangeCouncilMemberDialog({ member, onClose }: { member: CouncilMember; onClose: () => void }) {
+  const [role, setRole] = useState(member.access_role === "representative" ? "representative" as const : "operations" as const);
+  const [label, setLabel] = useState(member.position_label);
+  const { run, result, isPending } = useProvisioningCommand(changeCouncilMemberAction);
+  const done = isPending || !!result?.success;
+  return (
+    <Shell title="Change Council access" description={`${displayName(member)} keeps their Student account. Position labels are descriptive and don't change access.`} onClose={onClose} pending={isPending}>
+      <ResultMessage result={result} />
+      <form className="flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); run({ membershipId: member.membership_id, role, label }); }}>
+        <CouncilRoleSelect id="council-role-label" label="Access" value={role} onChange={setRole} disabled={done} />
+        <Field label="Position label" hint="For example Treasurer or Auditor.">
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} required maxLength={100} disabled={done} />
+        </Field>
+        <Footer result={result} pending={isPending} onClose={onClose} submitLabel="Save access" />
       </form>
     </Shell>
   );
