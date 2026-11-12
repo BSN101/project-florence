@@ -6,7 +6,7 @@ import { removeExecutiveAction } from "../provisioning-actions";
 import type { ProvisioningAccount } from "../provisioning-contracts";
 import { ConfirmCommandDialog, ReplaceExecutiveDialog } from "./account-dialogs";
 import { AccountsTable } from "./accounts-table";
-import { GrantExecutiveDialog } from "./grant-executive-dialog";
+import { GrantCouncilAccessDialog } from "./grant-council-access-dialog";
 import { StatusBadge, displayName, sortName } from "./provisioning-ui";
 
 type Open = { kind: "replace" | "remove"; account: ProvisioningAccount };
@@ -22,7 +22,7 @@ export function ExecutivesTable({ accounts }: { accounts: ProvisioningAccount[] 
         accounts={accounts}
         filterLabel="Filter by name, number or position"
         emptyText="No students currently hold Executive access."
-        toolbar={<GrantExecutiveDialog takenPositions={accounts.flatMap((row) => row.position_label ? [row.position_label] : [])} />}
+        toolbar={<GrantCouncilAccessDialog roles={["executive"]} takenPositions={accounts.flatMap((row) => row.position_label ? [row.position_label] : [])} />}
         columns={[
           { header: "Name", cell: (row) => <span className="font-medium text-foreground">{sortName(row)}</span> },
           { header: "University number", cell: (row) => row.university_id },
