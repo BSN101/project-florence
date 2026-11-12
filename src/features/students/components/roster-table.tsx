@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { GraduationCap, Search, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, GraduationCap, Search, Users } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,21 +12,18 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
+import { sortName } from "@/features/access/components/provisioning-ui";
+
 import type { StudentRosterItem } from "../contracts";
 import { EditStudentDialog } from "./edit-student-dialog";
 
-export function RosterTable({
-  students,
-  activeSemesterId,
-  canManage,
-}: {
-  students: StudentRosterItem[];
-  activeSemesterId: string;
-  canManage: boolean;
-}) {
+const PAGE_SIZE = 25;
+
+export function RosterTable({ students, canEdit }: { students: StudentRosterItem[]; canEdit: boolean }) {
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(0);
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
@@ -33,8 +31,7 @@ export function RosterTable({
       if (search.trim() !== "") {
         const q = search.trim().toLowerCase();
         const num = student.university_id.toLowerCase();
-        const name =
-          `${student.last_name} ${student.first_name} ${student.middle_name ?? ""} ${student.suffix ?? ""}`.toLowerCase();
+        const name = sortName(student).toLowerCase();
         if (!num.includes(q) && !name.includes(q)) return false;
       }
 
@@ -62,6 +59,12 @@ export function RosterTable({
         ? "Status: Regular"
         : "Status: Irregular";
 
+  // Clamped so a shrinking roster (e.g. after a refresh) never lands on an empty page.
+  const pageCount = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const firstIndex = currentPage * PAGE_SIZE;
+  const pageStudents = filteredStudents.slice(firstIndex, firstIndex + PAGE_SIZE);
+
   if (students.length === 0) {
     return (
       <Card className="flex flex-col items-center justify-center gap-4 p-6 text-center sm:p-12">
@@ -73,8 +76,9 @@ export function RosterTable({
             No Students Enrolled
           </h3>
           <p className="max-w-md text-xs text-muted-foreground">
-            There are no students enrolled in the active semester roster yet. Use &ldquo;Add Student&rdquo;
-            to enroll students or download the CSV template to prepare a roster import.
+            {canEdit
+              ? "No students are enrolled in this semester yet. Use “Add Student” to enroll students or download the CSV template to prepare a roster import."
+              : "No students were enrolled in this semester."}
           </p>
         </div>
       </Card>
@@ -90,7 +94,7 @@ export function RosterTable({
             <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
               placeholder="Search by student number or name..."
               className="pl-9 text-xs sm:text-sm"
             />
@@ -99,7 +103,7 @@ export function RosterTable({
           <div className="grid w-full grid-cols-2 gap-2.5 shrink-0 sm:grid-cols-2 md:grid-cols-2 lg:flex lg:w-auto lg:items-center lg:gap-2.5">
             {/* Year Level Filter */}
             <div className="w-full lg:w-[170px]">
-              <Select value={yearFilter} onValueChange={(val) => setYearFilter(val ?? "all")}>
+              <Select value={yearFilter} onValueChange={(val) => { setYearFilter(val ?? "all"); setPage(0); }}>
                 <SelectTrigger className="w-full text-xs">
                   <span className="truncate">{yearLabel}</span>
                 </SelectTrigger>
@@ -115,7 +119,7 @@ export function RosterTable({
 
             {/* Academic Status Filter */}
             <div className="w-full lg:w-[170px]">
-              <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "all")}>
+              <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? "all"); setPage(0); }}>
                 <SelectTrigger className="w-full text-xs">
                   <span className="truncate">{statusLabel}</span>
                 </SelectTrigger>
@@ -133,8 +137,24 @@ export function RosterTable({
       {/* Roster Counter */}
       <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
         <span>
-          Showing <strong>{filteredStudents.length}</strong> of {students.length} students
+          {filteredStudents.length === 0
+            ? <>Showing <strong>0</strong> of {students.length} students</>
+            : <>Showing <strong>{firstIndex + 1}–{firstIndex + pageStudents.length}</strong> of {filteredStudents.length} students
+                {filteredStudents.length !== students.length && <> (filtered from {students.length})</>}</>}
         </span>
+        {pageCount > 1 && (
+          <nav aria-label="Roster pages" className="flex items-center gap-2">
+            <Button variant="outline" size="sm" aria-label="Previous page"
+              disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span aria-live="polite">Page {currentPage + 1} of {pageCount}</span>
+            <Button variant="outline" size="sm" aria-label="Next page"
+              disabled={currentPage === pageCount - 1} onClick={() => setPage(currentPage + 1)}>
+              <ChevronRight className="size-4" />
+            </Button>
+          </nav>
+        )}
       </div>
 
       {filteredStudents.length === 0 ? (
@@ -149,10 +169,8 @@ export function RosterTable({
           {/* Mobile & Tablet Card View (< lg: 1 col on mobile, 2 cols on tablet / iPad) */}
           <div className="min-h-[360px] max-h-[600px] overflow-y-auto pr-1 pb-1 lg:hidden">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {filteredStudents.map((student) => {
-                const fullName = `${student.last_name}, ${student.first_name}${
-                  student.middle_name ? ` ${student.middle_name}` : ""
-                }${student.suffix ? ` ${student.suffix}` : ""}`;
+              {pageStudents.map((student) => {
+                const fullName = sortName(student);
 
                 return (
                   <div
@@ -174,12 +192,9 @@ export function RosterTable({
                         )}
                       </div>
 
-                      {canManage && (
+                      {canEdit && (
                         <div className="shrink-0">
-                          <EditStudentDialog
-                            student={student}
-                            activeSemesterId={activeSemesterId}
-                          />
+                          <EditStudentDialog student={student} />
                         </div>
                       )}
                     </div>
@@ -199,13 +214,13 @@ export function RosterTable({
                         </span>
                       )}
 
-                      {student.has_auth_account ? (
+                      {student.has_account ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600/30 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                          Active
+                          Account linked
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                          Uninvited / Pending
+                          No account
                         </span>
                       )}
                     </div>
@@ -225,15 +240,13 @@ export function RosterTable({
                     <th className="px-4 py-3.5">Full Name</th>
                     <th className="px-4 py-3.5">Year Level</th>
                     <th className="px-4 py-3.5">Academic Status</th>
-                    <th className="px-4 py-3.5">Account Status</th>
-                    {canManage && <th className="px-4 py-3.5 text-right">Actions</th>}
+                    <th className="px-4 py-3.5">Account</th>
+                    {canEdit && <th className="px-4 py-3.5 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {filteredStudents.map((student) => {
-                    const fullName = `${student.last_name}, ${student.first_name}${
-                      student.middle_name ? ` ${student.middle_name}` : ""
-                    }${student.suffix ? ` ${student.suffix}` : ""}`;
+                  {pageStudents.map((student) => {
+                    const fullName = sortName(student);
 
                     return (
                       <tr
@@ -268,24 +281,21 @@ export function RosterTable({
                           )}
                         </td>
                         <td className="px-4 py-3.5">
-                          {student.has_auth_account ? (
+                          {student.has_account ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
                               <span className="size-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
-                              Active
+                              Account linked
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                               <span className="size-1.5 rounded-full bg-current" />
-                              Uninvited / Pending
+                              No account
                             </span>
                           )}
                         </td>
-                        {canManage && (
+                        {canEdit && (
                           <td className="px-4 py-3.5 text-right">
-                            <EditStudentDialog
-                              student={student}
-                              activeSemesterId={activeSemesterId}
-                            />
+                            <EditStudentDialog student={student} />
                           </td>
                         )}
                       </tr>
