@@ -2,21 +2,13 @@
 
 import { AccessDeniedError } from "@/server/auth/require-workspace";
 
-import type { ArchiveBlockers, ExecutiveCandidate, ProvisioningResult } from "./provisioning-contracts";
+import type { ArchiveBlockers, StudentCandidate } from "./provisioning-contracts";
 import type {
   CancelInvitationInput, ChangeFacultyAssignmentsInput, GrantExecutiveInput, ProfileCommandInput,
   ProvisionFacultyInput, ReplaceExecutiveInput, UpdateFacultyIdentityInput,
 } from "./provisioning-schemas";
 import * as service from "./provisioning-service";
-
-async function guarded(run: () => Promise<ProvisioningResult>): Promise<ProvisioningResult> {
-  try {
-    return await run();
-  } catch (error) {
-    if (error instanceof AccessDeniedError) return { success: false, error: "You are not permitted to make this change." };
-    return { success: false, error: "We couldn't complete that change. Please try again." };
-  }
-}
+import { guarded } from "./provisioning-service";
 
 export async function provisionFacultyAction(input: ProvisionFacultyInput) { return guarded(() => service.provisionFaculty(input)); }
 export async function updateFacultyIdentityAction(input: UpdateFacultyIdentityInput) { return guarded(() => service.updateFacultyIdentity(input)); }
@@ -28,7 +20,7 @@ export async function grantExecutiveAction(input: GrantExecutiveInput) { return 
 export async function replaceExecutiveAction(input: ReplaceExecutiveInput) { return guarded(() => service.replaceExecutive(input)); }
 export async function removeExecutiveAction(input: ProfileCommandInput) { return guarded(() => service.removeExecutive(input)); }
 
-export type CandidateLookup = { found: true; candidate: ExecutiveCandidate } | { found: false; error?: string };
+export type CandidateLookup = { found: true; candidate: StudentCandidate } | { found: false; error?: string };
 
 export async function lookupExecutiveCandidateAction(universityId: string): Promise<CandidateLookup> {
   try {

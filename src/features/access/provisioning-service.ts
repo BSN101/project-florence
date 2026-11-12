@@ -71,18 +71,28 @@ function commandError(error: PostgrestError): ProvisioningResult {
   return { success: false, error: "We couldn't complete that change. Please try again." };
 }
 
-async function runCommand(fn: string, args: Record<string, unknown>): Promise<{ result?: CommandResult; failure?: ProvisioningResult }> {
+export async function runCommand(fn: string, args: Record<string, unknown>, revalidate = "/admin"): Promise<{ result?: CommandResult; failure?: ProvisioningResult }> {
   const client = createCommandClient();
   // Names come from this file only; the typed overloads don't accept a union of RPC names.
   const { data, error } = await (client.rpc as unknown as (f: string, a: Record<string, unknown>) =>
     Promise<{ data: unknown; error: PostgrestError | null }>)(fn, args);
   if (error) return { failure: commandError(error) };
-  revalidatePath("/admin", "layout");
+  revalidatePath(revalidate, "layout");
   return { result: data as CommandResult };
 }
 
-const invalid = (error: { issues: { message: string }[] }): ProvisioningResult =>
+export const invalid = (error: { issues: { message: string }[] }): ProvisioningResult =>
   ({ success: false, error: error.issues[0]?.message ?? "Check the form and try again." });
+
+/** Server actions return a safe message instead of throwing to the browser. */
+export async function guarded(run: () => Promise<ProvisioningResult>): Promise<ProvisioningResult> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof AccessDeniedError) return { success: false, error: "You are not permitted to make this change." };
+    return { success: false, error: "We couldn't complete that change. Please try again." };
+  }
+}
 
 /** Sends after the database commit; a delivery failure never undoes the account. */
 async function deliverInvitation(result: CommandResult, invitation: { token: string; expiresAt: string },
