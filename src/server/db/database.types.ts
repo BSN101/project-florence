@@ -2146,6 +2146,20 @@ export type Database = {
         Args: { p_actor: string; p_role: string }
         Returns: boolean
       }
+      f_cmd_roster_enrollment: {
+        Args: { p_status: string; p_year: number }
+        Returns: undefined
+      }
+      f_cmd_roster_identity: {
+        Args: {
+          p_email: string
+          p_first: string
+          p_last: string
+          p_middle: string
+          p_suffix: string
+        }
+        Returns: Json
+      }
       f_cmd_settled: {
         Args: { p_except?: string; p_obligation: string }
         Returns: boolean
@@ -2330,6 +2344,38 @@ export type Database = {
           university_id: string
         }[]
       }
+      florence_roster: {
+        Args: { p_semester: string }
+        Returns: {
+          academic_status: Database["public"]["Enums"]["academic_status"]
+          account_status: string
+          email: string
+          enrollment_id: string
+          first_name: string
+          has_account: boolean
+          last_name: string
+          middle_name: string
+          semester_id: string
+          student_id: string
+          suffix: string
+          university_id: string
+          year_level: number
+        }[]
+      }
+      florence_roster_candidate: {
+        Args: { p_university_id: string }
+        Returns: {
+          account_status: string
+          email: string
+          enrolled_in_current: boolean
+          first_name: string
+          id: string
+          last_name: string
+          middle_name: string
+          suffix: string
+          university_id: string
+        }[]
+      }
       florence_student_directory: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -2460,6 +2506,36 @@ export type Database = {
           p_credit: string
           p_key: string
           p_reason: string
+        }
+        Returns: Json
+      }
+      roster_add_student: {
+        Args: {
+          p_academic_status: string
+          p_actor: string
+          p_email: string
+          p_first_name: string
+          p_key: string
+          p_last_name: string
+          p_middle_name: string
+          p_suffix: string
+          p_university_id: string
+          p_year_level: number
+        }
+        Returns: Json
+      }
+      roster_update_student: {
+        Args: {
+          p_academic_status: string
+          p_actor: string
+          p_email: string
+          p_first_name: string
+          p_key: string
+          p_last_name: string
+          p_middle_name: string
+          p_student: string
+          p_suffix: string
+          p_year_level: number
         }
         Returns: Json
       }

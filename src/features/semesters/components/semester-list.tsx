@@ -49,73 +49,75 @@ export function SemesterList({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Mobile / Small Screen Card View (< md) */}
-      <div className="flex flex-col gap-3 md:hidden">
-        {semesters.map((semester) => {
-          const ayLabel = `AY ${semester.academic_year_start}–${semester.academic_year_start + 1}`;
-          const dateRange = `${formatDate(semester.starts_on)} – ${formatDate(semester.ends_on)}`;
+      {/* Mobile & Tablet Card View (< lg: 1 col on mobile, 2 cols on tablet / iPad) */}
+      <div className="pr-1 pb-1 md:max-h-[600px] md:overflow-y-auto lg:hidden">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {semesters.map((semester) => {
+            const ayLabel = `AY ${semester.academic_year_start}–${semester.academic_year_start + 1}`;
+            const dateRange = `${formatDate(semester.starts_on)} – ${formatDate(semester.ends_on)}`;
 
-          return (
-            <div
-              key={semester.id}
-              className={`flex flex-col gap-3.5 rounded-xl border p-4 transition-colors ${
-                semester.is_current
-                  ? "border-primary/50 bg-card shadow-xs"
-                  : "border-border bg-card/60"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-heading text-sm font-semibold text-foreground">
-                  {ayLabel}
-                </span>
-                {semester.is_current ? (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
-                    <span className="size-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
-                    Active
+            return (
+              <div
+                key={semester.id}
+                className={`flex flex-col justify-between gap-3.5 rounded-xl border p-4 transition-colors ${
+                  semester.is_current
+                    ? "border-primary/50 bg-card shadow-xs"
+                    : "border-border bg-card/60"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-heading text-sm font-semibold text-foreground">
+                    {ayLabel}
                   </span>
-                ) : (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                    <span className="size-1.5 rounded-full bg-current" />
-                    Inactive
-                  </span>
-                )}
-              </div>
+                  {semester.is_current ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      <span className="size-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+                      Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                      <span className="size-1.5 rounded-full bg-current" />
+                      Inactive
+                    </span>
+                  )}
+                </div>
 
-              <div className="flex flex-col gap-1">
-                <span className="text-base font-semibold text-foreground">
-                  {semester.term}
-                </span>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <CalendarDays className="size-3.5 shrink-0" />
-                  <span>{dateRange}</span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-base font-semibold text-foreground">
+                    {semester.term}
+                  </span>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CalendarDays className="size-3.5 shrink-0" />
+                    <span>{dateRange}</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-border/60 pt-3">
+                  {semester.is_current ? (
+                    <span className="inline-block text-xs font-medium text-muted-foreground">
+                      Current Active Context
+                    </span>
+                  ) : canManage ? (
+                    <ActivateSemesterDialog
+                      semester={semester}
+                      currentSemester={currentSemester}
+                      fullWidth
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </div>
               </div>
-
-              <div className="border-t border-border/60 pt-3">
-                {semester.is_current ? (
-                  <span className="inline-block text-xs font-medium text-muted-foreground">
-                    Current Active Context
-                  </span>
-                ) : canManage ? (
-                  <ActivateSemesterDialog
-                    semester={semester}
-                    currentSemester={currentSemester}
-                    fullWidth
-                  />
-                ) : (
-                  <span className="text-xs text-muted-foreground">—</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Desktop Table View (>= md) */}
-      <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block">
-        <div className="overflow-x-auto">
+      {/* Desktop Table View (>= lg) */}
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block shadow-xs">
+        <div className="max-h-[600px] overflow-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground">
+            <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 backdrop-blur-xs text-xs font-medium text-muted-foreground">
               <tr>
                 <th className="px-5 py-3.5">Academic Year</th>
                 <th className="px-5 py-3.5">Term</th>
