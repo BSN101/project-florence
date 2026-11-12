@@ -11,8 +11,10 @@ import { ArchiveFineDialog } from "./archive-fine-dialog";
 
 export function FineDefinitionList({
   definitions,
+  canManage,
 }: {
   definitions: FineDefinitionCatalogItem[];
+  canManage: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -46,14 +48,16 @@ export function FineDefinitionList({
             Manage reusable fine penalties for event attendance absences and lateness.
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={() => setIsCreateOpen(true)}
-          className="w-full gap-1.5 sm:w-auto"
-        >
-          <Plus className="size-4" />
-          New Fine Definition
-        </Button>
+        {canManage && (
+          <Button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            className="w-full gap-1.5 sm:w-auto"
+          >
+            <Plus className="size-4" />
+            New Fine Definition
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -111,7 +115,7 @@ export function FineDefinitionList({
                   <th scope="col" className="px-6 py-3">
                     {activeTab === "active" ? "Last Updated" : "Archived On"}
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                  {canManage && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -140,36 +144,38 @@ export function FineDefinitionList({
                     <td className="px-6 py-4 text-muted-foreground text-xs">
                       {formatDate(item.archived_at ? item.archived_at : item.updated_at)}
                     </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      {activeTab === "active" ? (
-                        <>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingDefinition(item)}
-                            className="gap-1 text-xs"
-                          >
-                            <Edit2 className="size-3.5" />
-                            Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setArchivingDefinition(item)}
-                            className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Archive className="size-3.5" />
-                            Archive
-                          </Button>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">
-                          Locked
-                        </span>
-                      )}
-                    </td>
+                    {canManage && (
+                      <td className="px-6 py-4 text-right space-x-2">
+                        {activeTab === "active" ? (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEditingDefinition(item)}
+                              className="gap-1 text-xs"
+                            >
+                              <Edit2 className="size-3.5" />
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setArchivingDefinition(item)}
+                              className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Archive className="size-3.5" />
+                              Archive
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">
+                            Locked
+                          </span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
