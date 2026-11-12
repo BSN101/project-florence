@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Plus, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ import { createSemesterAction } from "../actions";
 import type { SemesterActionResult } from "../contracts";
 import { APPROVED_SEMESTER_TERMS, type SemesterTerm } from "../schemas";
 
-export function CreateSemesterDialog() {
+export function CreateSemesterDialog({ className }: { className?: string } = {}) {
   const [open, setOpen] = useState(false);
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear.toString());
@@ -50,7 +51,7 @@ export function CreateSemesterDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button className="w-full gap-2 font-medium sm:w-auto">
+          <Button className={cn("w-full gap-2 font-medium sm:w-auto", className)}>
             <Plus className="size-4" />
             New Semester
           </Button>
