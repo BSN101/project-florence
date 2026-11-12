@@ -50,7 +50,7 @@ export function SemesterList({
   return (
     <div className="flex flex-col gap-4">
       {/* Mobile & Tablet Card View (< lg: 1 col on mobile, 2 cols on tablet / iPad) */}
-      <div className="min-h-[360px] max-h-[600px] overflow-y-auto pr-1 pb-1 lg:hidden">
+      <div className="pr-1 pb-1 md:max-h-[600px] md:overflow-y-auto lg:hidden">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {semesters.map((semester) => {
             const ayLabel = `AY ${semester.academic_year_start}–${semester.academic_year_start + 1}`;
@@ -115,7 +115,7 @@ export function SemesterList({
 
       {/* Desktop Table View (>= lg) */}
       <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block shadow-xs">
-        <div className="overflow-auto min-h-[360px] max-h-[600px]">
+        <div className="max-h-[600px] overflow-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 backdrop-blur-xs text-xs font-medium text-muted-foreground">
               <tr>

@@ -37,11 +37,7 @@ export default async function CouncilSemestersPage({
               Create academic semesters and explicitly activate the current academic context.
             </p>
           </div>
-          {canManage && (
-            <div className="w-full shrink-0 sm:w-auto">
-              <CreateSemesterDialog />
-            </div>
-          )}
+          {canManage && <CreateSemesterDialog />}
         </div>
 
         <SemesterList semesters={semesters} canManage={canManage} />
