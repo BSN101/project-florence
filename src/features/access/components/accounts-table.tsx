@@ -9,13 +9,15 @@ import { Input } from "@/components/ui/input";
 
 import type { ProvisioningAccount } from "../provisioning-contracts";
 
+type Row = Pick<ProvisioningAccount, "first_name" | "middle_name" | "last_name" | "university_id" | "position_label" | "account_status">
+  & { id: string; email?: string | null };
 export type RowAction = { label: string; onSelect: () => void; destructive?: boolean } | "separator";
 
 /** Shared table frame: filter box, optional toolbar, and an actions menu per row. */
-export function AccountsTable({ accounts, columns, actions, toolbar, emptyText, filterLabel }: {
-  accounts: ProvisioningAccount[];
-  columns: { header: string; cell: (account: ProvisioningAccount) => React.ReactNode; className?: string }[];
-  actions: (account: ProvisioningAccount) => RowAction[];
+export function AccountsTable<T extends Row>({ accounts, columns, actions, toolbar, emptyText, filterLabel }: {
+  accounts: T[];
+  columns: { header: string; cell: (account: T) => React.ReactNode; className?: string }[];
+  actions: (account: T) => RowAction[];
   toolbar?: React.ReactNode;
   emptyText: string;
   filterLabel: string;
