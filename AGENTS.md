@@ -57,6 +57,11 @@
 - Confirm the linked target and inspect pending migrations before applying
   changes. Do not push remote changes without explicit authorization.
 - Docker is not required for linked remote migration pushes.
+- This machine has no Docker or local Supabase stack. Pass `--remote` to
+  Supabase CLI commands that target a database, for example
+  `supabase migration list --remote`, `supabase db push --remote` and
+  `supabase gen types --remote`. `--remote` is the CLI 3.x flag; it replaces
+  `--linked`. Without it, those commands target the local database.
 - Preserve constraints, restricted RPC execution, immutable histories,
   idempotency and shared locking protocols.
 - Use one real transaction or transactional RPC for coordinated operations.

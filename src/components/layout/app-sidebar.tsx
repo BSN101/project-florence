@@ -8,6 +8,7 @@ import {
   BookOpenCheck,
   CalendarDays,
   Check,
+  ChevronRight,
   ChevronUp,
   CircleDollarSign,
   ClipboardCheck,
@@ -51,8 +52,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { Collapsible } from "@base-ui/react/collapsible";
 import type { Workspace } from "@/features/access/access-policy";
 import type { NavigationItem } from "@/features/access/workspace-navigation";
 import { destinationHref, workspaceLabels } from "@/features/access/workspace-navigation";
@@ -120,6 +125,33 @@ export function AppSidebar({ workspace, navigation, currentSlug, access }: {
             <SidebarMenu>
               {navigation.map((item, index) => {
                 const Icon = icons[index % icons.length];
+                if (item.group) {
+                  // Render each group once, at its first item, with all its items as a sub-menu.
+                  if (navigation.findIndex((other) => other.group === item.group) !== index) return null;
+                  const children = navigation.filter((other) => other.group === item.group);
+                  const active = children.some((child) => child.slug === currentSlug);
+                  return (
+                    <Collapsible.Root key={item.group} defaultOpen render={<SidebarMenuItem />}>
+                      <Collapsible.Trigger render={<SidebarMenuButton isActive={active} tooltip={item.group} />}>
+                        <Users />
+                        <span>{item.group}</span>
+                        <ChevronRight className="ml-auto transition-transform in-data-[panel-open]:rotate-90" />
+                      </Collapsible.Trigger>
+                      <Collapsible.Panel>
+                        <SidebarMenuSub>
+                          {children.map((child) => (
+                            <SidebarMenuSubItem key={child.slug}>
+                              <SidebarMenuSubButton isActive={child.slug === currentSlug}
+                                render={<Link href={destinationHref(workspace, child.slug)} />}>
+                                <span>{child.label}</span>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </Collapsible.Panel>
+                    </Collapsible.Root>
+                  );
+                }
                 return (
                   <SidebarMenuItem key={item.slug}>
                     <SidebarMenuButton isActive={item.slug === currentSlug} tooltip={item.label}
