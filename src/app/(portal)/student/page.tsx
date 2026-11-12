@@ -9,9 +9,9 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
-import { displayName } from "@/features/access/components/provisioning-ui";
 import { AttendanceQrCard } from "@/features/students/components/attendance-qr-card";
 import { generateAttendanceQrDataUrl } from "@/features/students/qr";
+import { displayName } from "@/lib/format-name";
 import { getAccessContext } from "@/server/auth/access-context";
 
 export const instant = false;

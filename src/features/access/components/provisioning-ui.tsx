@@ -2,15 +2,13 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { displayName, sortName, type NameParts } from "@/lib/format-name";
+
 import type { ProvisioningAccount, ProvisioningResult } from "../provisioning-contracts";
 import { councilRoleNames, councilRoles, instructorRoles } from "../provisioning-schemas";
 
-// Nullable optional parts: generated RPC types mark them non-null, roster rows don't.
-type Names = { first_name: string; middle_name: string | null; last_name: string; suffix: string | null };
-export const displayName = (p: Names) =>
-  [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ") + (p.suffix ? `, ${p.suffix}` : "");
-export const sortName = (p: Names) =>
-  `${p.last_name}, ${[p.first_name, p.middle_name].filter(Boolean).join(" ")}${p.suffix ? `, ${p.suffix}` : ""}`;
+export { displayName, sortName };
+export type Names = NameParts;
 
 const dateTime = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
 

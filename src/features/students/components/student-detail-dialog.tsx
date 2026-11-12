@@ -13,8 +13,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { displayName, sortName } from "@/features/access/components/provisioning-ui";
 import { useClipboard } from "@/hooks/use-clipboard";
+import { displayName, sortName } from "@/lib/format-name";
 import type { StudentRosterItem } from "../contracts";
 import { AcademicStatusBadge } from "./academic-status-badge";
 import { EditStudentDialog } from "./edit-student-dialog";

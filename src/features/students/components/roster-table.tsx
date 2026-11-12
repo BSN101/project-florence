@@ -12,7 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { sortName } from "@/features/access/components/provisioning-ui";
+import { sortName } from "@/lib/format-name";
 
 import type { StudentRosterItem } from "../contracts";
 import { AcademicStatusBadge } from "./academic-status-badge";
