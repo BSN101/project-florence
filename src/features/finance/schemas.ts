@@ -1,12 +1,12 @@
 import { z } from "zod";
 
-const fineName = z
+const definitionName = z
   .string()
   .trim()
   .min(1, "Name cannot be empty")
   .max(100, "Name cannot exceed 100 characters");
 
-const fineAmount = z.coerce
+const definitionAmount = z.coerce
   .number("Amount must be a number")
   .positive("Amount must be greater than zero")
   .max(9999999.99, "Amount exceeds maximum permitted value")
@@ -15,22 +15,24 @@ const fineAmount = z.coerce
     { message: "Amount can have at most 2 decimal places" }
   );
 
-export const createFineDefinitionSchema = z.object({
-  name: fineName,
-  amount: fineAmount,
+const definitionId = z.string().uuid("Invalid definition identifier");
+
+// Fee and fine definitions share identical validation rules.
+export const createDefinitionSchema = z.object({
+  name: definitionName,
+  amount: definitionAmount,
 });
 
-export const updateFineDefinitionSchema = z.object({
-  id: z.string().uuid("Invalid fine definition identifier"),
-  name: fineName,
-  amount: fineAmount,
+export const updateDefinitionSchema = z.object({
+  id: definitionId,
+  name: definitionName,
+  amount: definitionAmount,
 });
 
-export const archiveFineDefinitionSchema = z.object({
-  id: z.string().uuid("Invalid fine definition identifier"),
+export const archiveDefinitionSchema = z.object({
+  id: definitionId,
 });
 
-export type CreateFineDefinitionInput = z.infer<typeof createFineDefinitionSchema>;
-export type UpdateFineDefinitionInput = z.infer<typeof updateFineDefinitionSchema>;
-export type ArchiveFineDefinitionInput = z.infer<typeof archiveFineDefinitionSchema>;
-
+export type CreateDefinitionInput = z.infer<typeof createDefinitionSchema>;
+export type UpdateDefinitionInput = z.infer<typeof updateDefinitionSchema>;
+export type ArchiveDefinitionInput = z.infer<typeof archiveDefinitionSchema>;

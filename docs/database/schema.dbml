@@ -943,7 +943,11 @@ Table fee_definitions {
   Note: '''
 ### 7.1 `fee_definitions`
 
-Reusable fee definitions for future publication.
+Reusable fee definitions for future publication. The Council catalog uses
+`florence_fee_definitions()` to display the creator's current profile name for
+active and archived definitions without broadening profile reads. Generated
+obligations snapshot their own name and amount, so definition edits/archive
+affect future publication only.
 
 **Basic database checks**
 

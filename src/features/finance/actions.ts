@@ -5,14 +5,14 @@ import { revalidatePath } from "next/cache";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 
-import type { FineActionResult } from "./contracts";
+import type { DefinitionActionResult } from "./contracts";
 import {
-  archiveFineDefinitionSchema,
-  createFineDefinitionSchema,
-  updateFineDefinitionSchema,
-  type ArchiveFineDefinitionInput,
-  type CreateFineDefinitionInput,
-  type UpdateFineDefinitionInput,
+  archiveDefinitionSchema,
+  createDefinitionSchema,
+  updateDefinitionSchema,
+  type ArchiveDefinitionInput,
+  type CreateDefinitionInput,
+  type UpdateDefinitionInput,
 } from "./schemas";
 
 /**
@@ -32,11 +32,11 @@ async function assertAuthorizedCouncilManager() {
  * Authorized for Council Executive and Operations only.
  */
 export async function createFineDefinition(
-  input: CreateFineDefinitionInput
-): Promise<FineActionResult> {
+  input: CreateDefinitionInput
+): Promise<DefinitionActionResult> {
   try {
     const context = await assertAuthorizedCouncilManager();
-    const parsed = createFineDefinitionSchema.safeParse(input);
+    const parsed = createDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return {
         success: false,
@@ -91,11 +91,11 @@ export async function createFineDefinition(
  * Authorized for Council Executive and Operations only.
  */
 export async function updateFineDefinition(
-  input: UpdateFineDefinitionInput
-): Promise<FineActionResult> {
+  input: UpdateDefinitionInput
+): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
-    const parsed = updateFineDefinitionSchema.safeParse(input);
+    const parsed = updateDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return {
         success: false,
@@ -164,11 +164,11 @@ export async function updateFineDefinition(
  * Authorized for Council Executive and Operations only.
  */
 export async function archiveFineDefinition(
-  input: ArchiveFineDefinitionInput
-): Promise<FineActionResult> {
+  input: ArchiveDefinitionInput
+): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
-    const parsed = archiveFineDefinitionSchema.safeParse(input);
+    const parsed = archiveDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: "Invalid fine definition identifier" };
     }
@@ -227,3 +227,184 @@ export async function archiveFineDefinition(
   }
 }
 
+/**
+ * Create a reusable fee definition for future fee publication.
+ * Authorized for Council Executive and Operations only.
+ */
+export async function createFeeDefinition(
+  input: CreateDefinitionInput
+): Promise<DefinitionActionResult> {
+  try {
+    const context = await assertAuthorizedCouncilManager();
+    const parsed = createDefinitionSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid fee definition input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const commandClient = createCommandClient();
+    const { data, error } = await commandClient
+      .from("fee_definitions")
+      .insert({
+        name: parsed.data.name,
+        amount: parsed.data.amount,
+        created_by: context.profile.id,
+        updated_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      return { success: false, error: error?.message ?? "Failed to create fee definition" };
+    }
+
+    revalidatePath("/council/fees-and-fines");
+    return { success: true, id: data.id, message: "Fee definition created successfully" };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may create fee definitions",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Edit an active fee definition's name and amount.
+ * Affects future publications only; existing publications and obligations keep
+ * their own snapshot and are never touched here.
+ * Authorized for Council Executive and Operations only.
+ */
+export async function updateFeeDefinition(
+  input: UpdateDefinitionInput
+): Promise<DefinitionActionResult> {
+  try {
+    await assertAuthorizedCouncilManager();
+    const parsed = updateDefinitionSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid fee definition input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const commandClient = createCommandClient();
+
+    const { data: existing, error: fetchError } = await commandClient
+      .from("fee_definitions")
+      .select("id, archived_at")
+      .eq("id", parsed.data.id)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return { success: false, error: "Fee definition not found" };
+    }
+    if (existing.archived_at !== null) {
+      return { success: false, error: "Archived fee definitions cannot be modified" };
+    }
+
+    const { data: updated, error: updateError } = await commandClient
+      .from("fee_definitions")
+      .update({
+        name: parsed.data.name,
+        amount: parsed.data.amount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.data.id)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+    if (!updated) {
+      return { success: false, error: "Fee definition is no longer active. Refresh and try again." };
+    }
+
+    revalidatePath("/council/fees-and-fines");
+    return { success: true, id: parsed.data.id, message: "Fee definition updated successfully" };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may edit fee definitions",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Soft-archive a fee definition so it cannot be used for new publications.
+ * Existing publications and student obligations remain untouched.
+ * Authorized for Council Executive and Operations only.
+ */
+export async function archiveFeeDefinition(
+  input: ArchiveDefinitionInput
+): Promise<DefinitionActionResult> {
+  try {
+    await assertAuthorizedCouncilManager();
+    const parsed = archiveDefinitionSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: "Invalid fee definition identifier" };
+    }
+
+    const commandClient = createCommandClient();
+
+    const { data: existing, error: fetchError } = await commandClient
+      .from("fee_definitions")
+      .select("id, archived_at")
+      .eq("id", parsed.data.id)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return { success: false, error: "Fee definition not found" };
+    }
+    if (existing.archived_at !== null) {
+      return { success: false, error: "Fee definition is already archived" };
+    }
+
+    const now = new Date().toISOString();
+    const { data: archived, error: archiveError } = await commandClient
+      .from("fee_definitions")
+      .update({ archived_at: now, updated_at: now })
+      .eq("id", parsed.data.id)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (archiveError) {
+      return { success: false, error: archiveError.message };
+    }
+    if (!archived) {
+      return { success: false, error: "Fee definition is already archived. Refresh and try again." };
+    }
+
+    revalidatePath("/council/fees-and-fines");
+    return { success: true, id: parsed.data.id, message: "Fee definition archived successfully" };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may archive fee definitions",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
