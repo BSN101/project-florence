@@ -3,7 +3,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import type { ProvisioningAccount, ProvisioningResult } from "../provisioning-contracts";
-import { instructorRoles } from "../provisioning-schemas";
+import { councilRoleNames, councilRoles, instructorRoles } from "../provisioning-schemas";
 
 type Names = Pick<ProvisioningAccount, "first_name" | "middle_name" | "last_name" | "suffix">;
 export const displayName = (p: Names) =>
@@ -91,5 +91,22 @@ export function InstructorFields({ instructorRole, coordinator, onChange, disabl
         Also {coordinatorLabel}
       </label>
     </>
+  );
+}
+
+type CouncilRole = (typeof councilRoles)[number];
+export function CouncilRoleSelect({ id, label, value, onChange, disabled }: {
+  id: string; label: string; value: CouncilRole; onChange: (role: CouncilRole) => void; disabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span id={id} className="text-xs font-medium text-foreground">{label}</span>
+      <Select value={value} disabled={disabled} onValueChange={(next) => onChange(next as CouncilRole)}>
+        <SelectTrigger aria-labelledby={id} className="w-full"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {councilRoles.map((role) => <SelectItem key={role} value={role}>{councilRoleNames[role]}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
