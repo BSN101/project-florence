@@ -15,6 +15,7 @@ import {
 import { sortName } from "@/features/access/components/provisioning-ui";
 
 import type { StudentRosterItem } from "../contracts";
+import { AcademicStatusBadge } from "./academic-status-badge";
 import { EditStudentDialog } from "./edit-student-dialog";
 import { StudentDetailDialog } from "./student-detail-dialog";
 
@@ -204,15 +205,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                         Year {student.year_level}
                       </span>
 
-                      {student.academic_status === "regular" ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                          Regular
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-600/30 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                          Irregular
-                        </span>
-                      )}
+                      <AcademicStatusBadge status={student.academic_status} size="sm" />
 
                       {student.has_account ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600/30 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
@@ -270,15 +263,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                           Year {student.year_level}
                         </td>
                         <td className="px-4 py-3.5">
-                          {student.academic_status === "regular" ? (
-                            <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                              Regular
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full border border-amber-600/30 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                              Irregular
-                            </span>
-                          )}
+                          <AcademicStatusBadge status={student.academic_status} />
                         </td>
                         <td className="px-4 py-3.5">
                           {student.has_account ? (

@@ -14,7 +14,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { displayName, sortName } from "@/features/access/components/provisioning-ui";
+import { useClipboard } from "@/hooks/use-clipboard";
 import type { StudentRosterItem } from "../contracts";
+import { AcademicStatusBadge } from "./academic-status-badge";
 import { EditStudentDialog } from "./edit-student-dialog";
 
 export function StudentDetailDialog({
@@ -27,20 +29,10 @@ export function StudentDetailDialog({
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const { copy, isCopied } = useClipboard();
 
   const fullDisplay = displayName(student);
   const fullSorted = sortName(student);
-
-  const copyToClipboard = async (text: string, field: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(field);
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch {
-      // Fallback if clipboard API is restricted
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -87,11 +79,11 @@ export function StudentDetailDialog({
                   </span>
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(student.university_id, "id")}
+                    onClick={() => copy(student.university_id, "id")}
                     className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     title="Copy student number"
                   >
-                    {copiedField === "id" ? (
+                    {isCopied("id") ? (
                       <Check className="size-3 text-emerald-600" />
                     ) : (
                       <Copy className="size-3" />
@@ -137,11 +129,11 @@ export function StudentDetailDialog({
                   </a>
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(student.email!, "email")}
+                    onClick={() => copy(student.email!, "email")}
                     className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     title="Copy email address"
                   >
-                    {copiedField === "email" ? (
+                    {isCopied("email") ? (
                       <Check className="size-3 text-emerald-600" />
                     ) : (
                       <Copy className="size-3" />
@@ -166,15 +158,7 @@ export function StudentDetailDialog({
             <div className="flex flex-col gap-1 rounded-lg border border-border bg-card/40 p-3">
               <span className="text-[11px] font-medium text-muted-foreground">Academic Status</span>
               <div>
-                {student.academic_status === "regular" ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                    Regular
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-600/30 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                    Irregular
-                  </span>
-                )}
+                <AcademicStatusBadge status={student.academic_status} />
               </div>
             </div>
           </div>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import { Check, Copy, Download, QrCode, ShieldCheck, SunMedium } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useClipboard } from "@/hooks/use-clipboard";
+import { AcademicStatusBadge } from "./academic-status-badge";
 
 export function AttendanceQrCard({
   universityId,
@@ -20,17 +21,7 @@ export function AttendanceQrCard({
   academicStatus?: string | null;
   qrDataUrl: string;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  const copyStudentNumber = async () => {
-    try {
-      await navigator.clipboard.writeText(universityId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback
-    }
-  };
+  const { copy, isCopied } = useClipboard();
 
   return (
     <Card className="flex flex-col items-center gap-6 p-6 sm:p-8 text-center max-w-md mx-auto w-full shadow-sm">
@@ -49,11 +40,11 @@ export function AttendanceQrCard({
           </span>
           <button
             type="button"
-            onClick={copyStudentNumber}
+            onClick={() => copy(universityId)}
             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             title="Copy student number"
           >
-            {copied ? (
+            {isCopied() ? (
               <Check className="size-3.5 text-emerald-600" />
             ) : (
               <Copy className="size-3.5" />
@@ -68,15 +59,7 @@ export function AttendanceQrCard({
               </span>
             )}
             {academicStatus && (
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                  academicStatus === "regular"
-                    ? "border border-primary/30 bg-primary/10 text-primary"
-                    : "border border-amber-600/30 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-                }`}
-              >
-                {academicStatus === "regular" ? "Regular" : "Irregular"}
-              </span>
+              <AcademicStatusBadge status={academicStatus} />
             )}
           </div>
         )}
