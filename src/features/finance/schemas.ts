@@ -15,40 +15,24 @@ const definitionAmount = z.coerce
     { message: "Amount can have at most 2 decimal places" }
   );
 
-export const createFineDefinitionSchema = z.object({
+const definitionId = z.string().uuid("Invalid definition identifier");
+
+// Fee and fine definitions share identical validation rules.
+export const createDefinitionSchema = z.object({
   name: definitionName,
   amount: definitionAmount,
 });
 
-export const updateFineDefinitionSchema = z.object({
-  id: z.string().uuid("Invalid fine definition identifier"),
+export const updateDefinitionSchema = z.object({
+  id: definitionId,
   name: definitionName,
   amount: definitionAmount,
 });
 
-export const archiveFineDefinitionSchema = z.object({
-  id: z.string().uuid("Invalid fine definition identifier"),
+export const archiveDefinitionSchema = z.object({
+  id: definitionId,
 });
 
-export const createFeeDefinitionSchema = z.object({
-  name: definitionName,
-  amount: definitionAmount,
-});
-
-export const updateFeeDefinitionSchema = z.object({
-  id: z.string().uuid("Invalid fee definition identifier"),
-  name: definitionName,
-  amount: definitionAmount,
-});
-
-export const archiveFeeDefinitionSchema = z.object({
-  id: z.string().uuid("Invalid fee definition identifier"),
-});
-
-export type CreateFeeDefinitionInput = z.infer<typeof createFeeDefinitionSchema>;
-export type UpdateFeeDefinitionInput = z.infer<typeof updateFeeDefinitionSchema>;
-export type ArchiveFeeDefinitionInput = z.infer<typeof archiveFeeDefinitionSchema>;
-export type CreateFineDefinitionInput = z.infer<typeof createFineDefinitionSchema>;
-export type UpdateFineDefinitionInput = z.infer<typeof updateFineDefinitionSchema>;
-export type ArchiveFineDefinitionInput = z.infer<typeof archiveFineDefinitionSchema>;
-
+export type CreateDefinitionInput = z.infer<typeof createDefinitionSchema>;
+export type UpdateDefinitionInput = z.infer<typeof updateDefinitionSchema>;
+export type ArchiveDefinitionInput = z.infer<typeof archiveDefinitionSchema>;

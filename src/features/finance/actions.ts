@@ -7,18 +7,12 @@ import { createCommandClient } from "@/server/db/command-client";
 
 import type { DefinitionActionResult } from "./contracts";
 import {
-  archiveFeeDefinitionSchema,
-  archiveFineDefinitionSchema,
-  createFeeDefinitionSchema,
-  createFineDefinitionSchema,
-  updateFeeDefinitionSchema,
-  updateFineDefinitionSchema,
-  type ArchiveFeeDefinitionInput,
-  type ArchiveFineDefinitionInput,
-  type CreateFeeDefinitionInput,
-  type CreateFineDefinitionInput,
-  type UpdateFeeDefinitionInput,
-  type UpdateFineDefinitionInput,
+  archiveDefinitionSchema,
+  createDefinitionSchema,
+  updateDefinitionSchema,
+  type ArchiveDefinitionInput,
+  type CreateDefinitionInput,
+  type UpdateDefinitionInput,
 } from "./schemas";
 
 /**
@@ -38,11 +32,11 @@ async function assertAuthorizedCouncilManager() {
  * Authorized for Council Executive and Operations only.
  */
 export async function createFineDefinition(
-  input: CreateFineDefinitionInput
+  input: CreateDefinitionInput
 ): Promise<DefinitionActionResult> {
   try {
     const context = await assertAuthorizedCouncilManager();
-    const parsed = createFineDefinitionSchema.safeParse(input);
+    const parsed = createDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return {
         success: false,
@@ -97,11 +91,11 @@ export async function createFineDefinition(
  * Authorized for Council Executive and Operations only.
  */
 export async function updateFineDefinition(
-  input: UpdateFineDefinitionInput
+  input: UpdateDefinitionInput
 ): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
-    const parsed = updateFineDefinitionSchema.safeParse(input);
+    const parsed = updateDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return {
         success: false,
@@ -170,11 +164,11 @@ export async function updateFineDefinition(
  * Authorized for Council Executive and Operations only.
  */
 export async function archiveFineDefinition(
-  input: ArchiveFineDefinitionInput
+  input: ArchiveDefinitionInput
 ): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
-    const parsed = archiveFineDefinitionSchema.safeParse(input);
+    const parsed = archiveDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: "Invalid fine definition identifier" };
     }
@@ -233,17 +227,16 @@ export async function archiveFineDefinition(
   }
 }
 
-
 /**
  * Create a reusable fee definition for future fee publication.
  * Authorized for Council Executive and Operations only.
  */
 export async function createFeeDefinition(
-  input: CreateFeeDefinitionInput
+  input: CreateDefinitionInput
 ): Promise<DefinitionActionResult> {
   try {
     const context = await assertAuthorizedCouncilManager();
-    const parsed = createFeeDefinitionSchema.safeParse(input);
+    const parsed = createDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return {
         success: false,
@@ -291,11 +284,11 @@ export async function createFeeDefinition(
  * Authorized for Council Executive and Operations only.
  */
 export async function updateFeeDefinition(
-  input: UpdateFeeDefinitionInput
+  input: UpdateDefinitionInput
 ): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
-    const parsed = updateFeeDefinitionSchema.safeParse(input);
+    const parsed = updateDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return {
         success: false,
@@ -360,11 +353,11 @@ export async function updateFeeDefinition(
  * Authorized for Council Executive and Operations only.
  */
 export async function archiveFeeDefinition(
-  input: ArchiveFeeDefinitionInput
+  input: ArchiveDefinitionInput
 ): Promise<DefinitionActionResult> {
   try {
     await assertAuthorizedCouncilManager();
-    const parsed = archiveFeeDefinitionSchema.safeParse(input);
+    const parsed = archiveDefinitionSchema.safeParse(input);
     if (!parsed.success) {
       return { success: false, error: "Invalid fee definition identifier" };
     }
