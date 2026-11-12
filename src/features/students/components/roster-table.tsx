@@ -214,10 +214,10 @@ export function RosterTable({
           </div>
 
           {/* Desktop Table View (>= lg) */}
-          <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block">
-            <div className="overflow-x-auto">
+          <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block shadow-xs">
+            <div className="overflow-auto min-h-[360px] max-h-[600px]">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground">
+                <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 backdrop-blur-xs text-xs font-medium text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3.5">Student Number</th>
                     <th className="px-4 py-3.5">Full Name</th>
