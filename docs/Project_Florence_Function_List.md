@@ -174,7 +174,7 @@ Platform Admin
 | ID | Function | Users | Description / scope |
 |---|---|---|---|
 | FL-043 | View dashboard and quick actions | Student; users where needed for their workspace | Summarize permitted records and provide navigation. Reuse underlying calculations; no elaborate analytics/chart suite is implied. |
-| FL-044 | Receive and view business notifications | Student | Notify on merit received, demerit incurred, service recorded, fees/fines due and payment verification/rejection. In-app delivery is included in V1. Business email delivery is not adopted by this decision. Invitations/recovery use email under FL-001/003. |
+| FL-044 | Receive and view business notifications | Student | Notify on merit received, demerit incurred, service recorded, fees/fines due, payment verification/rejection and Council access granted, changed or removed (FL-010). In-app delivery is included in V1. Business email delivery is not adopted by this decision. Invitations/recovery use email under FL-001/003. |
 | FL-045 | Generate own disciplinary report | Student | Generate a semester or academic-year document showing own merits/demerits and relevant balance context. Print-friendly output is Proposed; no signature certification or permanent PDF archive is implied. |
 | FL-046 | Generate Council summary and student reports | Executive / Operations | Generate semester/year summaries and student listings of fees, fines, Council-generated demerits and Council-origin merits. Respect source visibility in exports; no unrelated Faculty-entry details or configurable report builder. |
 
