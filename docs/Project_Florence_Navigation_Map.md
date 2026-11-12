@@ -49,6 +49,8 @@ Faculty
 
 Platform administration
 ├── Users and access
+│   ├── Faculty
+│   └── Executives
 └── Misconduct catalog
 ```
 
@@ -124,7 +126,8 @@ The student directory does not grant ordinary instructors access to another inst
 
 | Destination | What belongs here | Related FL IDs |
 |---|---|---|
-| Users and access | Faculty accounts, matching coordinator assignments, Executive access and invitation cancellation within that provisioning scope | FL-001, FL-010–011 |
+| Users and access — Faculty | All Faculty accounts with their instructor/matching coordinator assignments, invitation state, and Faculty invitation reissue/cancellation | FL-001, FL-011 |
+| Users and access — Executives | Students with current Executive access. Grant by exact university number; replace with Operations/Representative or remove. Not a student roster | FL-010–011 |
 | Misconduct catalog | Add/edit/archive options while preserving Other and existing demerit history | FL-048 |
 
 Platform Admin has no implied payment verification, clearance, merit-award or demerit-waiver access. Managing the catalog is not authority to amend institutional policy.

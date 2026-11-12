@@ -455,6 +455,7 @@ Table profiles {
   indexes {
     auth_user_id [unique]
     university_id [unique]
+    `lower(btrim(email))` [unique, note: 'Staff only: WHERE university_id IS NULL AND email IS NOT NULL']
   }
   Note: '''
 ### 3.1 `profiles`
@@ -472,7 +473,8 @@ One stable Florence identity per person. Authentication identity and Florence do
 - Preserve capitalization, Unicode characters, accents, apostrophes, hyphens and compound names. Do not apply letters-only validation, automatic title casing or whitespace-based name splitting. Names are not unique identity keys.
 - Before migration, verify whether the official roster or personnel records contain single-name people. Do not invent a surname to satisfy the proposed required fields; explicitly revise nullability/formatting for that case if confirmed.
 - `CHECK (account_status IN ('active','archived'))`.
-- Consider normalized lowercase uniqueness for email only if email is confirmed as a unique Florence identity attribute; the current function list does not require email to be the stable domain key.
+- Staff (non-student) emails are unique case-insensitively, via a partial unique index on `lower(btrim(email))`. Student emails are not constrained by it. Email is a sign-in and delivery address, not the stable domain key.
+- `auth_user_id` is set only when a first-access invitation is accepted, in the same transaction that accepts it. An unaccepted profile has no Auth account.
 
 **Name formatting and maintenance**
 
@@ -486,6 +488,12 @@ One stable Florence identity per person. Authentication identity and Florence do
 - Student/Council/Faculty directory queries may read only the minimum profile fields allowed by their current function scope.
 - Representatives do not receive general directory access; attendance lookup must use a restricted query path.
 - Only authorized provisioning workflows may create/archive Faculty or Executive-linked profiles.
+- Platform Admin reads use restricted functions, not broad profile SELECT. None of them returns `auth_user_id`; at most an `account_linked` flag.
+  - `florence_provisioning_accounts()` lists every Faculty profile (not Platform Admin) and every student with current Executive access, with roles, position and latest invitation state.
+  - `florence_executive_candidate(text)` returns one student by exact university number, with year level and academic status, for confirmation before granting Executive access.
+  - Neither is a student roster.
+- Provisioning writes are service-role-only command RPCs, checked against the actor's Platform Admin role: `provision_faculty`, `update_faculty_identity`, `change_faculty_assignments`, `archive_faculty`, `grant_executive`, `replace_executive`, `remove_executive`, `cancel_invitation`, `reissue_invitation`. The token holder's entry points are `check_invitation` and `accept_invitation`.
+- Archive Faculty closes active role assignments and cancels any pending invitation. It is blocked while pending merit endorsements are assigned to them or their service sessions are open.
 - RLS should never treat possession of `auth_user_id` or email as permission to alter role assignments.
 '''
 }
@@ -510,7 +518,7 @@ Stores non-Council fixed access assignments and coordinator add-ons. Council mem
 - `CHECK (role IN (...approved fixed roles...))`.
 - `CHECK ((removed_by IS NULL) = (removed_at IS NULL))`.
 - Partial unique index preventing more than one active row for the same `(profile_id, role)`.
-- Instructor mutual exclusion and coordinator dependency remain application checks because they depend on other rows and are clearer in the service layer.
+- Instructor mutual exclusion, coordinator dependency and Platform Admin exclusivity are enforced at commit by the deferred `assignment_check` constraint trigger. Coordinated changes must close and insert rows in one transaction.
 
 **RLS**
 
@@ -543,12 +551,17 @@ Stores one Council access assignment plus its descriptive position label.
 - `CHECK (btrim(position_label) <> '')`.
 - `CHECK ((removed_by IS NULL) = (removed_at IS NULL))`.
 - Partial unique index allowing at most one active Council membership per profile.
+- Partial unique index on `lower(btrim(position_label))` for current Executive memberships (`removed_at IS NULL AND access_role = 'executive'`): no two current Executives share a position. Operations/Representative labels are not constrained.
 - Position/access compatibility and who may promote/demote remain application checks.
 
 **RLS**
 
 - Members may read their own Council assignment for workspace selection.
 - Council Executives may read Council membership records and manage Operations/Representative assignments.
+  - `florence_council_members()` lists current memberships with student names, position and assigner, for Executives only. `own_profile` hides other students' names, so this restricted function replaces a broad profile read.
+  - `florence_council_candidate(text)` returns one student by exact university number for confirmation before adding. It has the same shape as `florence_executive_candidate`, plus `account_linked` (never the Auth user id).
+  - Service-role-only commands, checked against the actor's current Executive membership: `council_add_member`, `council_change_member`, `council_remove_member`. They accept only Operations/Representative and refuse any target whose current membership is Executive, so an Executive cannot change their own access. Adding requires an active student with an activated Florence account (accepted invitation, not roster-only), enrolled in the current semester, with no current membership. A change ends the current row and inserts a new one; an unchanged role and label is a no-op.
+  - Each command writes one `council_access_changed` notification for the student in the same transaction. A replayed request writes none.
 - Platform Admin may manage Executive assignments.
 - Operations/Representatives cannot mutate membership.
 - Position-label edits alone must never be used by RLS as authority; RLS authorization uses `access_role`.
@@ -559,8 +572,9 @@ Table invitations {
   id uuid [pk, note: "Primary key"]
   profile_id uuid [not null, note: "FK → `profiles.id`"]
   email text [not null, note: "Invitation destination"]
+  purpose text [not null, note: "`faculty_access` or `student_access`; sets cancellation scope"]
   status text [not null, note: "`pending`, `accepted`, `expired`, `cancelled`"]
-  token_hash text [not null, note: "Hash of invitation token, not raw secret"]
+  token_hash text [not null, note: "SHA-256 hex of the Florence-owned invitation token; never the raw token or a Supabase token"]
   expires_at timestamptz [not null, note: "Expiration time"]
   created_by uuid [not null, note: "FK → `profiles.id`"]
   created_at timestamptz [not null, note: "Created time"]
@@ -568,6 +582,7 @@ Table invitations {
   cancelled_at timestamptz [null, note: "Cancellation time"]
   indexes {
     token_hash [unique]
+    profile_id [unique, note: 'At most one pending invitation: WHERE status = pending']
   }
   Note: '''
 ### 3.4 `invitations`
@@ -582,7 +597,15 @@ Stores invitation business state, independent of provider delivery details.
 - `CHECK (status IN ('pending','accepted','expired','cancelled'))`.
 - `CHECK (expires_at > created_at)`.
 - Shape checks ensuring `accepted_at` is present only for accepted rows and `cancelled_at` only for cancelled rows.
-- Optional partial uniqueness for one open invitation per profile/email if implementation needs it.
+- `CHECK (purpose IN ('faculty_access','student_access'))`. `faculty_access` requires a non-student profile, and `student_access` a student profile (trigger).
+- Partial unique index: at most one `pending` invitation per profile. Reissue closes the old row and inserts a new one in one transaction.
+- Only `pending → accepted | expired | cancelled` transitions. `expired` is allowed only once `expires_at` has passed. Usability always checks `expires_at`, whatever the stored status.
+
+**Token and acceptance**
+
+- The server generates a 32-byte random token, emails it, and stores only its SHA-256 hex hash. Supabase invite links/OTPs are not used.
+- Acceptance creates the Auth user with the chosen password. `accept_invitation` then links `profiles.auth_user_id` and marks the row accepted in one transaction. A repeat call for the same linked Auth user returns success.
+- Platform Admin may cancel only `faculty_access` invitations; `student_access` invitations belong to Council (FL-008).
 
 **RLS**
 
@@ -945,7 +968,9 @@ Table fine_definitions {
   Note: '''
 ### 7.2 `fine_definitions`
 
-Reusable event-fine definitions for future event configuration.
+Reusable event-fine definitions for future event configuration. The Council catalog
+uses `florence_fine_definitions()` to display the creator's current profile name
+for active and archived definitions without broadening profile reads.
 
 **Basic database checks**
 
@@ -954,7 +979,9 @@ Reusable event-fine definitions for future event configuration.
 
 **RLS**
 
-- Executive/Operations may read/manage definitions.
+- Executive/Operations may read/manage definitions. The catalog function checks
+  active Executive/Operations membership and projects only definition fields and
+  the creator's display name; only authenticated users can execute it.
 - Students/Representatives/Faculty do not browse the reusable catalog.
 '''
 }
@@ -1573,7 +1600,7 @@ Permanent semester-level confirmation for one component. Absence of a row means 
 Table notifications {
   id uuid [pk, note: "Primary key"]
   recipient_id uuid [not null, note: "FK → `profiles.id`"]
-  kind text [not null, note: "Fixed safe notice category"]
+  kind text [not null, note: "Fixed safe notice category: `merit_received`, `demerit_incurred`, `service_recorded`, `obligation_due`, `payment_verified`, `payment_rejected`, `council_access_changed`"]
   message text [not null, note: "Minimal non-sensitive message"]
   target_type text [null, note: "Optional navigation target type"]
   target_id uuid [null, note: "Optional navigation target id"]
@@ -1592,6 +1619,7 @@ Included V1 recipient-scoped in-app business notice table under FL-044/Q9. In-ap
 - `PRIMARY KEY (id)`.
 - Foreign key to recipient.
 - Shape check requiring `target_type` and `target_id` together or both null.
+- Trigger allowlist on `kind`; `target_type` must currently be null.
 - `CHECK (read_at IS NULL OR read_at >= created_at)`.
 - Index `(recipient_id, created_at DESC)`.
 

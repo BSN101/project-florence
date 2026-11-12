@@ -4,6 +4,8 @@ export type NavigationItem = {
   label: string;
   slug: string;
   semesterScoped?: boolean;
+  /** Renders under a collapsible sidebar group; the list itself stays flat. */
+  group?: string;
 };
 
 export const workspaceLabels: Record<Workspace, string> = {
@@ -43,7 +45,8 @@ const facultyItems: NavigationItem[] = [
 ];
 
 const adminItems: NavigationItem[] = [
-  { label: "Users and access", slug: "" },
+  { label: "Faculty", slug: "users/faculty", group: "Users and access" },
+  { label: "Executives", slug: "users/executives", group: "Users and access" },
   { label: "Misconduct catalog", slug: "misconduct-catalog" },
 ];
 
