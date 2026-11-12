@@ -2412,6 +2412,16 @@ export type Database = {
         }
         Returns: Json
       }
+      import_event_attendance: {
+        Args: {
+          p_actor: string
+          p_apply: boolean
+          p_event: string
+          p_key: string
+          p_rows: Json
+        }
+        Returns: Json
+      }
       log_demerits: {
         Args: {
           p_actor: string
