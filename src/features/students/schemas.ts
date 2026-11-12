@@ -60,39 +60,9 @@ export const csvRosterRowSchema = z.object({
   academic_status: academicStatusSchema,
 });
 
-export const createStudentSchema = z.object({
-  university_id: studentNumberSchema,
-  last_name: z.string().trim().min(1, "Last name is required"),
-  first_name: z.string().trim().min(1, "First name is required"),
-  middle_name: optionalText,
-  suffix: optionalText,
-  email: optionalEmail,
-  year_level: yearLevelSchema,
-  academic_status: academicStatusSchema,
-});
+// Manual entry uses the same contract as a CSV row.
+export const createStudentSchema = csvRosterRowSchema;
 
-export const updateStudentSchema = z.object({
+export const updateStudentSchema = csvRosterRowSchema.omit({ university_id: true }).extend({
   student_id: z.string().uuid("Invalid student identifier"),
-  last_name: z.string().trim().min(1, "Last name is required"),
-  first_name: z.string().trim().min(1, "First name is required"),
-  middle_name: optionalText,
-  suffix: optionalText,
-  email: optionalEmail,
-  year_level: yearLevelSchema,
-  academic_status: academicStatusSchema,
 });
-
-export const studentLookupSchema = z.object({
-  university_id: studentNumberSchema,
-});
-
-export const studentFilterSchema = z.object({
-  search: z.string().trim().optional(),
-  year_level: z.coerce.number().int().min(1).max(4).optional(),
-  academic_status: z.enum(["regular", "irregular", "all"]).optional(),
-});
-
-export type CsvRosterRowInput = z.infer<typeof csvRosterRowSchema>;
-export type CreateStudentInput = z.infer<typeof createStudentSchema>;
-export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;
-export type StudentFilterInput = z.infer<typeof studentFilterSchema>;
