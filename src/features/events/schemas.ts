@@ -52,9 +52,17 @@ export const recordAttendanceSchema = z.object({
   requestKey: id,
 });
 
+// ~1 MB keeps 10,000 rows well under the server action body limit.
+export const attendanceImportSchema = z.object({
+  eventId: id,
+  csv: z.string().min(1, "Choose a CSV file").max(1_000_000, "The file is too large"),
+  requestKey: id.optional(),
+});
+
 export type SaveEventInput = z.input<typeof saveEventSchema>;
 export type ParticipantSearchInput = z.infer<typeof participantSearchSchema>;
 export type RecordAttendanceInput = z.infer<typeof recordAttendanceSchema>;
+export type AttendanceImportInput = z.infer<typeof attendanceImportSchema>;
 
 /** Asia/Manila has a fixed +08:00 offset (no DST). `value` is a datetime-local string. */
 export function manilaInputToIso(value: string): string | null {

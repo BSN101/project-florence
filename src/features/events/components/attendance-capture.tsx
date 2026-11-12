@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Search } from "lucide-react";
+import { ArrowLeft, FileUp, Loader2, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { recordAttendance, searchParticipants } from "../actions";
 import type { AttendanceSummary, EventDTO, ParticipantResult } from "../contracts";
+import { AttendanceImportDialog } from "./attendance-import-dialog";
 
 const dateTime = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
 const time = new Intl.DateTimeFormat("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" });
@@ -40,6 +41,7 @@ export function AttendanceCapture({
   const [results, setResults] = useState<ParticipantResult[] | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function runSearch(text: string) {
@@ -83,6 +85,7 @@ export function AttendanceCapture({
         <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} />}>
           <ArrowLeft className="size-4" /> All events
         </Button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">{event.name}</h2>
           <p className="text-sm text-muted-foreground">
@@ -90,6 +93,10 @@ export function AttendanceCapture({
             {" · "}Time-out {windowLabel(event.time_out_from, event.time_out_until)}
             {" · "}Late after {event.late_after_minutes} min
           </p>
+        </div>
+        <Button type="button" variant="outline" className="gap-1.5" onClick={() => setImporting(true)}>
+          <FileUp className="size-4" /> Import paper attendance
+        </Button>
         </div>
         <dl className="grid grid-cols-3 gap-3 text-center">
           {[["Participants", summary.participants], ["Timed in", summary.timedIn], ["Timed out", summary.timedOut]].map(([label, value]) => (
@@ -163,6 +170,9 @@ export function AttendanceCapture({
             </ul>
           )}
         </div>
+      )}
+      {importing && (
+        <AttendanceImportDialog eventId={event.id} onClose={() => { setImporting(false); setResults(null); }} />
       )}
     </div>
   );

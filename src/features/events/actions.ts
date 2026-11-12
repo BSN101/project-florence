@@ -7,12 +7,15 @@ import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-works
 import { createCommandClient } from "@/server/db/command-client";
 import { createUserClient } from "@/server/db/user-client";
 
+import { mergeImportFindings, parseAttendanceCsv, type ImportRowResult } from "./attendance-import";
 import type { EventActionResult, ParticipantResult } from "./contracts";
 import {
+  attendanceImportSchema,
   eventIdSchema,
   participantSearchSchema,
   recordAttendanceSchema,
   saveEventSchema,
+  type AttendanceImportInput,
   type ParticipantSearchInput,
   type RecordAttendanceInput,
   type SaveEventInput,
@@ -165,6 +168,86 @@ export async function recordAttendance(input: RecordAttendanceInput): Promise<Ev
     if (error) return { success: false, error: error.message };
     revalidatePath(path);
     return { success: true, message: parsed.data.kind === "time_in" ? "Time-in recorded" : "Time-out recorded" };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+export type AttendanceImportPreview = {
+  ready: number;
+  skipped: number;
+  invalid: number;
+  rows: ImportRowResult[];
+};
+
+/** Parses the paper-fallback CSV; the event start supplies the Manila date for time-only values. */
+async function parseImport(input: AttendanceImportInput) {
+  const parsed = attendanceImportSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid import" } as const;
+  const { data: event, error } = await createCommandClient().from("events")
+    .select("starts_at, time_in_from, time_in_until, time_out_from, time_out_until")
+    .eq("id", parsed.data.eventId).maybeSingle();
+  if (error || !event) return { error: "Event not found" } as const;
+  const csv = parseAttendanceCsv(parsed.data.csv, event);
+  if ("error" in csv) return { error: csv.error } as const;
+  return { ...csv, input: parsed.data } as const;
+}
+
+/** Validates without writing. Any Council role may import (FL-017). */
+export async function previewAttendanceImport(
+  input: AttendanceImportInput,
+): Promise<{ success: true; preview: AttendanceImportPreview } | { success: false; error: string }> {
+  try {
+    const context = await requireWorkspace("council");
+    const parsed = await parseImport(input);
+    if (!("rows" in parsed)) return { success: false, error: parsed.error };
+    let checked: AttendanceImportPreview = { ready: 0, skipped: 0, invalid: 0, rows: [] };
+    if (parsed.rows.length) {
+      const { data, error } = await createCommandClient().rpc("import_event_attendance", {
+        p_key: randomUUID(), p_actor: context.profile.id, p_event: parsed.input.eventId,
+        p_rows: parsed.rows, p_apply: false,
+      });
+      if (error) return { success: false, error: error.message };
+      checked = data as AttendanceImportPreview;
+      // Tell apart numbers unknown to Florence from real students outside this event's audience.
+      const unmatched = checked.rows.filter((row) => row.message === "Not a participant of this event");
+      if (unmatched.length) {
+        const { data: known, error: knownError } = await createCommandClient().from("profiles")
+          .select("university_id").in("university_id", unmatched.map((row) => row.university_id));
+        if (knownError) return { success: false, error: knownError.message };
+        const existing = new Set(known.map((profile) => profile.university_id));
+        for (const row of unmatched) {
+          if (!existing.has(row.university_id)) row.message = "No student has this university number";
+        }
+      }
+    }
+    const rows = mergeImportFindings(checked.rows, parsed.invalid);
+    const count = (status: ImportRowResult["status"]) => rows.filter((row) => row.status === status).length;
+    return {
+      success: true,
+      preview: { ready: count("ready"), skipped: count("skipped"), invalid: count("invalid"), rows },
+    };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** All-or-nothing apply; the request key makes retries return the first result. */
+export async function importAttendance(input: AttendanceImportInput): Promise<EventActionResult> {
+  try {
+    const context = await requireWorkspace("council");
+    const parsed = await parseImport(input);
+    if (!("rows" in parsed)) return { success: false, error: parsed.error };
+    if (!parsed.input.requestKey) return { success: false, error: "Invalid import request" };
+    if (parsed.invalid.length) return { success: false, error: "Fix the invalid rows before importing" };
+    const { data, error } = await createCommandClient().rpc("import_event_attendance", {
+      p_key: parsed.input.requestKey, p_actor: context.profile.id, p_event: parsed.input.eventId,
+      p_rows: parsed.rows, p_apply: true,
+    });
+    if (error) return { success: false, error: error.message };
+    revalidatePath(path);
+    const { recorded, skipped } = data as { recorded: number; skipped: number };
+    return { success: true, message: `Imported ${recorded} row${recorded === 1 ? "" : "s"}; ${skipped} skipped` };
   } catch (err) {
     return failure(err);
   }
