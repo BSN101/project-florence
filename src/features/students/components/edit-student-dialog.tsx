@@ -24,7 +24,13 @@ import {
 import { updateStudentAction } from "../actions";
 import type { StudentActionResult, StudentRosterItem } from "../contracts";
 
-export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
+export function EditStudentDialog({
+  student,
+  trigger,
+}: {
+  student: StudentRosterItem;
+  trigger?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const [lastName, setLastName] = useState(student.last_name);
   const [firstName, setFirstName] = useState(student.first_name);
@@ -65,10 +71,14 @@ export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
-            <Pencil className="size-3.5 text-muted-foreground" />
-            Edit
-          </Button>
+          trigger ? (
+            <>{trigger}</>
+          ) : (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
+              <Pencil className="size-3.5 text-muted-foreground" />
+              Edit
+            </Button>
+          )
         }
       />
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">

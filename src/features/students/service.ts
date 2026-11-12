@@ -13,6 +13,28 @@ export async function requireRosterManager() {
   return context;
 }
 
+/**
+ * Directory view access: Council Executive and Operations under /council,
+ * or Instructors and Coordinators under /faculty.
+ * Council Representatives and Students are denied directory access.
+ */
+export async function requireDirectoryViewer(workspace: "council" | "faculty") {
+  const context = await requireWorkspace(workspace);
+  if (workspace === "council") {
+    if (context.councilRole !== "executive" && context.councilRole !== "operations") {
+      throw new AccessDeniedError("forbidden");
+    }
+  } else if (workspace === "faculty") {
+    const isFaculty =
+      context.roles.includes("Academic Instructor") ||
+      context.roles.includes("Clinical Instructor") ||
+      context.roles.includes("Academic Coordinator") ||
+      context.roles.includes("RLE Coordinator");
+    if (!isFaculty) throw new AccessDeniedError("forbidden");
+  }
+  return context;
+}
+
 const invalid = (error: { issues: { message: string }[] }): StudentActionResult =>
   ({ success: false, error: error.issues[0]?.message ?? "Check the form and try again." });
 

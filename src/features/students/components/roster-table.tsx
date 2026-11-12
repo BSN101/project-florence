@@ -16,6 +16,7 @@ import { sortName } from "@/features/access/components/provisioning-ui";
 
 import type { StudentRosterItem } from "../contracts";
 import { EditStudentDialog } from "./edit-student-dialog";
+import { StudentDetailDialog } from "./student-detail-dialog";
 
 const PAGE_SIZE = 25;
 
@@ -192,11 +193,10 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                         )}
                       </div>
 
-                      {canEdit && (
-                        <div className="shrink-0">
-                          <EditStudentDialog student={student} />
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <StudentDetailDialog student={student} canEdit={canEdit} />
+                        {canEdit && <EditStudentDialog student={student} />}
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2.5 text-xs">
@@ -241,7 +241,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                     <th className="px-4 py-3.5">Year Level</th>
                     <th className="px-4 py-3.5">Academic Status</th>
                     <th className="px-4 py-3.5">Account</th>
-                    {canEdit && <th className="px-4 py-3.5 text-right">Actions</th>}
+                    <th className="px-4 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -293,11 +293,12 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                             </span>
                           )}
                         </td>
-                        {canEdit && (
-                          <td className="px-4 py-3.5 text-right">
-                            <EditStudentDialog student={student} />
-                          </td>
-                        )}
+                        <td className="px-4 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <StudentDetailDialog student={student} canEdit={canEdit} />
+                            {canEdit && <EditStudentDialog student={student} />}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
