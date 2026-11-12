@@ -13,13 +13,14 @@ const messages: Record<string, string> = {
   service: "We couldn't check your access right now. Please try again later.",
 };
 
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reset?: string }> }) {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reset?: string; invited?: string }> }) {
   const params = await searchParams;
   await redirectAuthenticatedUser();
   const next = safeDestination(params.next);
   return (
     <AuthShell title="Sign in" description="Access your nursing records and permitted workspace with your Florence account.">
       {params.reset === "success" && <p role="status" className="mb-5 rounded-lg bg-success p-3">Password updated. Sign in with your new password.</p>}
+      {params.invited === "success" && <p role="status" className="mb-5 rounded-lg bg-success p-3">Your account is ready. Sign in with your new password.</p>}
       {params.error && messages[params.error] && <p role="alert" className="mb-5 rounded-lg bg-error-surface p-3 text-foreground">{messages[params.error]}</p>}
       <form action={signIn} className="flex flex-col gap-5">
         {next && <input type="hidden" name="next" value={next} />}
