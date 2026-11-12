@@ -392,7 +392,14 @@ If rejection has no multi-row integrity requirement after implementation, reject
 5. Set waiver fields.
 6. Commit atomically.
 
-### 16.7 Optional atomic candidates to evaluate during implementation
+### 16.7 Event configuration and manual capture
+
+- `save_event(p_actor, p_event, p_semester, …event fields, …rule fields)` — Executive/Operations only. Inserts or updates the event and its single `event_consequence_rules` row in one transaction; selected fine definitions must be active. A published (`audience_frozen_at`) event accepts only name/venue changes; archived events reject edits. Publication remains `freeze_event`. The Council UI sets only time-in opening; the server stores `time_in_until = ends_at` and a time-out window of `time_in_from`–`ends_at`, so late arrivals and time-outs can be captured live until the event ends. `requires_time_out` only decides whether a missing time-out counts as absence.
+- `record_event_attendance(p_key, p_actor, p_event, p_student, p_kind)` — Executive/Operations/Representative. Locks the event, requires it to be published, unarchived and unlocked, rejects self-recording and records one side (`time_in` or `time_out`) at the database clock with method `manual`. Rejects an already-recorded side and a time-out without time-in; leaves the other side's time, method and recorder unchanged. Corrections are not part of this command. The batch `capture_event_attendance` remains for imports.
+
+Both are `service_role`-only; the server resolves `p_actor` from the verified session.
+
+### 16.8 Optional atomic candidates to evaluate during implementation
 
 Do **not** automatically implement these as RPCs. The following transaction contracts are mandatory; a server-held transaction may implement them instead of a DB function:
 
