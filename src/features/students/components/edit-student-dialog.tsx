@@ -29,7 +29,7 @@ export function EditStudentDialog({
   trigger,
 }: {
   student: StudentRosterItem;
-  trigger?: React.ReactNode;
+  trigger?: React.ReactElement;
 }) {
   const [open, setOpen] = useState(false);
   const [lastName, setLastName] = useState(student.last_name);
@@ -71,9 +71,7 @@ export function EditStudentDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          trigger ? (
-            <>{trigger}</>
-          ) : (
+          trigger ?? (
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
               <Pencil className="size-3.5 text-muted-foreground" />
               Edit

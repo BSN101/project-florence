@@ -26,7 +26,7 @@ export function StudentDetailDialog({
 }: {
   student: StudentRosterItem;
   canEdit?: boolean;
-  trigger?: React.ReactNode;
+  trigger?: React.ReactElement;
 }) {
   const [open, setOpen] = useState(false);
   const { copy, isCopied } = useClipboard();
@@ -38,9 +38,7 @@ export function StudentDetailDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          trigger ? (
-            <>{trigger}</>
-          ) : (
+          trigger ?? (
             <Button
               variant="ghost"
               size="sm"
@@ -174,16 +172,17 @@ export function StudentDetailDialog({
             Close
           </Button>
           {canEdit && (
-            <div onClick={() => setOpen(false)}>
-              <EditStudentDialog
-                student={student}
-                trigger={
-                  <Button className="w-full gap-2 sm:w-auto">
-                    Edit Student
-                  </Button>
-                }
-              />
-            </div>
+            <EditStudentDialog
+              student={student}
+              trigger={
+                <Button
+                  className="w-full gap-2 sm:w-auto"
+                  onClick={() => setOpen(false)}
+                >
+                  Edit Student
+                </Button>
+              }
+            />
           )}
         </DialogFooter>
       </DialogContent>
