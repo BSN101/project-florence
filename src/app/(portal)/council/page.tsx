@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarX, Settings } from "lucide-react";
+import { AlertCircle, CalendarX, Settings } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,37 +20,31 @@ export default async function CouncilPage({
 }) {
   const { semester } = await searchParams;
   const access = await getAccessContext();
+  const ready = access.status === "ready" ? access : null;
+  // Representatives never reach this content: WorkspaceShell redirects them off Students.
+  const canManage = ready?.councilRole === "executive" || ready?.councilRole === "operations";
 
-  const canManage =
-    access.status === "ready" &&
-    (access.councilRole === "executive" || access.councilRole === "operations");
-
-  // Determine active/selected semester
-  const selectedSemesterId =
-    typeof semester === "string"
-      ? semester
-      : access.status === "ready"
-        ? access.currentSemester?.id ?? access.semesters[0]?.id
-        : undefined;
-
-  const currentSemester =
-    access.status === "ready"
-      ? access.semesters.find((s) => s.id === selectedSemesterId) ?? access.currentSemester
-      : null;
+  // Same selection as WorkspaceShell's semester filter.
+  const selected = ready
+    ? ready.semesters.find((s) => s.id === semester) ?? ready.currentSemester ?? ready.semesters[0]
+    : undefined;
+  // Roster changes apply to the current semester only (no backdating).
+  const canEdit = canManage && Boolean(selected?.is_current);
 
   let students: StudentRosterItem[] = [];
-  if (selectedSemesterId) {
+  let loadFailed = false;
+  if (canManage && selected) {
     try {
-      students = await getRoster(selectedSemesterId);
+      students = await getRoster(selected.id);
     } catch {
-      students = [];
+      loadFailed = true;
     }
   }
 
   return (
-    <WorkspaceShell workspace="council" destination="" semester={semester}>
+    <WorkspaceShell workspace="council" semester={semester}>
       <div className="flex flex-col gap-6">
-        {!selectedSemesterId ? (
+        {!selected ? (
           <Card className="flex flex-col items-center justify-center gap-4 p-8 text-center sm:p-12">
             <div className="flex size-12 items-center justify-center rounded-full bg-muted">
               <CalendarX className="size-6 text-muted-foreground" />
@@ -79,35 +73,30 @@ export default async function CouncilPage({
                   Student Roster
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Manage individual student enrollment and demographic identities for{" "}
-                  {currentSemester ? (
-                    <strong className="font-medium text-foreground">
-                      {currentSemester.term} (AY {currentSemester.academic_year_start}–
-                      {currentSemester.academic_year_start + 1})
-                    </strong>
-                  ) : (
-                    "the selected semester"
-                  )}
+                  {canEdit ? "Manage individual student enrollment and details for " : "Viewing the roster for "}
+                  <strong className="font-medium text-foreground">
+                    {selected.term} (AY {selected.academic_year_start}–{selected.academic_year_start + 1})
+                  </strong>
                   .
+                  {canManage && !canEdit && " Roster changes can only be made in the current semester."}
                 </p>
               </div>
 
               <div className="flex w-full flex-col gap-2 shrink-0 md:w-56 lg:w-60 xl:w-auto xl:flex-row xl:items-center">
                 <DownloadTemplateButton className="w-full justify-center xl:w-auto" />
-                {canManage && (
-                  <AddStudentDialog
-                    activeSemesterId={selectedSemesterId}
-                    className="w-full justify-center xl:w-auto"
-                  />
-                )}
+                {canEdit && <AddStudentDialog className="w-full justify-center xl:w-auto" />}
               </div>
             </div>
-            {/* Roster Table */}
-            <RosterTable
-              students={students}
-              activeSemesterId={selectedSemesterId}
-              canManage={canManage}
-            />
+            {loadFailed ? (
+              <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+                <AlertCircle className="size-8 text-destructive" />
+                <p className="text-xs text-muted-foreground">
+                  The roster couldn&rsquo;t be loaded. Refresh the page to try again.
+                </p>
+              </Card>
+            ) : (
+              <RosterTable students={students} canEdit={canEdit} />
+            )}
           </>
         )}
       </div>
