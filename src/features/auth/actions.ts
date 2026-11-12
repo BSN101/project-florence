@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getAccessContext } from "@/server/auth/access-context";
@@ -12,6 +12,7 @@ import {
   recoveryIntentCookieOptions,
   verifyRecoveryIntent,
 } from "./recovery-intent";
+import { trustedRequestOrigin } from "./request-origin";
 import {
   passwordResetRequestSchema,
   signInSchema,
@@ -43,13 +44,8 @@ export async function requestReset(formData: FormData) {
   const parsed = passwordResetRequestSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) redirect("/forgot-password?status=invalid");
 
-  // Next.js checks Server Action Origin against Host; never use a submitted callback URL.
-  const requestHeaders = await headers();
-  const origin = requestHeaders.get("origin");
-  const host = requestHeaders.get("host");
-  if (!origin || !host || !/^https?:\/\/[^/]+$/.test(origin) || new URL(origin).host !== host) {
-    redirect("/forgot-password?status=error");
-  }
+  const origin = await trustedRequestOrigin();
+  if (!origin) redirect("/forgot-password?status=error");
   const client = await createUserClient();
   const { error } = await client.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: new URL("/reset-password/callback", origin).toString(),
