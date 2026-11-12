@@ -2353,8 +2353,11 @@ export type Database = {
           enrollment_id: string
           first_name: string
           has_account: boolean
+          invitation_expires_at: string
+          invitation_state: string
           last_name: string
           middle_name: string
+          pending_invitation_id: string
           semester_id: string
           student_id: string
           suffix: string
@@ -2465,6 +2468,16 @@ export type Database = {
         }
         Returns: Json
       }
+      record_event_attendance: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_key: string
+          p_kind: string
+          p_student: string
+        }
+        Returns: Json
+      }
       record_refund: {
         Args: {
           p_actor: string
@@ -2524,6 +2537,20 @@ export type Database = {
         }
         Returns: Json
       }
+      roster_cancel_invitation: {
+        Args: { p_actor: string; p_invitation: string; p_key: string }
+        Returns: Json
+      }
+      roster_invite_student: {
+        Args: {
+          p_actor: string
+          p_expires_at: string
+          p_key: string
+          p_student: string
+          p_token_hash: string
+        }
+        Returns: Json
+      }
       roster_update_student: {
         Args: {
           p_academic_status: string
@@ -2538,6 +2565,30 @@ export type Database = {
           p_year_level: number
         }
         Returns: Json
+      }
+      save_event: {
+        Args: {
+          p_absence_demerit_days: number
+          p_absence_fine: string
+          p_academic_statuses: string[]
+          p_actor: string
+          p_ends_at: string
+          p_event: string
+          p_late_after_minutes: number
+          p_late_demerit_days: number
+          p_late_fine: string
+          p_name: string
+          p_requires_time_out: boolean
+          p_semester: string
+          p_starts_at: string
+          p_time_in_from: string
+          p_time_in_until: string
+          p_time_out_from: string
+          p_time_out_until: string
+          p_venue: string
+          p_year_levels: number[]
+        }
+        Returns: string
       }
       set_service_participants: {
         Args: {
