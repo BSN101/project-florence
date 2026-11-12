@@ -1,0 +1,61 @@
+import { z } from "zod";
+
+export const YEAR_LEVELS = [1, 2, 3, 4] as const;
+export const ACADEMIC_STATUSES = ["regular", "irregular"] as const;
+
+const id = z.string().uuid("Invalid identifier");
+const instant = z.iso.datetime({ offset: true, message: "Invalid date and time" });
+const wholeNumber = z.coerce.number().int("Use a whole number").min(0, "Cannot be negative").max(10000);
+
+export const saveEventSchema = z
+  .object({
+    id: id.nullable(),
+    semesterId: id,
+    name: z.string().trim().min(1, "Name is required").max(150),
+    venue: z.string().trim().max(150).transform((value) => value || null),
+    startsAt: instant,
+    endsAt: instant,
+    timeInFrom: instant,
+    lateAfterMinutes: wholeNumber,
+    yearLevels: z.array(z.number().int().min(1).max(4)).min(1, "Select at least one year level"),
+    academicStatuses: z.array(z.enum(ACADEMIC_STATUSES)).min(1, "Select at least one academic status"),
+    absenceFineId: id.nullable(),
+    lateFineId: id.nullable(),
+    absenceDemeritDays: wholeNumber,
+    lateDemeritDays: wholeNumber,
+    requiresTimeOut: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    const t = (value: string) => Date.parse(value);
+    const issue = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+    if (t(data.endsAt) <= t(data.startsAt)) issue("endsAt", "End must be after start");
+    if (t(data.timeInFrom) >= t(data.endsAt)) issue("timeInFrom", "Time-in must open before the event ends");
+  });
+
+export const eventIdSchema = z.object({ eventId: id });
+
+export const participantSearchSchema = z.object({
+  eventId: id,
+  query: z.string().trim().min(2, "Enter at least 2 characters").max(100),
+});
+
+export const recordAttendanceSchema = z.object({
+  eventId: id,
+  studentId: id,
+  kind: z.enum(["time_in", "time_out"]),
+  requestKey: id,
+});
+
+export type SaveEventInput = z.input<typeof saveEventSchema>;
+export type ParticipantSearchInput = z.infer<typeof participantSearchSchema>;
+export type RecordAttendanceInput = z.infer<typeof recordAttendanceSchema>;
+
+/** Asia/Manila has a fixed +08:00 offset (no DST). `value` is a datetime-local string. */
+export function manilaInputToIso(value: string): string | null {
+  return value ? new Date(`${value}:00+08:00`).toISOString() : null;
+}
+
+export function isoToManilaInput(value: string | null): string {
+  if (!value) return "";
+  return new Date(Date.parse(value) + 8 * 3600_000).toISOString().slice(0, 16);
+}
