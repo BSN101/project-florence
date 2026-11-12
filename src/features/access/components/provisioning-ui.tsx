@@ -5,7 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { ProvisioningAccount, ProvisioningResult } from "../provisioning-contracts";
 import { councilRoleNames, councilRoles, instructorRoles } from "../provisioning-schemas";
 
-type Names = Pick<ProvisioningAccount, "first_name" | "middle_name" | "last_name" | "suffix">;
+// Nullable optional parts: generated RPC types mark them non-null, roster rows don't.
+type Names = { first_name: string; middle_name: string | null; last_name: string; suffix: string | null };
 export const displayName = (p: Names) =>
   [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ") + (p.suffix ? `, ${p.suffix}` : "");
 export const sortName = (p: Names) =>
