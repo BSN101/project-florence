@@ -196,9 +196,18 @@ Support customized invitations, acceptance and password recovery/reset. The acce
 
 Operational email for payments, merits or demerits is not included by this auth-email support.
 
+### Council member management
+
+Council Executives manage Operations and Representative access at `/council/council-members` (FL-010). Platform Admin keeps Executive access.
+- `requireCouncilExecutive()` resolves the actor from the verified session and requires a current Executive membership. The Council workspace alone is not authority.
+- Reads use the user client and Executive-guarded functions. Commands use the service-role client with the session actor.
+- The commands accept only Operations/Representative and refuse Executive targets. Executive rows are read-only on the page.
+- A change ends the current membership and inserts a new one, so history keeps who assigned what and when. Removing access keeps the student's identity, enrollment and history.
+- No email or invitation is sent. The student sees Council in their workspace switcher on the next request, plus an in-app notice.
+
 ### In-app notifications and history
 
-In-app business notices are included. Create them server-side alongside their originating change in the same transaction where applicable, with retry-safe duplicate protection. Read them through recipient-scoped access; a navigation link does not grant access to its target. Realtime, queues and worker services are not prerequisites.
+In-app business notices are included. Create them server-side alongside their originating change in the same transaction where applicable, with retry-safe duplicate protection. Council access changes (FL-010) follow this rule: each Council membership command writes the student's notice in its own transaction, and a replayed request writes none. Read them through recipient-scoped access; a navigation link does not grant access to its target. Realtime, queues and worker services are not prerequisites.
 
 Keep the schema's actor, timestamp, reason, source, refund and supersession records. No general audit engine is required. Do not duplicate authoritative history in application logging.
 
