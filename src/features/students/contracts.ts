@@ -49,6 +49,10 @@ export type RosterImportPreview = {
   rows: RosterImportRowResult[];
 };
 
+export type RosterImportPreviewResult =
+  | { success: true; preview: RosterImportPreview }
+  | { success: false; error: string };
+
 export type RosterImportResult =
   | {
       success: true;
