@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // LAN loaded pages that never hydrated (sidebar and menus did nothing).
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*"],
   cacheComponents: true,
+  experimental: {
+    // Largest upload is 4 MB payment proof plus multipart overhead; stays under Vercel's 4.5 MB cap.
+    serverActions: { bodySizeLimit: "4.2mb" },
+  },
   partialPrefetching: true,
   turbopack: {
     rules: {

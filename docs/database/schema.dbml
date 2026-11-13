@@ -781,6 +781,12 @@ Private file metadata only. Actual objects remain in private storage.
 - Roster import files are limited to Executive/Operations.
 - Payment-account QR metadata is visible only where the associated payment account itself is visible.
 - Object download/upload authorization remains in server/storage code; storage keys alone never grant access.
+
+**Functions (T-016, service role only)**
+
+- `register_file(p_key, p_actor, p_purpose, p_storage_key, p_media_type, p_byte_size)` records an object the server already stored. Upload roles: `roster_import` Executive/Operations, `payment_account_qr` Executive, `payment_proof` enrolled students. The key must be `<purpose>/<actor>/<p_key>.<ext>`, so a retry targets the same object and replays; type and size must match the purpose (`text/csv` ≤ 1 MB, `image/webp` ≤ 4 MB, `image/png` ≤ 2 MB). Result `{file_id}`.
+- `file_download_key(p_actor, p_file)` returns `storage_key, media_type, purpose` only when the active actor may read the file: roster files to Executive/Operations; payment proof to its uploader, and to Executive/Operations once a payment references it; payment-account QR to Executives, and to students while an active payment account uses it. Otherwise no row.
+- Stored type/size describe the server-compressed object: proof is re-encoded to WebP (≤ 2000 px), QR to PNG (≤ 1024 px), metadata stripped; CSV is stored as uploaded.
 '''
 }
 

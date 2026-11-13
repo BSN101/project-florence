@@ -357,6 +357,23 @@ interface displays the source as “Council”.
 
 Institutional date-sensitive behavior uses `Asia/Manila`.
 
+### Private files
+
+Roster CSVs, payment proof and payment-account QR images live in a private
+Cloudflare R2 bucket (`R2_*` variables). Use `src/server/storage/files.ts`:
+
+- In the browser, shrink images with `compressImage(file, purpose)` from
+  `src/lib/compress-image.ts` before sending them. This saves mobile data;
+  it is not a security check.
+- In a server action, call `uploadFile(purpose, file, requestKey)`. The
+  server checks the content, re-compresses images (proof to WebP ≤ 2000 px,
+  QR to PNG ≤ 1024 px, metadata removed), builds the storage key itself and
+  records the file. Pass the returned file id to your feature's command.
+  Request limits: CSV 1 MB, proof 4 MB, QR 2 MB.
+- To show or download a file, call `getDownloadUrl(fileId, workspace)`. It
+  returns a 5-minute link only if the signed-in user may read that file,
+  otherwise `null`. Never log the link or pass storage keys to the browser.
+
 ## Before merging
 
 - Review changed migrations and generated types.
