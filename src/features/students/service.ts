@@ -15,8 +15,9 @@ export async function requireRosterManager() {
 
 /**
  * Directory view access: Council Executive and Operations under /council,
- * or Instructors and Coordinators under /faculty.
+ * or Instructors under /faculty (coordinators hold an instructor role too).
  * Council Representatives and Students are denied directory access.
+ * Mirrors f_access_private.council() / faculty(), which florence_roster re-checks.
  */
 export async function requireDirectoryViewer(workspace: "council" | "faculty") {
   const context = await requireWorkspace(workspace);
@@ -25,12 +26,9 @@ export async function requireDirectoryViewer(workspace: "council" | "faculty") {
       throw new AccessDeniedError("forbidden");
     }
   } else if (workspace === "faculty") {
-    const isFaculty =
-      context.roles.includes("Academic Instructor") ||
-      context.roles.includes("Clinical Instructor") ||
-      context.roles.includes("Academic Coordinator") ||
-      context.roles.includes("RLE Coordinator");
-    if (!isFaculty) throw new AccessDeniedError("forbidden");
+    const isInstructor =
+      context.roles.includes("Academic Instructor") || context.roles.includes("Clinical Instructor");
+    if (!isInstructor) throw new AccessDeniedError("forbidden");
   }
   return context;
 }
