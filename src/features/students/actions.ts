@@ -4,6 +4,7 @@ import { guarded } from "@/features/access/provisioning-service";
 import { AccessDeniedError } from "@/server/auth/require-workspace";
 
 import type {
+  BulkInviteResult,
   RosterCandidate,
   RosterImportPreviewResult,
   RosterImportResult,
@@ -13,6 +14,9 @@ import { lookupRosterCandidate } from "./queries";
 import {
   addStudentToRoster,
   applyRosterImport,
+  bulkInviteStudents,
+  cancelStudentInvitation,
+  inviteStudent,
   previewRosterImport,
   updateStudentRosterEntry,
 } from "./service";
@@ -30,11 +34,11 @@ async function guardedAction<T extends { success: true } | { success: false; err
   }
 }
 
-export async function createStudentAction(_prev: StudentActionResult | null, formData: FormData) {
+export async function createStudentAction(_prev: StudentActionResult | null, formData: FormData): Promise<StudentActionResult> {
   return guarded(() => addStudentToRoster(Object.fromEntries(formData)));
 }
 
-export async function updateStudentAction(_prev: StudentActionResult | null, formData: FormData) {
+export async function updateStudentAction(_prev: StudentActionResult | null, formData: FormData): Promise<StudentActionResult> {
   return guarded(() => updateStudentRosterEntry(Object.fromEntries(formData)));
 }
 
@@ -54,4 +58,16 @@ export async function applyRosterImportAction(
   csvText: string,
 ): Promise<RosterImportResult> {
   return guardedAction(() => applyRosterImport({ requestKey, csvText }));
+}
+
+export async function inviteStudentDirectAction(studentId: string): Promise<StudentActionResult> {
+  return guarded(() => inviteStudent({ studentId }));
+}
+
+export async function cancelStudentInvitationDirectAction(invitationId: string): Promise<StudentActionResult> {
+  return guarded(() => cancelStudentInvitation({ invitationId }));
+}
+
+export async function bulkInviteStudentsDirectAction(semesterId: string, excludeIds: string[]): Promise<BulkInviteResult> {
+  return guarded(() => bulkInviteStudents({ semesterId, excludeIds }));
 }

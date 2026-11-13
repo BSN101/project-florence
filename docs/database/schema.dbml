@@ -20,7 +20,7 @@ All modeled relationships use non-cascading NO ACTION. Supabase-managed auth/sto
 
 ## 1. Purpose and boundaries
 
-This document defines Florence's 31 application tables, relationships and data-integrity rules. The [function list](Project_Florence_Function_List.md) defines scope and permissions; the [architecture](Florence_Architecture.md) defines code organization. All tables, including in-app notifications, are included in V1. Validate migrations against the actual database before deployment.
+This document defines Florence's 32 application tables, relationships and data-integrity rules. The [function list](Project_Florence_Function_List.md) defines scope and permissions; the [architecture](Florence_Architecture.md) defines code organization. All tables, including in-app notifications, are included in V1. Validate migrations against the actual database before deployment.
 
 The schema follows these principles:
 
@@ -604,11 +604,12 @@ Table invitations {
   indexes {
     token_hash [unique]
     profile_id [unique, note: 'At most one pending invitation: WHERE status = pending']
+    (profile_id, purpose, created_at) [note: 'Fast lateral lookup of latest student invitation']
   }
   Note: '''
 ### 3.4 `invitations`
 
-Stores invitation business state, independent of provider delivery details.
+Stores invitation business state, independent of provider delivery details. Florence's own send outcome is kept separately in `invitation_deliveries`.
 
 **Basic database checks**
 
@@ -633,6 +634,23 @@ Stores invitation business state, independent of provider delivery details.
 - Invitation records are not general authenticated-user data.
 - Authorized provisioning actors may read/manage invitations within their provisioning scope.
 - Invitation acceptance should use a dedicated server-side flow; raw token hashes are not exposed through ordinary SELECT policies.
+'''
+}
+
+Table invitation_deliveries {
+  invitation_id uuid [pk, note: "FK → `invitations.id`; one outcome per invitation"]
+  status text [not null, note: "`sent`, `failed`, or `unknown` (invitations created before delivery was recorded)"]
+  recorded_at timestamptz [not null, note: "When the server recorded the outcome"]
+  Note: '''
+### 3.4a `invitation_deliveries`
+
+Florence's own record of whether an invitation email was sent. It stores no provider data (message IDs, provider names or raw errors) and never changes the invitation.
+
+- Insert-only (append-only trigger). Each reissue is a new invitation, so one row per invitation keeps every attempt's history.
+- `sent` means the mail server accepted the message, not that it reached the inbox. `failed` can also be wrong when the server accepted the message but the connection dropped; reissue is the remedy either way.
+- Written only by the service-role `record_invitation_delivery(uuid, text)` after the server attempts the email; a repeat call keeps the first outcome.
+- No outcome within 10 minutes means the server stopped before recording; `florence_roster` reports that as `unconfirmed`.
+- RLS enabled with no policies; no direct authenticated access.
 '''
 }
 
@@ -702,9 +720,10 @@ One semester roster row per student.
 
 - Students may read their own enrollment rows.
 - Council Executive/Operations may read/manage roster entries.
-  - `florence_roster(uuid)` lists one semester's enrollments with student names, email, account status and `has_account` (never the Auth user id), for Executive/Operations only. `own_profile` hides other students' names, so this restricted function replaces a broad profile read.
+  - `florence_roster(uuid)` lists one semester's enrollments with student names, email, account status, `has_account`, `invitation_state` (including `undelivered` / `unconfirmed` for a live invitation whose email failed or was never recorded), `pending_invitation_id`, and `invitation_expires_at` (never the Auth user id), for Executive/Operations and Faculty. `own_profile` hides other students' names, so this restricted function replaces a broad profile read.
+  - `florence_invitation_statuses(uuid)` returns invitation status history for an individual profile for Council and authorized provisioning.
   - `florence_roster_candidate(text)` returns one student by exact university number, with `enrolled_in_current`, for the add-student preview. Same guard.
-  - Service-role-only commands, checked against the actor's current Executive/Operations membership: `roster_add_student`, `roster_update_student`, and `roster_import_csv`. They write only to the current semester and run as one transaction with request-key idempotency. Adding reuses an existing student profile by university number (submitted names are ignored) or creates one, then inserts the enrollment. Updating changes the profile's names/email and the current-semester enrollment together. `roster_import_csv` validates fixed 8-column student batches with dry-run preview (`p_apply = false`) and atomic commit (`p_apply = true`), detecting new creations, identity-continuous re-enrollments, name conflicts, and batch duplicates.
+  - Service-role-only commands, checked against the actor's current Executive/Operations membership: `roster_add_student`, `roster_update_student`, `roster_import_csv`, `roster_invite_student`, and `roster_cancel_invitation`. Writes target the current semester and run as one transaction with request-key idempotency. Adding reuses an existing student profile by university number (submitted names are ignored) or creates one, then inserts the enrollment. Updating changes the profile's names/email and the current-semester enrollment together. `roster_import_csv` validates fixed 8-column student batches with dry-run preview (`p_apply = false`) and atomic commit (`p_apply = true`), detecting new creations, identity-continuous re-enrollments, name conflicts, and batch duplicates. Inviting creates or reissues a Florence-owned student invitation token, closing any prior pending student invite; with `p_skip_pending` (bulk invite) it returns `skipped` instead of closing a live pending invite. Cancelling marks pending student invitations cancelled within Council scope.
   - They refuse archived and non-student targets. Updating requires a current-semester enrollment. An actor cannot add themselves or change their own year level/academic status; editing their own name/email is allowed.
 - Instructors/coordinators may read roster rows needed for the student directory and authorized student operations.
 - Representatives do not receive direct roster browsing access.
@@ -1684,6 +1703,7 @@ Ref: council_memberships.assigned_by > profiles.id [delete: no action, update: n
 Ref: council_memberships.removed_by > profiles.id [delete: no action, update: no action]
 Ref: invitations.profile_id > profiles.id [delete: no action, update: no action]
 Ref: invitations.created_by > profiles.id [delete: no action, update: no action]
+Ref: invitation_deliveries.invitation_id - invitations.id [delete: no action, update: no action]
 Ref: semesters.created_by > profiles.id [delete: no action, update: no action]
 Ref: enrollments.student_id > profiles.id [delete: no action, update: no action]
 Ref: enrollments.semester_id > semesters.id [delete: no action, update: no action]

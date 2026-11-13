@@ -57,7 +57,7 @@ type CommandResult = { replayed?: boolean; profile_id?: string; invitation_id?: 
 
 // Our RPCs raise user-safe messages for these SQLSTATEs; anything else stays generic.
 const userSafeCodes = new Set(["22023", "55000", "0A000"]);
-function commandError(error: PostgrestError): ProvisioningResult {
+export function commandError(error: PostgrestError): ProvisioningResult {
   if (error.code === "42501") return { success: false, error: "You are not permitted to make this change." };
   // A concurrent grant can still hit the index after the readable pre-check.
   if (error.code === "23505" && error.message.includes("executive_position")) return { success: false, error: "Another current Executive already holds that position." };
@@ -85,7 +85,7 @@ export const invalid = (error: { issues: { message: string }[] }): ProvisioningR
   ({ success: false, error: error.issues[0]?.message ?? "Check the form and try again." });
 
 /** Server actions return a safe message instead of throwing to the browser. */
-export async function guarded(run: () => Promise<ProvisioningResult>): Promise<ProvisioningResult> {
+export async function guarded<T extends { success: boolean }>(run: () => Promise<T>): Promise<T | { success: false; error: string }> {
   try {
     return await run();
   } catch (error) {
@@ -94,18 +94,36 @@ export async function guarded(run: () => Promise<ProvisioningResult>): Promise<P
   }
 }
 
+/**
+ * Sends the invitation email (when there is an origin) and records the outcome on the invitation.
+ * The invitation itself never changes; a failed send is shown so Council or the admin can reissue.
+ */
+export async function sendAndRecordInvitation(invitationId: string | undefined,
+  email: Parameters<typeof sendInvitationEmail>[0] | null): Promise<boolean> {
+  let sent = false;
+  if (email) {
+    try {
+      await sendInvitationEmail(email);
+      sent = true;
+    } catch { /* recorded as failed below */ }
+  }
+  // Errors are ignored: with no recorded outcome the roster shows "Email unconfirmed" after 10 minutes.
+  if (invitationId) {
+    await createCommandClient().rpc("record_invitation_delivery", { p_invitation: invitationId, p_status: sent ? "sent" : "failed" });
+  }
+  return sent;
+}
+
 /** Sends after the database commit; a delivery failure never undoes the account. */
-async function deliverInvitation(result: CommandResult, invitation: { token: string; expiresAt: string },
+export async function deliverInvitation(result: CommandResult, invitation: { token: string; expiresAt: string },
   to: string, firstName: string, done: string): Promise<ProvisioningResult> {
   if (result.replayed) return { success: true, message: `${done} This was a repeated request, so no email was sent. Use Reissue invitation to send a new link.` };
   const origin = await trustedRequestOrigin();
-  if (!origin) return { success: true, message: `${done} The invitation email couldn't be sent. Use Reissue invitation to try again.` };
-  try {
-    await sendInvitationEmail({ origin, to, firstName, token: invitation.token, expiresAt: invitation.expiresAt });
-    return { success: true, message: `${done} An invitation email was sent to ${to}.` };
-  } catch {
-    return { success: true, message: `${done} The invitation email couldn't be sent. Use Reissue invitation to try again.` };
-  }
+  const sent = await sendAndRecordInvitation(result.invitation_id,
+    origin ? { origin, to, firstName, token: invitation.token, expiresAt: invitation.expiresAt } : null);
+  return sent
+    ? { success: true, message: `${done} An invitation email was sent to ${to}.` }
+    : { success: true, message: `${done} The invitation email couldn't be sent. Use Reissue invitation to try again.` };
 }
 
 export async function provisionFaculty(input: unknown): Promise<ProvisioningResult> {

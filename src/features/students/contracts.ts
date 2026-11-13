@@ -1,14 +1,24 @@
 import type { Database } from "@/server/db/database.types";
 
 type Functions = Database["public"]["Functions"];
-// Generated RPC row types mark every column non-null; these optional parts can be NULL.
-type Nullable = { middle_name: string | null; suffix: string | null; email: string | null };
 
-/** One row of florence_roster: a semester enrollment and its student's names. */
-export type StudentRosterItem = Omit<Functions["florence_roster"]["Returns"][number], keyof Nullable> & Nullable;
+type CandidateNullable = {
+  middle_name: string | null;
+  suffix: string | null;
+  email: string | null;
+};
+
+type RosterNullable = CandidateNullable & {
+  invitation_state: string | null;
+  pending_invitation_id: string | null;
+  invitation_expires_at: string | null;
+};
+
+/** One row of florence_roster: a semester enrollment and its student's names and invitation state. */
+export type StudentRosterItem = Omit<Functions["florence_roster"]["Returns"][number], keyof RosterNullable> & RosterNullable;
 
 /** One student found by exact number, shown before adding them to the roster. */
-export type RosterCandidate = Omit<Functions["florence_roster_candidate"]["Returns"][number], keyof Nullable> & Nullable;
+export type RosterCandidate = Omit<Functions["florence_roster_candidate"]["Returns"][number], keyof CandidateNullable> & CandidateNullable;
 
 export type StudentActionResult =
   | { success: true; message: string }
@@ -65,7 +75,95 @@ export type RosterImportResult =
       preview?: RosterImportPreview;
     };
 
-/** Pure authorization predicate: only Executive and Operations can manage the roster. */
-export function isAuthorizedRosterManager(role: string | null | undefined): boolean {
-  return role === "executive" || role === "operations";
+/** Students per bulk-invite request; small so the progress bar moves often. */
+export const BULK_INVITE_BATCH_SIZE = 5;
+
+/** One student's result in a bulk invitation batch. */
+export type BulkInviteOutcome = {
+  studentId: string;
+  name: string;
+  status: "sent" | "email_failed" | "failed" | "skipped";
+  reason?: string;
+};
+
+/** One batch: what happened to each student, and how many eligible students remain after it. */
+export type BulkInviteResult =
+  | { success: true; outcomes: BulkInviteOutcome[]; remaining: number }
+  | { success: false; error: string };
+
+export function countBulkOutcomes(outcomes: BulkInviteOutcome[]) {
+  const counts = { sent: 0, email_failed: 0, failed: 0, skipped: 0 };
+  for (const o of outcomes) counts[o.status]++;
+  return counts;
+}
+
+export type InvitationEligibilitySummary = {
+  totalStudents: number;
+  eligibleCount: number;
+  alreadyRegisteredCount: number;
+  pendingCount: number;
+  missingEmailCount: number;
+  archivedCount: number;
+  /** Eligible students whose live invitation email failed or was never confirmed; they get a fresh link. */
+  resendCount: number;
+};
+
+export function isAuthorizedRosterManager(councilRole: string | null | undefined): boolean {
+  return councilRole === "executive" || councilRole === "operations";
+}
+
+export function isAuthorizedDirectoryViewer(
+  workspace: "council" | "faculty",
+  councilRole: string | null | undefined,
+  roles: string[] = []
+): boolean {
+  if (workspace === "council") {
+    return councilRole === "executive" || councilRole === "operations";
+  }
+  if (workspace === "faculty") {
+    return roles.includes("Academic Instructor") || roles.includes("Clinical Instructor");
+  }
+  return false;
+}
+
+export function isStudentEligibleForInvite(student: StudentRosterItem): boolean {
+  if (student.has_account) return false;
+  if (student.account_status !== "active") return false;
+  if (!student.email || student.email.trim() === "") return false;
+  if (student.invitation_state === "pending") return false;
+  return true;
+}
+
+export function getInvitationEligibilitySummary(roster: StudentRosterItem[]): InvitationEligibilitySummary {
+  let eligibleCount = 0;
+  let alreadyRegisteredCount = 0;
+  let pendingCount = 0;
+  let missingEmailCount = 0;
+  let archivedCount = 0;
+  let resendCount = 0;
+
+  for (const s of roster) {
+    if (s.account_status !== "active") {
+      archivedCount++;
+    } else if (s.has_account) {
+      alreadyRegisteredCount++;
+    } else if (s.invitation_state === "pending") {
+      pendingCount++;
+    } else if (!s.email || s.email.trim() === "") {
+      missingEmailCount++;
+    } else {
+      eligibleCount++;
+      if (s.invitation_state === "undelivered" || s.invitation_state === "unconfirmed") resendCount++;
+    }
+  }
+
+  return {
+    totalStudents: roster.length,
+    eligibleCount,
+    alreadyRegisteredCount,
+    pendingCount,
+    missingEmailCount,
+    archivedCount,
+    resendCount,
+  };
 }

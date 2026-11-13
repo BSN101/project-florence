@@ -704,6 +704,32 @@ export type Database = {
           },
         ]
       }
+      invitation_deliveries: {
+        Row: {
+          invitation_id: string
+          recorded_at: string
+          status: string
+        }
+        Insert: {
+          invitation_id: string
+          recorded_at?: string
+          status: string
+        }
+        Update: {
+          invitation_id?: string
+          recorded_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_deliveries_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: true
+            referencedRelation: "invitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -2223,6 +2249,10 @@ export type Database = {
         Args: { p_expires_at: string; p_token_hash: string }
         Returns: undefined
       }
+      f_invitation_delivery_problem: {
+        Args: { p_created_at: string; p_invitation: string }
+        Returns: string
+      }
       faculty_archive_preview: {
         Args: { p_actor: string; p_profile: string }
         Returns: Json
@@ -2604,6 +2634,10 @@ export type Database = {
         }
         Returns: Json
       }
+      record_invitation_delivery: {
+        Args: { p_invitation: string; p_status: string }
+        Returns: undefined
+      }
       record_refund: {
         Args: {
           p_actor: string
@@ -2679,12 +2713,7 @@ export type Database = {
         Returns: Json
       }
       roster_import_csv: {
-        Args: {
-          p_actor: string
-          p_apply: boolean
-          p_key: string
-          p_rows: Json
-        }
+        Args: { p_actor: string; p_apply: boolean; p_key: string; p_rows: Json }
         Returns: Json
       }
       roster_invite_student: {
@@ -2692,6 +2721,7 @@ export type Database = {
           p_actor: string
           p_expires_at: string
           p_key: string
+          p_skip_pending?: boolean
           p_student: string
           p_token_hash: string
         }
