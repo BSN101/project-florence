@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
 import type { NotificationDTO } from "./contracts";
@@ -40,8 +42,9 @@ export async function getStudentNotifications(options?: {
 /**
  * Returns count of unread notifications for the active student.
  * Uses the partial index idx_notifications_unread (where read_at is null).
+ * Memoized per request using React cache() to avoid duplicate DB counts across shell & page.
  */
-export async function getUnreadNotificationCount(): Promise<number> {
+export const getUnreadNotificationCount = cache(async function getUnreadNotificationCount(): Promise<number> {
   await requireWorkspace("student");
   const client = await createUserClient();
   const { count, error } = await client
@@ -51,4 +54,4 @@ export async function getUnreadNotificationCount(): Promise<number> {
 
   if (error) throw new Error(`Failed to count unread notifications: ${error.message}`);
   return count ?? 0;
-}
+});

@@ -11,6 +11,7 @@ export async function markNotificationAsReadAction(
     const result = await markNotificationAsRead(notificationId);
     if (result.success) {
       revalidatePath("/student/notifications");
+      revalidatePath("/student", "layout");
     }
     return result;
   } catch (error) {
@@ -30,6 +31,7 @@ export async function markAllNotificationsAsReadAction(): Promise<{
     const result = await markAllNotificationsAsRead();
     if (result.success) {
       revalidatePath("/student/notifications");
+      revalidatePath("/student", "layout");
     }
     return result;
   } catch (error) {

@@ -3,7 +3,6 @@ import { describe, test } from "node:test";
 
 import {
   getNotificationMeta,
-  NOTIFICATION_CONFIG,
   NOTIFICATION_KINDS,
 } from "./contracts.ts";
 import {
