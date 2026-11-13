@@ -52,6 +52,14 @@ export const recordAttendanceSchema = z.object({
   requestKey: id,
 });
 
+// The scanned payload is only the university number (FL-012); the database resolves it.
+export const qrAttendanceSchema = z.object({
+  eventId: id,
+  universityId: z.string().trim().regex(/^[0-9]{2}-1-[0-9]{5}$/, "Not a Florence attendance QR"),
+  kind: z.enum(["time_in", "time_out"]),
+  requestKey: id,
+});
+
 // ~1 MB keeps 10,000 rows well under the server action body limit.
 export const attendanceImportSchema = z.object({
   eventId: id,
@@ -62,6 +70,7 @@ export const attendanceImportSchema = z.object({
 export type SaveEventInput = z.input<typeof saveEventSchema>;
 export type ParticipantSearchInput = z.infer<typeof participantSearchSchema>;
 export type RecordAttendanceInput = z.infer<typeof recordAttendanceSchema>;
+export type QrAttendanceInput = z.infer<typeof qrAttendanceSchema>;
 export type AttendanceImportInput = z.infer<typeof attendanceImportSchema>;
 
 /** Asia/Manila has a fixed +08:00 offset (no DST). `value` is a datetime-local string. */

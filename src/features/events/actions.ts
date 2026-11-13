@@ -13,10 +13,12 @@ import {
   attendanceImportSchema,
   eventIdSchema,
   participantSearchSchema,
+  qrAttendanceSchema,
   recordAttendanceSchema,
   saveEventSchema,
   type AttendanceImportInput,
   type ParticipantSearchInput,
+  type QrAttendanceInput,
   type RecordAttendanceInput,
   type SaveEventInput,
 } from "./schemas";
@@ -168,6 +170,32 @@ export async function recordAttendance(input: RecordAttendanceInput): Promise<Ev
     if (error) return { success: false, error: error.message };
     revalidatePath(path);
     return { success: true, message: parsed.data.kind === "time_in" ? "Time-in recorded" : "Time-out recorded" };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** QR capture: the scanned university number is resolved to the student inside the database. */
+export async function recordAttendanceByQr(input: QrAttendanceInput): Promise<EventActionResult> {
+  try {
+    const context = await requireWorkspace("council");
+    const parsed = qrAttendanceSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid scan" };
+    if (parsed.data.universityId === context.profile.university_id) {
+      return { success: false, error: "You cannot record your own attendance." };
+    }
+    const { data, error } = await createCommandClient().rpc("record_event_attendance_qr", {
+      p_key: parsed.data.requestKey,
+      p_actor: context.profile.id,
+      p_event: parsed.data.eventId,
+      p_university_id: parsed.data.universityId,
+      p_kind: parsed.data.kind,
+    });
+    if (error) return { success: false, error: `${parsed.data.universityId}: ${error.message}` };
+    revalidatePath(path);
+    const { first_name, last_name } = data as { first_name: string; last_name: string };
+    const side = parsed.data.kind === "time_in" ? "Time-in" : "Time-out";
+    return { success: true, message: `${side} recorded for ${last_name}, ${first_name} (${parsed.data.universityId})` };
   } catch (err) {
     return failure(err);
   }

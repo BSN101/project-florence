@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { isoToManilaInput, manilaInputToIso, recordAttendanceSchema, saveEventSchema } from "./schemas.ts";
+import { isoToManilaInput, manilaInputToIso, qrAttendanceSchema, recordAttendanceSchema, saveEventSchema } from "./schemas.ts";
 
 const uuid = "11111111-1111-4111-8111-111111111111";
 const valid = {
@@ -64,4 +64,12 @@ test("Manila local input round-trips through UTC", () => {
   assert.equal(manilaInputToIso("2026-11-20T08:00"), "2026-11-20T00:00:00.000Z");
   assert.equal(isoToManilaInput("2026-11-20T00:00:00.000Z"), "2026-11-20T08:00");
   assert.equal(manilaInputToIso(""), null);
+});
+
+test("QR attendance accepts only a trimmed university number payload", () => {
+  const scan = (universityId) => qrAttendanceSchema.safeParse({ eventId: uuid, universityId, kind: "time_in", requestKey: uuid });
+  assert.equal(scan(" 21-1-00001\n").data?.universityId, "21-1-00001");
+  for (const bad of ["21-1-0001", "21-2-00001", "https://example.com/21-1-00001", '{"id":"21-1-00001"}', ""]) {
+    assert.equal(scan(bad).success, false, bad);
+  }
 });
