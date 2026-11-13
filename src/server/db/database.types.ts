@@ -2086,6 +2086,15 @@ export type Database = {
         Args: { p_email: string; p_except: string }
         Returns: undefined
       }
+      f_cmd_event_outcome: {
+        Args: {
+          e: Database["public"]["Tables"]["events"]["Row"]
+          p_time_in: string
+          p_time_out: string
+          r: Database["public"]["Tables"]["event_consequence_rules"]["Row"]
+        }
+        Returns: string
+      }
       f_cmd_faculty_target: {
         Args: { p_profile: string }
         Returns: {
@@ -2255,6 +2264,40 @@ export type Database = {
           profile_id: string
           suffix: string
           university_id: string
+        }[]
+      }
+      florence_event_attendance: {
+        Args: { p_event: string }
+        Returns: {
+          academic_status: Database["public"]["Enums"]["academic_status"]
+          first_name: string
+          last_name: string
+          status: string
+          student_id: string
+          time_in: string
+          time_in_method: string
+          time_in_recorded_by: string
+          time_out: string
+          time_out_method: string
+          time_out_recorded_by: string
+          university_id: string
+          year_level: number
+        }[]
+      }
+      florence_event_consequence_preview: {
+        Args: { p_event: string }
+        Returns: {
+          academic_status: Database["public"]["Enums"]["academic_status"]
+          demerit_days: number
+          fine_amount: number
+          first_name: string
+          last_name: string
+          outcome: string
+          student_id: string
+          time_in: string
+          time_out: string
+          university_id: string
+          year_level: number
         }[]
       }
       florence_executive_candidate: {

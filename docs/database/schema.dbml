@@ -266,6 +266,10 @@ Do not create a DB function merely because an operation is important. The operat
 5. Retain the selected `consequence_bucket` and set `attendance_locked_at` in the same transaction.
 6. Commit or roll back as one transaction.
 
+**Implemented details:** Refuses archived events that were never generated, and refuses generation until the event and both capture windows have closed. Outcomes come from the private helper `f_cmd_event_outcome(time_in, time_out, event, rules)`: absence when there is no time-in, a time-in outside its window, or (when time-out is required) a missing or out-of-window time-out; late when time-in is after the time-in opening plus `late_after_minutes`. The time-in opening is the event's actual start.
+
+**Preview:** `florence_event_consequence_preview(p_event)` — `authenticated`, Executive/Operations only (`f_access_private.council()`). Read-only; requires a published event. Returns each preserved participant with snapshot year level/status, times, outcome, fine amount and demerit days, using the same helper as generation. After generation the attendance and rules are frozen, so it lists exactly what was generated. The server action re-runs it right before generating and refuses if the totals changed since the user's review.
+
 ### 16.2 `verify_payment(payment_id, decision, actor_id?)`
 
 **Purpose:** Verify or reject a transfer submission while preventing double settlement and keeping payment/item state consistent.
@@ -400,6 +404,8 @@ If rejection has no multi-row integrity requirement after implementation, reject
 - `import_event_attendance(p_key, p_actor, p_event, p_rows, p_apply)` — Executive/Operations/Representative paper-fallback CSV import (`university_id,time_in,time_out`; time-only values in `Asia/Manila` on the event's start date). Every CSV row must have a time-in, and every CSV time must fall inside the event's stored windows even when that side was already recorded online (both checked by the server action before the command runs). Rows match preserved participants by university number inside the database. `p_apply = false` returns per-row `ready`/`skipped`/`invalid` results without writing; `p_apply = true` locks the event and applies all-or-nothing, rejecting any invalid row. Same state, window, duplicate and self-recording checks as manual capture. Only empty sides are filled, with method `csv`; times already recorded online are kept. Retries with the same key return the first result. The older full-row `capture_event_attendance` is not used by the app.
 
 All are `service_role`-only; the server resolves `p_actor` from the verified session.
+
+- `florence_event_attendance(p_event)` — `authenticated` read for the Council event page. Executive/Operations may read any published event; Representatives only events still open to capture (published, unarchived, unlocked). Returns each preserved participant with snapshot year level/status, times, capture methods, recorder display names and a live status: `not_in`/`on_time`/`late` while capture is open; once closed or locked, `absent` and `missing_time_out` follow `f_cmd_event_outcome`, so the list matches consequence generation. Read-only.
 
 ### 16.8 Optional atomic candidates to evaluate during implementation
 
