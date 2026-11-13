@@ -8,13 +8,15 @@ import { ArrowLeft, FileUp, Loader2, RefreshCw, ScanLine, Search } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { recordAttendance } from "../actions";
-import type { AttendeeRow, EventDTO, EventRulesDTO } from "../contracts";
+import type { AttendeeRow, EventDTO, EventRulesDTO, FeedbackRow } from "../contracts";
+import { FEEDBACK_WINDOW_DAYS } from "../feedback";
 import { activityEntries, attendeeSummary, canCapture, canGenerate, closesAt, eventPhase } from "../event-state";
 import { AttendanceImportDialog } from "./attendance-import-dialog";
 import { ConsequencePanel } from "./consequence-panel";
+import { FeedbackPanel } from "./feedback-panel";
 import { Badge, PhaseBadge, StatusBadge, methodLabel } from "./event-badges";
 
-export type EventTab = "attendance" | "activity" | "details" | "consequences";
+export type EventTab = "attendance" | "activity" | "details" | "consequences" | "feedback";
 
 const date = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" });
 const dateTime = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
@@ -54,11 +56,15 @@ function Chips<T extends string>({ label, value, options, onChange }: {
 }
 
 /** Event page: attendee list, activity, setup and (Executive/Operations) consequences. */
-export function EventDetail({ event, rules, attendees, canManage, viewerId, backHref, initialTab, now: serverNow }: {
+export function EventDetail({ event, rules, attendees, feedback, canManage, canViewAttendance, viewerId, backHref, initialTab, now: serverNow }: {
   event: EventDTO;
   rules: EventRulesDTO | null;
   attendees: AttendeeRow[];
+  /** Identified responses; null for Representatives, who may not see feedback. */
+  feedback: FeedbackRow[] | null;
   canManage: boolean;
+  /** Representatives see attendance only while capture is open. */
+  canViewAttendance: boolean;
   viewerId: string;
   backHref: string;
   initialTab: EventTab;
@@ -66,7 +72,12 @@ export function EventDetail({ event, rules, attendees, canManage, viewerId, back
   now: string;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<EventTab>(initialTab === "consequences" && !canManage ? "attendance" : initialTab);
+  const tabs: (readonly [EventTab, string])[] = [
+    ...(canViewAttendance ? [["attendance", "Attendance"], ["activity", "Activity"]] as const : []),
+    ["details", "Details"],
+    ...(canManage ? [["consequences", "Consequences"], ["feedback", "Feedback"]] as const : []),
+  ];
+  const [tab, setTab] = useState<EventTab>(tabs.some(([key]) => key === initialTab) ? initialTab : tabs[0][0]);
   const [importing, setImporting] = useState(false);
   const [refreshing, startRefresh] = useTransition();
   const now = Date.parse(serverNow);
@@ -82,9 +93,6 @@ export function EventDetail({ event, rules, attendees, canManage, viewerId, back
     url.searchParams.set("tab", next);
     window.history.replaceState(null, "", url);
   }
-
-  const tabs: (readonly [EventTab, string])[] = [["attendance", "Attendance"], ["activity", "Activity"], ["details", "Details"]];
-  if (canManage) tabs.push(["consequences", "Consequences"]);
 
   return (
     <div className="space-y-6">
@@ -147,6 +155,11 @@ export function EventDetail({ event, rules, attendees, canManage, viewerId, back
       {tab === "activity" && <ActivityTab attendees={attendees} />}
       {tab === "details" && <DetailsTab event={event} rules={rules} participants={attendees.length} closed={phase !== "open" && phase !== "upcoming"} />}
       {tab === "consequences" && canManage && <ConsequencePanel event={event} canGenerateNow={canGenerate(event, now)} />}
+      {tab === "feedback" && feedback && (
+        <FeedbackPanel rows={feedback} attended={attendees.filter((row) => row.time_in).length}
+          opensAt={new Date(closesAt(event)).toISOString()}
+          closesAt={new Date(closesAt(event) + FEEDBACK_WINDOW_DAYS * 86_400_000).toISOString()} />
+      )}
 
       {importing && <AttendanceImportDialog eventId={event.id} onClose={() => setImporting(false)} />}
     </div>
