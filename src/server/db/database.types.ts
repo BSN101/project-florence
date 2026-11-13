@@ -2678,6 +2678,15 @@ export type Database = {
         Args: { p_actor: string; p_invitation: string; p_key: string }
         Returns: Json
       }
+      roster_import_csv: {
+        Args: {
+          p_actor: string
+          p_apply: boolean
+          p_key: string
+          p_rows: Json
+        }
+        Returns: Json
+      }
       roster_invite_student: {
         Args: {
           p_actor: string
