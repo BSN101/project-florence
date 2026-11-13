@@ -66,6 +66,7 @@ export function ImportRosterDialog({
   const [error, setError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
+  const [isDragging, setIsDragging] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const fileInputId = useId();
@@ -78,6 +79,7 @@ export function ImportRosterDialog({
     setError(null);
     setSuccessResult(null);
     setFilter("all");
+    setIsDragging(false);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -125,6 +127,38 @@ export function ImportRosterDialog({
       });
     } catch {
       setError("Failed to read the file. Please try again.");
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isPending) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (isPending) return;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFile(files[0]);
     }
   };
 
@@ -215,30 +249,74 @@ export function ImportRosterDialog({
           </div>
         ) : (
           <div className="flex flex-col gap-6 w-full min-w-0">
-            {/* Step 1: File Upload Box */}
-            <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-5 transition-colors hover:border-primary/50 w-full min-w-0">
+            {/* Step 1: File Upload Box with Drag-and-Drop */}
+            <div
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => {
+                if (!isPending) {
+                  document.getElementById(fileInputId)?.click();
+                }
+              }}
+              className={cn(
+                "group relative rounded-xl border-2 border-dashed p-5 transition-all cursor-pointer w-full min-w-0 select-none",
+                isDragging
+                  ? "border-primary bg-primary/10 ring-4 ring-primary/15 shadow-sm"
+                  : fileName
+                    ? "border-border/80 bg-muted/20 hover:border-primary/50"
+                    : "border-border/80 bg-muted/15 hover:border-primary/50 hover:bg-muted/25"
+              )}
+            >
+              <input
+                id={fileInputId}
+                type="file"
+                accept=".csv,text/csv"
+                disabled={isPending}
+                onChange={(e) => handleFile(e.target.files?.[0])}
+                className="sr-only"
+              />
+
               <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card border border-border shadow-2xs text-muted-foreground">
+                  <div
+                    className={cn(
+                      "flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                      isDragging
+                        ? "border-primary bg-primary/20 text-primary scale-110 shadow-sm"
+                        : "bg-card border-border shadow-2xs text-muted-foreground group-hover:border-primary/40 group-hover:text-primary"
+                    )}
+                  >
                     <FileUp className="size-5 text-primary" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-foreground truncate">
-                      {fileName ?? "Choose a student roster CSV to preview"}
+                      {isDragging
+                        ? "Drop your CSV file here..."
+                        : fileName ?? "Drag & drop a student roster CSV, or browse"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Supports the 8-column format (<code>university_id</code>, names, email, year 1–4, status) up to 1 MB.
+                      {isDragging
+                        ? "Release file to begin preview and identity validation"
+                        : "Supports the canonical 8-column format up to 1 MB"}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                <div
+                  className="flex items-center gap-2.5 shrink-0 self-end sm:self-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {fileName && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={resetState}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetState();
+                      }}
                       disabled={isPending}
                       className="text-xs text-muted-foreground hover:text-foreground h-9"
                     >
@@ -246,31 +324,21 @@ export function ImportRosterDialog({
                       Remove
                     </Button>
                   )}
-                  <label htmlFor={fileInputId}>
-                    <input
-                      id={fileInputId}
-                      type="file"
-                      accept=".csv,text/csv"
-                      disabled={isPending}
-                      onChange={(e) => handleFile(e.target.files?.[0])}
-                      className="sr-only"
-                    />
-                    <Button
-                      type="button"
-                      variant={fileName ? "outline" : "default"}
-                      size="sm"
-                      disabled={isPending}
-                      className="cursor-pointer gap-2 h-9 px-4 font-medium"
-                      onClick={() => document.getElementById(fileInputId)?.click()}
-                    >
-                      {isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Upload className="size-4" />
-                      )}
-                      <span>{fileName ? "Change CSV" : "Select CSV File"}</span>
-                    </Button>
-                  </label>
+                  <Button
+                    type="button"
+                    variant={fileName ? "outline" : "default"}
+                    size="sm"
+                    disabled={isPending}
+                    className="cursor-pointer gap-2 h-9 px-4 font-medium"
+                    onClick={() => document.getElementById(fileInputId)?.click()}
+                  >
+                    {isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Upload className="size-4" />
+                    )}
+                    <span>{fileName ? "Change CSV" : "Browse File"}</span>
+                  </Button>
                 </div>
               </div>
             </div>
