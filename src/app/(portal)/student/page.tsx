@@ -29,10 +29,11 @@ export default async function StudentPage({
   const universityId = profile?.university_id;
   const studentName = profile ? displayName(profile) : "Student";
 
-  // Find active or recent enrollment
-  const currentEnrollment = ready?.enrollments.find(
-    (e) => e.semester_id === ready.currentSemester?.id,
-  ) ?? ready?.enrollments[0];
+  // Same semester selection as WorkspaceShell; no enrollment there means no year/status shown.
+  const selected = ready
+    ? ready.semesters.find((s) => s.id === semester) ?? ready.currentSemester ?? ready.semesters[0]
+    : undefined;
+  const currentEnrollment = ready?.enrollments.find((e) => e.semester_id === selected?.id);
 
   let qrDataUrl: string | null = null;
   let qrError: string | null = null;
