@@ -15,6 +15,14 @@ export async function getEvents(semesterId: string): Promise<EventDTO[]> {
   return data ?? [];
 }
 
+/** One event by id; RLS applies as in getEvents. */
+export async function getEvent(eventId: string): Promise<EventDTO | null> {
+  const client = await createUserClient();
+  const { data, error } = await client.from("events").select(eventFields).eq("id", eventId).maybeSingle();
+  if (error) throw new Error(`Failed to fetch event: ${error.message}`);
+  return data;
+}
+
 /** Rules for the given events. RLS returns nothing to Representatives. */
 export async function getEventRules(eventIds: string[]): Promise<EventRulesDTO[]> {
   if (eventIds.length === 0) return [];
