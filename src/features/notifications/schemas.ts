@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { NOTIFICATION_KINDS } from "./contracts";
+
+export const NOTIFICATION_KINDS = [
+  "merit_received",
+  "demerit_incurred",
+  "service_recorded",
+  "obligation_due",
+  "payment_verified",
+  "payment_rejected",
+] as const;
+
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export const notificationIdSchema = z.string().uuid("Invalid notification identifier");
 
