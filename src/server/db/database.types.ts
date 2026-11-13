@@ -2142,6 +2142,16 @@ export type Database = {
         Returns: undefined
       }
       f_cmd_platform_admin: { Args: { p_actor: string }; Returns: undefined }
+      f_cmd_record_attendance: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_kind: string
+          p_method: string
+          p_student: string
+        }
+        Returns: string
+      }
       f_cmd_role: {
         Args: { p_actor: string; p_role: string }
         Returns: boolean
@@ -2485,6 +2495,16 @@ export type Database = {
           p_key: string
           p_kind: string
           p_student: string
+        }
+        Returns: Json
+      }
+      record_event_attendance_qr: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_key: string
+          p_kind: string
+          p_university_id: string
         }
         Returns: Json
       }

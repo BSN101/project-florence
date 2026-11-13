@@ -392,13 +392,14 @@ If rejection has no multi-row integrity requirement after implementation, reject
 5. Set waiver fields.
 6. Commit atomically.
 
-### 16.7 Event configuration and manual capture
+### 16.7 Event configuration, manual and QR capture
 
 - `save_event(p_actor, p_event, p_semester, …event fields, …rule fields)` — Executive/Operations only. Inserts or updates the event and its single `event_consequence_rules` row in one transaction; selected fine definitions must be active. A published (`audience_frozen_at`) event accepts only name/venue changes; archived events reject edits. Publication remains `freeze_event`. The Council UI sets time-in opening and an optional time-out opening; the server stores `time_in_until = ends_at` and, when time-out opens, `time_out_until = ends_at`, so late arrivals can be captured live and early time-outs are refused. Without a time-out opening, time-outs are not recordable. `requires_time_out` requires a time-out opening and decides whether a missing time-out counts as absence.
 - `record_event_attendance(p_key, p_actor, p_event, p_student, p_kind)` — Executive/Operations/Representative. Locks the event, requires it to be published, unarchived and unlocked, rejects self-recording and records one side (`time_in` or `time_out`) at the database clock with method `manual`. Rejects an already-recorded side and a time-out without time-in; leaves the other side's time, method and recorder unchanged. Corrections are not part of this command.
+- `record_event_attendance_qr(p_key, p_actor, p_event, p_university_id, p_kind)` — Executive/Operations/Representative QR capture. `p_university_id` is the scanned `XX-1-XXXXX` number, resolved to the profile inside the database; an unknown number is rejected as such. Runs the same checks and single-side write as `record_event_attendance` through the shared private helper `f_cmd_record_attendance`, with method `qr`. Returns the recorded student's id, university number and name so the station can confirm who was captured. Retries with the same key return the first result.
 - `import_event_attendance(p_key, p_actor, p_event, p_rows, p_apply)` — Executive/Operations/Representative paper-fallback CSV import (`university_id,time_in,time_out`; time-only values in `Asia/Manila` on the event's start date). Every CSV row must have a time-in, and every CSV time must fall inside the event's stored windows even when that side was already recorded online (both checked by the server action before the command runs). Rows match preserved participants by university number inside the database. `p_apply = false` returns per-row `ready`/`skipped`/`invalid` results without writing; `p_apply = true` locks the event and applies all-or-nothing, rejecting any invalid row. Same state, window, duplicate and self-recording checks as manual capture. Only empty sides are filled, with method `csv`; times already recorded online are kept. Retries with the same key return the first result. The older full-row `capture_event_attendance` is not used by the app.
 
-Both are `service_role`-only; the server resolves `p_actor` from the verified session.
+All are `service_role`-only; the server resolves `p_actor` from the verified session.
 
 ### 16.8 Optional atomic candidates to evaluate during implementation
 
