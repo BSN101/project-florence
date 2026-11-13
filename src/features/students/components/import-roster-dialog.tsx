@@ -5,7 +5,6 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
-  Download,
   FileSpreadsheet,
   FileUp,
   Loader2,
@@ -29,7 +28,6 @@ import {
 import { cn } from "@/lib/utils";
 import { applyRosterImportAction, previewRosterImportAction } from "../actions";
 import type { RosterImportPreview, RosterImportRowResult } from "../contracts";
-import { downloadRosterTemplate } from "./download-template-button";
 
 const statusStyles: Record<string, string> = {
   ready: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
@@ -234,19 +232,7 @@ export function ImportRosterDialog({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={downloadRosterTemplate}
-                    disabled={isPending}
-                    className="h-9 px-3 text-xs font-medium gap-1.5"
-                    title="Download pre-formatted 8-column CSV roster template"
-                  >
-                    <Download className="size-3.5 text-muted-foreground" />
-                    <span>Download Template</span>
-                  </Button>
+                <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
                   {fileName && (
                     <Button
                       type="button"
@@ -617,11 +603,7 @@ export function ImportRosterDialog({
               className="w-full gap-2 font-medium sm:w-auto px-5"
             >
               {isPending && <Loader2 className="size-4 animate-spin" />}
-              <span>
-                {preview
-                  ? `Import ${preview.ready} Student${preview.ready === 1 ? "" : "s"}`
-                  : "Import Roster"}
-              </span>
+              <span>Import Roster</span>
             </Button>
           </DialogFooter>
         )}
