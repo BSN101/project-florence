@@ -4,6 +4,7 @@ import type {
   RosterImportRowResult,
 } from "./contracts";
 
+// Fixed 8-column contract; inlined so node:test can load this file directly.
 export const FIXED_CSV_ROSTER_HEADERS = [
   "university_id",
   "last_name",

@@ -126,6 +126,28 @@ describe("parseRosterCsv row extraction and normalization", () => {
     assert.equal(result.invalid[0].row, 2);
     assert.match(result.invalid[0].message, /too many columns/i);
   });
+
+  test("handles quoted fields with commas and escaped quotes within CSV roster data", () => {
+    const csv = [
+      FIXED_CSV_ROSTER_HEADERS.join(","),
+      '26-1-00123,"Dela Cruz, Jr.",Juan,"Santos ""The Great""",III,juan.cruz@example.com,1,regular',
+    ].join("\n");
+
+    const result = parseRosterCsv(csv);
+    assert.ok(!("error" in result));
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0].last_name, "Dela Cruz, Jr.");
+    assert.equal(result.rows[0].middle_name, 'Santos "The Great"');
+  });
+
+  test("rejects files exceeding MAX_ROSTER_IMPORT_ROWS limit", () => {
+    const header = FIXED_CSV_ROSTER_HEADERS.join(",");
+    const sampleRow = "26-1-00123,Dela Cruz,Juan,,,juan@example.com,1,regular";
+    const oversizedBody = new Array(10001).fill(sampleRow).join("\n");
+    const result = parseRosterCsv(`${header}\n${oversizedBody}`);
+    assert.ok("error" in result);
+    assert.match(result.error, /more than 10000 rows/i);
+  });
 });
 
 describe("csvRosterRowSchema and row validation", () => {

@@ -1,10 +1,9 @@
 import "server-only";
 
-import type { PostgrestError } from "@supabase/supabase-js";
-
 import { runCommand } from "@/features/access/provisioning-service";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
+import type { Json } from "@/server/db/database.types";
 
 import type {
   RosterImportPreview,
@@ -94,11 +93,10 @@ export async function previewRosterImport(raw: unknown): Promise<RosterImportPre
   }
 
   const client = createCommandClient();
-  const { data, error } = await (client.rpc as unknown as (f: string, a: Record<string, unknown>) =>
-    Promise<{ data: unknown; error: PostgrestError | null }>)("roster_import_csv", {
+  const { data, error } = await client.rpc("roster_import_csv", {
     p_key: crypto.randomUUID(),
     p_actor: actor.profile.id,
-    p_rows: csvResult.rows,
+    p_rows: csvResult.rows as unknown as Json,
     p_apply: false,
   });
 
