@@ -4,11 +4,14 @@ import { createUserClient } from "@/server/db/user-client";
 
 import type { RosterCandidate, StudentRosterItem } from "./contracts";
 import { studentNumberSchema } from "./schemas";
-import { requireRosterManager } from "./service";
+import { requireDirectoryViewer, requireRosterManager } from "./service";
 
-/** The semester's roster, sorted by year level then surname. Executive/Operations only (RPC re-checks). */
-export async function getRoster(semesterId: string): Promise<StudentRosterItem[]> {
-  await requireRosterManager();
+/** The semester's roster/directory, sorted by year level then surname. Council (Exec/Ops) and Faculty. */
+export async function getRoster(
+  semesterId: string,
+  workspace: "council" | "faculty" = "council"
+): Promise<StudentRosterItem[]> {
+  await requireDirectoryViewer(workspace);
   const client = await createUserClient();
   const { data, error } = await client.rpc("florence_roster", { p_semester: semesterId });
   if (error) throw new Error("Unable to load the roster");
