@@ -36,12 +36,14 @@ const statusStyles: Record<string, string> = {
   invalid: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-const actionLabels: Record<string, { label: string; icon: typeof UserPlus }> = {
+const actionConfig: Record<string, { label: string; icon: typeof UserPlus }> = {
   create: { label: "New Student", icon: UserPlus },
   re_enroll: { label: "Re-enroll", icon: UserCheck },
   update: { label: "Update", icon: RefreshCw },
   none: { label: "—", icon: UserPlus },
 };
+
+type FilterType = "all" | "ready" | "conflicts" | "invalid";
 
 export function ImportRosterDialog({ className }: { className?: string } = {}) {
   const [open, setOpen] = useState(false);
@@ -51,7 +53,7 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
   const [requestKey, setRequestKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "ready" | "issues">("all");
+  const [filter, setFilter] = useState<FilterType>("all");
   const [isPending, startTransition] = useTransition();
 
   const fileInputId = useId();
@@ -126,7 +128,8 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
   const filteredRows: RosterImportRowResult[] = preview
     ? preview.rows.filter((r) => {
         if (filter === "ready") return r.status === "ready";
-        if (filter === "issues") return r.status === "invalid" || r.status === "conflict";
+        if (filter === "conflicts") return r.status === "conflict";
+        if (filter === "invalid") return r.status === "invalid";
         return true;
       })
     : [];
@@ -155,56 +158,58 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
         }
       />
 
-      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto overflow-x-hidden min-w-0">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="size-5 text-primary" />
-            <span>Import Student Roster CSV</span>
-          </DialogTitle>
-          <DialogDescription>
-            Validate and apply student enrollments in the current semester. New students will be
-            created and existing students re-enrolled preserving identity continuity.
-          </DialogDescription>
+      <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] sm:max-w-4xl lg:max-w-5xl overflow-y-auto overflow-x-hidden min-w-0 p-5 sm:p-7 gap-6">
+        <DialogHeader className="gap-1.5 pb-1 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FileSpreadsheet className="size-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">
+                Import Student Roster CSV
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Validate and enroll students in the current semester. Existing student identities are preserved.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         {successResult ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-8 text-center w-full min-w-0">
-            <div className="flex size-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="size-8" />
+          <div className="flex flex-col items-center justify-center gap-4 py-12 text-center w-full min-w-0">
+            <div className="flex size-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-9" />
             </div>
             <div className="space-y-1.5">
-              <h3 className="font-heading text-lg font-semibold text-foreground">
+              <h3 className="font-heading text-xl font-semibold text-foreground">
                 Import Completed Successfully
               </h3>
               <p className="max-w-md text-sm text-muted-foreground">{successResult}</p>
             </div>
-            <Button onClick={() => setOpen(false)} className="mt-2 font-medium">
-              Close
+            <Button onClick={() => setOpen(false)} className="mt-4 font-medium px-6">
+              Done
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-5 py-2 w-full min-w-0">
+          <div className="flex flex-col gap-6 w-full min-w-0">
             {/* Step 1: File Upload Box */}
-            <div className="rounded-xl border border-dashed border-border p-4 transition-colors hover:border-primary/50 w-full min-w-0">
-              <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                    <FileUp className="size-5" />
+            <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-5 transition-colors hover:border-primary/50 w-full min-w-0">
+              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-card border border-border shadow-2xs text-muted-foreground">
+                    <FileUp className="size-5 text-primary" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {fileName ?? "Choose a CSV file to validate"}
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {fileName ?? "Choose a student roster CSV to preview"}
                     </p>
-                    <p className="text-xs text-muted-foreground break-words">
-                      Requires 8 columns:{" "}
-                      <code className="text-[11px] font-mono text-muted-foreground break-all">
-                        {FIXED_CSV_ROSTER_HEADERS.join(", ")}
-                      </code>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Supports the 8-column format (<code>university_id</code>, names, email, year 1–4, status) up to 1 MB.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
                   {fileName && (
                     <Button
                       type="button"
@@ -212,10 +217,10 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                       size="sm"
                       onClick={resetState}
                       disabled={isPending}
-                      className="text-xs text-muted-foreground hover:text-foreground"
+                      className="text-xs text-muted-foreground hover:text-foreground h-9"
                     >
                       <X className="size-3.5 mr-1" />
-                      Clear
+                      Remove
                     </Button>
                   )}
                   <label htmlFor={fileInputId}>
@@ -229,18 +234,18 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                     />
                     <Button
                       type="button"
-                      variant="outline"
+                      variant={fileName ? "outline" : "default"}
                       size="sm"
                       disabled={isPending}
-                      className="cursor-pointer gap-1.5"
+                      className="cursor-pointer gap-2 h-9 px-4 font-medium"
                       onClick={() => document.getElementById(fileInputId)?.click()}
                     >
                       {isPending ? (
-                        <Loader2 className="size-3.5 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                       ) : (
-                        <Upload className="size-3.5" />
+                        <Upload className="size-4" />
                       )}
-                      <span>{fileName ? "Change File" : "Select CSV"}</span>
+                      <span>{fileName ? "Change CSV" : "Select CSV File"}</span>
                     </Button>
                   </label>
                 </div>
@@ -251,70 +256,142 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
             {error && (
               <div
                 role="alert"
-                className="flex items-start gap-2.5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+                className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive"
               >
                 <AlertCircle className="size-4 shrink-0 mt-0.5" />
-                <div className="flex-1 text-xs sm:text-sm">{error}</div>
+                <div className="flex-1 text-xs sm:text-sm font-medium leading-relaxed">{error}</div>
               </div>
             )}
 
             {/* Loading Indicator */}
             {isPending && !preview && (
-              <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin text-primary" />
-                <span>Validating CSV structure and student records…</span>
+              <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-muted-foreground">
+                <Loader2 className="size-6 animate-spin text-primary" />
+                <p className="text-sm font-medium">Validating CSV rows against student records…</p>
+                <p className="text-xs text-muted-foreground">Checking duplicates, enrollment statuses, and identity continuity.</p>
               </div>
             )}
 
             {/* Step 2: Preview Summary & Conflict Table */}
             {preview && (
-              <div className="flex flex-col gap-4">
-                {/* Metrics Breakdown Cards */}
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-xs text-muted-foreground">Ready to Apply</p>
-                    <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                      {preview.ready}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {preview.created} new · {preview.re_enrolled} re-enrolled
-                    </p>
+              <div className="flex flex-col gap-5">
+                {/* Metrics Breakdown Cards - Spacious & Clean */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 w-full min-w-0">
+                  {/* Ready Card */}
+                  <div className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-xs font-medium">Ready to Apply</span>
+                      <span className="flex size-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3.5" />
+                      </span>
+                    </div>
+                    <div className="mt-2.5">
+                      <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                        {preview.ready}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 font-medium">
+                          {preview.created} new
+                        </span>
+                        <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 font-medium">
+                          {preview.re_enrolled} re-enrolled
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-xs text-muted-foreground">Updates</p>
-                    <p className="text-lg font-semibold text-sky-600 dark:text-sky-400">
-                      {preview.updated}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Current enrollment</p>
+                  {/* Updates Card */}
+                  <div className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-xs font-medium">Enrollment Updates</span>
+                      <span className="flex size-5 items-center justify-center rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                        <RefreshCw className="size-3.5" />
+                      </span>
+                    </div>
+                    <div className="mt-2.5">
+                      <p className="text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400">
+                        {preview.updated}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground truncate">
+                        Already enrolled in semester
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-xs text-muted-foreground">Conflicts</p>
-                    <p
-                      className={cn(
-                        "text-lg font-semibold",
-                        preview.conflicts > 0
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {preview.conflicts}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Name/identity mismatch</p>
+                  {/* Conflicts Card */}
+                  <div
+                    className={cn(
+                      "flex flex-col justify-between rounded-xl border p-4 shadow-2xs transition-colors",
+                      preview.conflicts > 0
+                        ? "border-amber-500/30 bg-amber-500/5"
+                        : "border-border/80 bg-card",
+                    )}
+                  >
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-xs font-medium">Identity Conflicts</span>
+                      <span
+                        className={cn(
+                          "flex size-5 items-center justify-center rounded-full",
+                          preview.conflicts > 0
+                            ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <AlertTriangle className="size-3.5" />
+                      </span>
+                    </div>
+                    <div className="mt-2.5">
+                      <p
+                        className={cn(
+                          "text-2xl font-bold tracking-tight",
+                          preview.conflicts > 0
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {preview.conflicts}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground truncate">
+                        {preview.conflicts > 0 ? "Name / email mismatch" : "No conflicts detected"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-xs text-muted-foreground">Invalid Rows</p>
-                    <p
-                      className={cn(
-                        "text-lg font-semibold",
-                        preview.invalid > 0 ? "text-destructive" : "text-muted-foreground",
-                      )}
-                    >
-                      {preview.invalid}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Format/missing fields</p>
+                  {/* Invalid Rows Card */}
+                  <div
+                    className={cn(
+                      "flex flex-col justify-between rounded-xl border p-4 shadow-2xs transition-colors",
+                      preview.invalid > 0
+                        ? "border-destructive/30 bg-destructive/5"
+                        : "border-border/80 bg-card",
+                    )}
+                  >
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-xs font-medium">Invalid Rows</span>
+                      <span
+                        className={cn(
+                          "flex size-5 items-center justify-center rounded-full",
+                          preview.invalid > 0
+                            ? "bg-destructive/20 text-destructive"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <AlertCircle className="size-3.5" />
+                      </span>
+                    </div>
+                    <div className="mt-2.5">
+                      <p
+                        className={cn(
+                          "text-2xl font-bold tracking-tight",
+                          preview.invalid > 0 ? "text-destructive" : "text-muted-foreground",
+                        )}
+                      >
+                        {preview.invalid}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground truncate">
+                        {preview.invalid > 0 ? "Format or missing data" : "All rows well-formed"}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -322,33 +399,30 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                 {issuesCount > 0 ? (
                   <div
                     role="alert"
-                    className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs sm:text-sm text-amber-800 dark:text-amber-300"
+                    className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs sm:text-sm text-amber-900 dark:text-amber-300"
                   >
-                    <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                    <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                     <div>
-                      Found <strong>{issuesCount} issue(s)</strong> in the file. Atomic import
-                      requires all rows to be valid. Please correct the invalid/conflicting rows in
-                      your CSV and re-upload before applying.
+                      Found <strong>{issuesCount} issue(s)</strong> in the file ({preview.conflicts} conflicts, {preview.invalid} invalid). Atomic import requires all rows to be valid before applying. Please fix the flagged rows in your CSV and re-upload.
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs sm:text-sm text-emerald-800 dark:text-emerald-300">
-                    <CheckCircle2 className="size-4 shrink-0" />
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3.5 text-xs sm:text-sm text-emerald-900 dark:text-emerald-300">
+                    <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                     <div>
-                      All <strong>{preview.ready} rows</strong> are valid and ready to apply
-                      atomically to the current semester roster.
+                      All <strong>{preview.ready} rows</strong> are valid and ready to apply atomically to the active semester roster.
                     </div>
                   </div>
                 )}
 
-                {/* Table Filters */}
-                <div className="flex items-center justify-between gap-2">
+                {/* Table Filter Tabs */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
                   <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1 text-xs">
                     <button
                       type="button"
                       onClick={() => setFilter("all")}
                       className={cn(
-                        "rounded-md px-2.5 py-1 font-medium transition-colors",
+                        "rounded-md px-3 py-1 font-medium transition-colors",
                         filter === "all"
                           ? "bg-background text-foreground shadow-xs"
                           : "text-muted-foreground hover:text-foreground",
@@ -360,7 +434,7 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                       type="button"
                       onClick={() => setFilter("ready")}
                       className={cn(
-                        "rounded-md px-2.5 py-1 font-medium transition-colors",
+                        "rounded-md px-3 py-1 font-medium transition-colors",
                         filter === "ready"
                           ? "bg-background text-foreground shadow-xs"
                           : "text-muted-foreground hover:text-foreground",
@@ -368,91 +442,112 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                     >
                       Ready ({preview.ready})
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setFilter("issues")}
-                      className={cn(
-                        "rounded-md px-2.5 py-1 font-medium transition-colors",
-                        filter === "issues"
-                          ? "bg-background text-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      Issues ({issuesCount})
-                    </button>
+                    {preview.conflicts > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setFilter("conflicts")}
+                        className={cn(
+                          "rounded-md px-3 py-1 font-medium transition-colors",
+                          filter === "conflicts"
+                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 shadow-xs"
+                            : "text-amber-600 hover:text-amber-700",
+                        )}
+                      >
+                        Conflicts ({preview.conflicts})
+                      </button>
+                    )}
+                    {preview.invalid > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setFilter("invalid")}
+                        className={cn(
+                          "rounded-md px-3 py-1 font-medium transition-colors",
+                          filter === "invalid"
+                            ? "bg-destructive/20 text-destructive shadow-xs"
+                            : "text-destructive/80 hover:text-destructive",
+                        )}
+                      >
+                        Invalid ({preview.invalid})
+                      </button>
+                    )}
                   </div>
+
                   <p className="text-xs text-muted-foreground">
                     Showing {filteredRows.length} of {preview.rows.length} rows
                   </p>
                 </div>
 
-                {/* Scrollable Preview Table */}
-                <div className="w-full min-w-0 max-h-72 overflow-x-auto overflow-y-auto rounded-xl border border-border">
-                  <table className="w-full min-w-[580px] text-left text-xs">
-                    <thead className="sticky top-0 border-b border-border bg-muted text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {/* Scrollable Preview Table with Responsive Column Sizing */}
+                <div className="w-full min-w-0 max-h-80 overflow-x-auto overflow-y-auto rounded-xl border border-border bg-card/40">
+                  <table className="w-full min-w-[680px] text-left text-xs">
+                    <thead className="sticky top-0 border-b border-border bg-muted/90 backdrop-blur-xs text-[11px] font-semibold uppercase tracking-wider text-muted-foreground z-10">
                       <tr>
-                        <th scope="col" className="px-3 py-2 w-12 shrink-0">
+                        <th scope="col" className="px-3.5 py-2.5 w-14 text-center">
                           Line
                         </th>
-                        <th scope="col" className="px-3 py-2 w-28 shrink-0">
+                        <th scope="col" className="px-3.5 py-2.5 w-32">
                           Student Number
                         </th>
-                        <th scope="col" className="px-3 py-2 min-w-[120px]">
+                        <th scope="col" className="px-3.5 py-2.5 min-w-[140px]">
                           Name
                         </th>
-                        <th scope="col" className="px-3 py-2 w-28 shrink-0">
+                        <th scope="col" className="px-3.5 py-2.5 w-32">
                           Action
                         </th>
-                        <th scope="col" className="px-3 py-2 w-24 shrink-0">
+                        <th scope="col" className="px-3.5 py-2.5 w-28">
                           Status
                         </th>
-                        <th scope="col" className="px-3 py-2 min-w-[160px]">
-                          Details
+                        <th scope="col" className="px-3.5 py-2.5 min-w-[200px]">
+                          Details / Findings
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {filteredRows.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                            No rows matching the selected filter.
+                          <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                            No rows found matching the selected filter.
                           </td>
                         </tr>
                       ) : (
                         filteredRows.map((r) => {
-                          const actionConfig = actionLabels[r.action] ?? actionLabels.none;
-                          const ActionIcon = actionConfig.icon;
+                          const action = actionConfig[r.action] ?? actionConfig.none;
+                          const ActionIcon = action.icon;
                           return (
                             <tr
                               key={r.row}
                               className={cn(
-                                "transition-colors hover:bg-muted/30",
-                                r.status === "invalid" && "bg-destructive/5",
-                                r.status === "conflict" && "bg-amber-500/5",
+                                "transition-colors hover:bg-muted/40",
+                                r.status === "invalid" && "bg-destructive/5 hover:bg-destructive/10",
+                                r.status === "conflict" && "bg-amber-500/5 hover:bg-amber-500/10",
                               )}
                             >
-                              <td className="px-3 py-2 font-mono text-muted-foreground w-12 shrink-0">{r.row}</td>
-                              <td className="px-3 py-2 font-mono font-medium text-foreground w-28 shrink-0">
+                              <td className="px-3.5 py-2.5 font-mono text-center text-muted-foreground w-14">
+                                {r.row}
+                              </td>
+                              <td className="px-3.5 py-2.5 font-mono font-medium text-foreground w-32">
                                 {r.university_id}
                               </td>
-                              <td className="px-3 py-2 font-medium text-foreground min-w-[120px]">{r.name}</td>
-                              <td className="px-3 py-2 w-28 shrink-0">
-                                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                                  <ActionIcon className="size-3 shrink-0" />
-                                  <span className="truncate">{actionConfig.label}</span>
+                              <td className="px-3.5 py-2.5 font-medium text-foreground min-w-[140px] truncate">
+                                {r.name}
+                              </td>
+                              <td className="px-3.5 py-2.5 w-32">
+                                <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  <ActionIcon className="size-3.5 shrink-0 text-primary" />
+                                  <span>{action.label}</span>
                                 </span>
                               </td>
-                              <td className="px-3 py-2 w-24 shrink-0">
+                              <td className="px-3.5 py-2.5 w-28">
                                 <span
                                   className={cn(
-                                    "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                                    "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                                     statusStyles[r.status],
                                   )}
                                 >
                                   {r.status}
                                 </span>
                               </td>
-                              <td className="px-3 py-2 text-muted-foreground break-words min-w-[160px]">
+                              <td className="px-3.5 py-2.5 text-muted-foreground leading-relaxed min-w-[200px]">
                                 {r.message}
                               </td>
                             </tr>
@@ -468,13 +563,13 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
         )}
 
         {!successResult && (
-          <DialogFooter className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2">
+          <DialogFooter className="mt-2 pt-3 border-t border-border/60 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3 w-full min-w-0">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isPending}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto font-medium"
             >
               Cancel
             </Button>
@@ -482,7 +577,7 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
               type="button"
               onClick={handleApply}
               disabled={isPending || !canImport}
-              className="w-full gap-2 font-medium sm:w-auto"
+              className="w-full gap-2 font-medium sm:w-auto px-5"
             >
               {isPending && <Loader2 className="size-4 animate-spin" />}
               <span>
