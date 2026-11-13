@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --test src/**/*.test.mjs",
     "seed:dev-accounts": "node --env-file-if-exists=.env.local scripts/seed-dev-accounts.ts",
     "test:seed": "node --test scripts/seed-dev-accounts.test.mjs"
   },

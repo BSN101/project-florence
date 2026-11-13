@@ -142,16 +142,18 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
         if (!next) resetState();
       }}
     >
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn("gap-2 font-medium whitespace-nowrap", className)}
-          title="Import students via CSV file"
-        >
-          <Upload className="size-4 shrink-0" />
-          <span>Import Roster CSV</span>
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button
+            variant="outline"
+            className={cn("gap-2 font-medium whitespace-nowrap", className)}
+            title="Import students via CSV file"
+          >
+            <Upload className="size-4 shrink-0" />
+            <span>Import Roster CSV</span>
+          </Button>
+        }
+      />
 
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>

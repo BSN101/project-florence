@@ -3,7 +3,17 @@ import type {
   RosterImportRowInput,
   RosterImportRowResult,
 } from "./contracts";
-import { FIXED_CSV_ROSTER_HEADERS } from "./schemas";
+
+export const FIXED_CSV_ROSTER_HEADERS = [
+  "university_id",
+  "last_name",
+  "first_name",
+  "middle_name",
+  "suffix",
+  "email",
+  "year_level",
+  "academic_status",
+] as const;
 
 export const MAX_ROSTER_IMPORT_ROWS = 10000;
 

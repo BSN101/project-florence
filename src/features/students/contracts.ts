@@ -64,3 +64,8 @@ export type RosterImportResult =
       error: string;
       preview?: RosterImportPreview;
     };
+
+/** Pure authorization predicate: only Executive and Operations can manage the roster. */
+export function isAuthorizedRosterManager(role: string | null | undefined): boolean {
+  return role === "executive" || role === "operations";
+}

@@ -140,7 +140,7 @@ export async function applyRosterImport(raw: unknown): Promise<RosterImportResul
   );
 
   if (failure) {
-    return { success: false, error: failure.error };
+    return { success: false, error: !failure.success ? failure.error : "Failed to import roster." };
   }
 
   const res = result as {
