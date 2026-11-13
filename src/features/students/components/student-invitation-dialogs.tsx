@@ -170,7 +170,7 @@ export function CancelInvitationDialog({
             Cancel this invitation?
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            The link sent to <strong className="text-foreground">{student.email}</strong> will stop working immediately. The student's roster enrollment remains active and you can reissue later.
+            The link sent to <strong className="text-foreground">{student.email}</strong> will stop working immediately. The student&apos;s roster enrollment remains active and you can reissue later.
           </DialogDescription>
         </DialogHeader>
 
