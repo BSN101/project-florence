@@ -1288,7 +1288,16 @@ Future-selectable misconduct options maintained by Platform Admin. Every selecti
 - Foreign key to creator.
 - `CHECK (btrim(label) <> '')`.
 - Partial unique index ensuring at most one active `is_other = true` row.
+- Partial unique index on `lower(btrim(label))` among active options.
 - Do not store configurable default sanction days; the current FL fixes every catalog option to one demerit per generated unit.
+
+**Commands (FL-048, Platform Admin, service role only)**
+
+- `save_misconduct_option(p_key, p_actor, p_option, p_label)` creates (null option) or renames an active non-Other option; labels are trimmed, 1–200 characters.
+- `archive_misconduct_option(p_key, p_actor, p_option)` archives a non-Other option. No restore in V1.
+- Other cannot be edited or archived, so it stays available.
+- Demerits copy the label into their own `description` when logged, so edits and archiving never rewrite existing records; the `on delete restrict` foreign key keeps used options.
+- The initial catalog (the academic policy extract's misconduct headings plus Other) is inserted by migration, credited to the active Platform Admin.
 
 **RLS**
 

@@ -1893,6 +1893,10 @@ export type Database = {
         Args: { p_actor: string; p_key: string; p_profile: string }
         Returns: Json
       }
+      archive_misconduct_option: {
+        Args: { p_actor: string; p_key: string; p_option: string }
+        Returns: Json
+      }
       award_merits: {
         Args: {
           p_actor: string
@@ -2141,6 +2145,7 @@ export type Database = {
         Returns: number
       }
       f_cmd_lock_obligations: { Args: { p_ids: string[] }; Returns: undefined }
+      f_cmd_misconduct_label: { Args: { p_label: string }; Returns: string }
       f_cmd_names: {
         Args: {
           p_first: string
@@ -2702,6 +2707,15 @@ export type Database = {
           p_year_levels: number[]
         }
         Returns: string
+      }
+      save_misconduct_option: {
+        Args: {
+          p_actor: string
+          p_key: string
+          p_label: string
+          p_option: string
+        }
+        Returns: Json
       }
       set_service_participants: {
         Args: {
