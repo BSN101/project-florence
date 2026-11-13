@@ -25,26 +25,14 @@ export async function lookupStudentAction(universityId: string): Promise<RosterC
   return lookupRosterCandidate(universityId);
 }
 
-export async function inviteStudentAction(_prev: StudentActionResult | null, formData: FormData): Promise<StudentActionResult> {
-  return guarded(() => inviteStudent(Object.fromEntries(formData)));
-}
-
 export async function inviteStudentDirectAction(studentId: string): Promise<StudentActionResult> {
   return guarded(() => inviteStudent({ studentId }));
-}
-
-export async function cancelStudentInvitationAction(_prev: StudentActionResult | null, formData: FormData): Promise<StudentActionResult> {
-  return guarded(() => cancelStudentInvitation(Object.fromEntries(formData)));
 }
 
 export async function cancelStudentInvitationDirectAction(invitationId: string): Promise<StudentActionResult> {
   return guarded(() => cancelStudentInvitation({ invitationId }));
 }
 
-export async function bulkInviteStudentsAction(_prev: BulkInviteResult | null, formData: FormData): Promise<BulkInviteResult> {
-  return guarded(() => bulkInviteStudents(Object.fromEntries(formData)));
-}
-
-export async function bulkInviteStudentsDirectAction(semesterId: string): Promise<BulkInviteResult> {
-  return guarded(() => bulkInviteStudents({ semesterId }));
+export async function bulkInviteStudentsDirectAction(semesterId: string, excludeIds: string[]): Promise<BulkInviteResult> {
+  return guarded(() => bulkInviteStudents({ semesterId, excludeIds }));
 }

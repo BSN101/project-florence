@@ -28,12 +28,3 @@ export async function lookupRosterCandidate(universityId: string): Promise<Roste
   if (error) throw new Error("Unable to look up the student");
   return data[0] ?? null;
 }
-
-/** Returns invitation history for an individual student profile. Council and authorized provisioning only. */
-export async function getStudentInvitationStatuses(profileId: string) {
-  await requireRosterManager();
-  const client = await createUserClient();
-  const { data, error } = await client.rpc("florence_invitation_statuses", { p_profile: profileId });
-  if (error) throw new Error("Unable to load student invitation history");
-  return data;
-}

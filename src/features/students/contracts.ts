@@ -24,12 +24,27 @@ export type StudentActionResult =
   | { success: true; message: string }
   | { success: false; error: string };
 
-export type BulkInviteResult = StudentActionResult & {
-  totalEligible?: number;
-  invitedCount?: number;
-  failedCount?: number;
-  emailFailedCount?: number;
+/** Students per bulk-invite request; small so the progress bar moves often. */
+export const BULK_INVITE_BATCH_SIZE = 5;
+
+/** One student's result in a bulk invitation batch. */
+export type BulkInviteOutcome = {
+  studentId: string;
+  name: string;
+  status: "sent" | "email_failed" | "failed" | "skipped";
+  reason?: string;
 };
+
+/** One batch: what happened to each student, and how many eligible students remain after it. */
+export type BulkInviteResult =
+  | { success: true; outcomes: BulkInviteOutcome[]; remaining: number }
+  | { success: false; error: string };
+
+export function countBulkOutcomes(outcomes: BulkInviteOutcome[]) {
+  const counts = { sent: 0, email_failed: 0, failed: 0, skipped: 0 };
+  for (const o of outcomes) counts[o.status]++;
+  return counts;
+}
 
 export type InvitationEligibilitySummary = {
   totalStudents: number;
@@ -38,6 +53,8 @@ export type InvitationEligibilitySummary = {
   pendingCount: number;
   missingEmailCount: number;
   archivedCount: number;
+  /** Eligible students whose live invitation email failed or was never confirmed; they get a fresh link. */
+  resendCount: number;
 };
 
 export function isAuthorizedRosterManager(councilRole: string | null | undefined): boolean {
@@ -72,6 +89,7 @@ export function getInvitationEligibilitySummary(roster: StudentRosterItem[]): In
   let pendingCount = 0;
   let missingEmailCount = 0;
   let archivedCount = 0;
+  let resendCount = 0;
 
   for (const s of roster) {
     if (s.account_status !== "active") {
@@ -84,6 +102,7 @@ export function getInvitationEligibilitySummary(roster: StudentRosterItem[]): In
       missingEmailCount++;
     } else {
       eligibleCount++;
+      if (s.invitation_state === "undelivered" || s.invitation_state === "unconfirmed") resendCount++;
     }
   }
 
@@ -94,5 +113,6 @@ export function getInvitationEligibilitySummary(roster: StudentRosterItem[]): In
     pendingCount,
     missingEmailCount,
     archivedCount,
+    resendCount,
   };
 }

@@ -3,17 +3,18 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 
 import { createInvitationToken } from "@/features/access/invitation-token";
-import { runCommand } from "@/features/access/provisioning-service";
+import { commandError, deliverInvitation, runCommand, sendAndRecordInvitation } from "@/features/access/provisioning-service";
 import { trustedRequestOrigin } from "@/features/auth/request-origin";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 import { createUserClient } from "@/server/db/user-client";
-import { sendInvitationEmail } from "@/server/email/invitation-email";
 
 import {
+  BULK_INVITE_BATCH_SIZE,
   isAuthorizedDirectoryViewer,
   isAuthorizedRosterManager,
   isStudentEligibleForInvite,
+  type BulkInviteOutcome,
   type BulkInviteResult,
   type StudentActionResult,
 } from "./contracts";
@@ -46,7 +47,7 @@ export async function requireDirectoryViewer(workspace: "council" | "faculty") {
   return context;
 }
 
-const invalid = (error: { issues: { message: string }[] }): StudentActionResult =>
+const invalid = (error: { issues: { message: string }[] }): { success: false; error: string } =>
   ({ success: false, error: error.issues[0]?.message ?? "Check the form and try again." });
 
 // Commands run in one transaction inside the RPC; the actor comes from the verified session.
@@ -102,30 +103,9 @@ export async function inviteStudent(raw: unknown): Promise<StudentActionResult> 
 
   if (failure) return failure;
 
-  const to = result?.email as string | undefined;
-  const firstName = (result?.first_name as string | undefined) ?? "Student";
-  const wasClosed = Boolean(result?.previous_closed);
-  const done = wasClosed ? "New invitation created; the previous link no longer works." : "Invitation created.";
-
-  if (result?.replayed) {
-    return { success: true, message: `${done} This was a repeated request, so no email was sent.` };
-  }
-
-  if (!to) {
-    return { success: true, message: done };
-  }
-
-  const origin = await trustedRequestOrigin();
-  if (!origin) {
-    return { success: true, message: `${done} The invitation email couldn't be sent. Try again later.` };
-  }
-
-  try {
-    await sendInvitationEmail({ origin, to, firstName, token: invitation.token, expiresAt: invitation.expiresAt });
-    return { success: true, message: `${done} An invitation email was sent to ${to}.` };
-  } catch {
-    return { success: true, message: `${done} The invitation email couldn't be sent. Use Reissue invitation to try again.` };
-  }
+  // Recipient comes from the database result, never from the browser.
+  const done = result!.previous_closed ? "New invitation created; the previous link no longer works." : "Invitation created.";
+  return deliverInvitation(result!, invitation, result!.email as string, result!.first_name as string, done);
 }
 
 /**
@@ -155,7 +135,7 @@ export async function bulkInviteStudents(raw: unknown): Promise<BulkInviteResult
   const actor = await requireRosterManager();
   const parsed = bulkInviteSchema.safeParse(raw);
   if (!parsed.success) return invalid(parsed.error);
-  const { semesterId } = parsed.data;
+  const { semesterId, excludeIds } = parsed.data;
 
   const client = await createUserClient();
   const { data: roster, error } = await client.rpc("florence_roster", { p_semester: semesterId });
@@ -163,25 +143,20 @@ export async function bulkInviteStudents(raw: unknown): Promise<BulkInviteResult
     return { success: false, error: "Unable to load the roster for invitation processing." };
   }
 
-  const eligible = roster.filter(isStudentEligibleForInvite);
-  if (eligible.length === 0) {
-    return {
-      success: true,
-      totalEligible: 0,
-      invitedCount: 0,
-      failedCount: 0,
-      emailFailedCount: 0,
-      message: "No uninvited students with valid emails were found.",
-    };
-  }
+  const excluded = new Set(excludeIds);
+  const eligible = roster.filter((s) => isStudentEligibleForInvite(s) && !excluded.has(s.student_id));
 
   const commandClient = createCommandClient();
   const origin = await trustedRequestOrigin();
-  let invitedCount = 0;
-  let failedCount = 0;
-  let emailFailedCount = 0;
+  const outcomes: BulkInviteOutcome[] = [];
 
-  for (const student of eligible) {
+  // shortcut: one bounded batch per request keeps it under the server time limit; the dialog
+  // calls again until remaining is 0. Move to a background queue if rosters reach thousands.
+  const batch = eligible.slice(0, BULK_INVITE_BATCH_SIZE);
+
+  for (const student of batch) {
+    const outcome = (status: BulkInviteOutcome["status"], reason?: string) =>
+      outcomes.push({ studentId: student.student_id, name: `${student.last_name}, ${student.first_name}`, status, reason });
     const invitation = createInvitationToken();
     const { data: result, error: rpcError } = await commandClient.rpc("roster_invite_student", {
       p_key: crypto.randomUUID(),
@@ -189,45 +164,28 @@ export async function bulkInviteStudents(raw: unknown): Promise<BulkInviteResult
       p_student: student.student_id,
       p_token_hash: invitation.tokenHash,
       p_expires_at: invitation.expiresAt,
+      // Another run already sent this student a live link; don't break it.
+      p_skip_pending: true,
     });
 
     if (rpcError || !result) {
-      failedCount++;
+      outcome("failed", rpcError ? (commandError(rpcError) as { error: string }).error : undefined);
+      continue;
+    }
+    const created = result as { skipped?: boolean; invitation_id?: string; email?: string };
+    if (created.skipped) {
+      outcome("skipped", "Another officer already sent this student a link.");
       continue;
     }
 
-    invitedCount++;
-
-    if (origin && student.email) {
-      try {
-        await sendInvitationEmail({
-          origin,
-          to: student.email,
-          firstName: student.first_name,
-          token: invitation.token,
-          expiresAt: invitation.expiresAt,
-        });
-      } catch {
-        emailFailedCount++;
-      }
-    } else {
-      emailFailedCount++;
-    }
+    // Recipient comes from the database result, never from the browser.
+    const sent = await sendAndRecordInvitation(created.invitation_id, origin && created.email
+      ? { origin, to: created.email, firstName: student.first_name, token: invitation.token, expiresAt: invitation.expiresAt }
+      : null);
+    if (sent) outcome("sent");
+    else outcome("email_failed", "Invitation created, but the email couldn't be sent.");
   }
 
-  revalidatePath("/council", "layout");
-
-  const message =
-    emailFailedCount > 0
-      ? `Sent ${invitedCount} invitation(s). (${emailFailedCount} email(s) could not be delivered).`
-      : `Successfully sent ${invitedCount} invitation(s).`;
-
-  return {
-    success: true,
-    totalEligible: eligible.length,
-    invitedCount,
-    failedCount,
-    emailFailedCount,
-    message,
-  };
+  if (batch.length > 0) revalidatePath("/council", "layout");
+  return { success: true, outcomes, remaining: eligible.length - batch.length };
 }

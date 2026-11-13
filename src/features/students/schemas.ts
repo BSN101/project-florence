@@ -81,5 +81,7 @@ export type CancelInvitationInput = z.infer<typeof cancelInvitationSchema>;
 
 export const bulkInviteSchema = z.object({
   semesterId: z.string().uuid("Invalid semester identifier"),
+  // Students already handled in this run; excluding them lets the batch loop finish without resending.
+  excludeIds: z.array(z.string().uuid()).max(5000).default([]),
 });
 export type BulkInviteInput = z.infer<typeof bulkInviteSchema>;
