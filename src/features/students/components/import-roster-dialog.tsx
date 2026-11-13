@@ -155,7 +155,7 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
         }
       />
 
-      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto overflow-x-hidden min-w-0">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="size-5 text-primary" />
@@ -168,7 +168,7 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
         </DialogHeader>
 
         {successResult ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-8 text-center">
+          <div className="flex flex-col items-center justify-center gap-4 py-8 text-center w-full min-w-0">
             <div className="flex size-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="size-8" />
             </div>
@@ -183,28 +183,28 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-5 py-2">
+          <div className="flex flex-col gap-5 py-2 w-full min-w-0">
             {/* Step 1: File Upload Box */}
-            <div className="rounded-xl border border-dashed border-border p-4 transition-colors hover:border-primary/50">
+            <div className="rounded-xl border border-dashed border-border p-4 transition-colors hover:border-primary/50 w-full min-w-0">
               <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                     <FileUp className="size-5" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {fileName ?? "Choose a CSV file to validate"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground break-words">
                       Requires 8 columns:{" "}
-                      <code className="text-[11px] font-mono text-muted-foreground">
+                      <code className="text-[11px] font-mono text-muted-foreground break-all">
                         {FIXED_CSV_ROSTER_HEADERS.join(", ")}
                       </code>
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   {fileName && (
                     <Button
                       type="button"
@@ -387,26 +387,26 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                 </div>
 
                 {/* Scrollable Preview Table */}
-                <div className="max-h-72 overflow-x-auto overflow-y-auto rounded-xl border border-border">
-                  <table className="w-full text-left text-xs">
+                <div className="w-full min-w-0 max-h-72 overflow-x-auto overflow-y-auto rounded-xl border border-border">
+                  <table className="w-full min-w-[580px] text-left text-xs">
                     <thead className="sticky top-0 border-b border-border bg-muted text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       <tr>
-                        <th scope="col" className="px-3 py-2 w-12">
+                        <th scope="col" className="px-3 py-2 w-12 shrink-0">
                           Line
                         </th>
-                        <th scope="col" className="px-3 py-2">
+                        <th scope="col" className="px-3 py-2 w-28 shrink-0">
                           Student Number
                         </th>
-                        <th scope="col" className="px-3 py-2">
+                        <th scope="col" className="px-3 py-2 min-w-[120px]">
                           Name
                         </th>
-                        <th scope="col" className="px-3 py-2">
+                        <th scope="col" className="px-3 py-2 w-28 shrink-0">
                           Action
                         </th>
-                        <th scope="col" className="px-3 py-2">
+                        <th scope="col" className="px-3 py-2 w-24 shrink-0">
                           Status
                         </th>
-                        <th scope="col" className="px-3 py-2">
+                        <th scope="col" className="px-3 py-2 min-w-[160px]">
                           Details
                         </th>
                       </tr>
@@ -431,18 +431,18 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                                 r.status === "conflict" && "bg-amber-500/5",
                               )}
                             >
-                              <td className="px-3 py-2 font-mono text-muted-foreground">{r.row}</td>
-                              <td className="px-3 py-2 font-mono font-medium text-foreground">
+                              <td className="px-3 py-2 font-mono text-muted-foreground w-12 shrink-0">{r.row}</td>
+                              <td className="px-3 py-2 font-mono font-medium text-foreground w-28 shrink-0">
                                 {r.university_id}
                               </td>
-                              <td className="px-3 py-2 font-medium text-foreground">{r.name}</td>
-                              <td className="px-3 py-2">
+                              <td className="px-3 py-2 font-medium text-foreground min-w-[120px]">{r.name}</td>
+                              <td className="px-3 py-2 w-28 shrink-0">
                                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                                  <ActionIcon className="size-3" />
-                                  <span>{actionConfig.label}</span>
+                                  <ActionIcon className="size-3 shrink-0" />
+                                  <span className="truncate">{actionConfig.label}</span>
                                 </span>
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-3 py-2 w-24 shrink-0">
                                 <span
                                   className={cn(
                                     "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider",
@@ -452,7 +452,7 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                                   {r.status}
                                 </span>
                               </td>
-                              <td className="px-3 py-2 text-muted-foreground">
+                              <td className="px-3 py-2 text-muted-foreground break-words min-w-[160px]">
                                 {r.message}
                               </td>
                             </tr>
