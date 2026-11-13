@@ -17,17 +17,8 @@ import { useClipboard } from "@/hooks/use-clipboard";
 import { displayName, sortName } from "@/lib/format-name";
 import type { StudentRosterItem } from "../contracts";
 import { AcademicStatusBadge } from "./academic-status-badge";
-import { EditStudentDialog } from "./edit-student-dialog";
 
-export function StudentDetailDialog({
-  student,
-  canEdit = false,
-  trigger,
-}: {
-  student: StudentRosterItem;
-  canEdit?: boolean;
-  trigger?: React.ReactElement;
-}) {
+export function StudentDetailDialog({ student }: { student: StudentRosterItem }) {
   const [open, setOpen] = useState(false);
   const { copy, isCopied } = useClipboard();
 
@@ -38,17 +29,15 @@ export function StudentDetailDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          trigger ?? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-              title="View student details"
-            >
-              <Eye className="size-3.5" />
-              <span>Details</span>
-            </Button>
-          )
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+            title="View student details"
+          >
+            <Eye className="size-3.5" />
+            <span>Details</span>
+          </Button>
         }
       />
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
@@ -171,19 +160,6 @@ export function StudentDetailDialog({
           >
             Close
           </Button>
-          {canEdit && (
-            <EditStudentDialog
-              student={student}
-              trigger={
-                <Button
-                  className="w-full gap-2 sm:w-auto"
-                  onClick={() => setOpen(false)}
-                >
-                  Edit Student
-                </Button>
-              }
-            />
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -195,7 +195,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
-                        <StudentDetailDialog student={student} canEdit={canEdit} />
+                        <StudentDetailDialog student={student} />
                         {canEdit && <EditStudentDialog student={student} />}
                       </div>
                     </div>
@@ -280,7 +280,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                         </td>
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <StudentDetailDialog student={student} canEdit={canEdit} />
+                            <StudentDetailDialog student={student} />
                             {canEdit && <EditStudentDialog student={student} />}
                           </div>
                         </td>
