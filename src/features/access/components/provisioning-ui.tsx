@@ -2,13 +2,12 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { displayName, sortName, type NameParts } from "@/lib/format-name";
+import { displayName, sortName } from "@/lib/format-name";
 
 import type { ProvisioningAccount, ProvisioningResult } from "../provisioning-contracts";
 import { councilRoleNames, councilRoles, instructorRoles } from "../provisioning-schemas";
 
 export { displayName, sortName };
-export type Names = NameParts;
 
 const dateTime = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
 
