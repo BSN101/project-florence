@@ -82,6 +82,32 @@ feature files and folders when useful, not merely to match an example tree.
 Never commit credentials. The privileged key must never use a public
 environment-variable prefix, reach browser code, or appear in logs.
 
+### Testing on a phone (HTTPS)
+
+The QR scan station needs the camera, which browsers allow only over HTTPS or
+on `localhost`. To test from a phone on the same network, create a self-signed
+certificate for `localhost` and your computer's LAN IP once, from the
+repository root:
+
+```sh
+MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+  -keyout certificates/dev-key.pem -out certificates/dev-cert.pem \
+  -subj "/CN=Florence dev" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:<your-lan-ip>"
+```
+
+Create the `certificates/` folder first if it does not exist. On macOS/Linux,
+drop the `MSYS_NO_PATHCONV=1` prefix; it only stops Git Bash on Windows from
+rewriting the `-subj` value. The `.pem` files are gitignored.
+
+Then run `npm run dev:https` and open `https://<your-lan-ip>:3000` on the
+phone. Accept the certificate warning once (Chrome: **Advanced → Proceed**;
+Safari: **Show Details → visit this website**). If your LAN IP changes,
+regenerate the certificate with the new IP. If the phone cannot connect, allow
+Node.js through the firewall on private networks. `next.config.ts` allows
+`192.168.*.*` and `10.*.*.*` dev origins; add your range if it differs.
+This setup is for local development only.
+
 ### Authentication
 
 Public signup must remain disabled. Accounts are provisioned through the

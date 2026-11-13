@@ -2086,6 +2086,15 @@ export type Database = {
         Args: { p_email: string; p_except: string }
         Returns: undefined
       }
+      f_cmd_event_outcome: {
+        Args: {
+          e: Database["public"]["Tables"]["events"]["Row"]
+          p_time_in: string
+          p_time_out: string
+          r: Database["public"]["Tables"]["event_consequence_rules"]["Row"]
+        }
+        Returns: string
+      }
       f_cmd_faculty_target: {
         Args: { p_profile: string }
         Returns: {
@@ -2142,6 +2151,16 @@ export type Database = {
         Returns: undefined
       }
       f_cmd_platform_admin: { Args: { p_actor: string }; Returns: undefined }
+      f_cmd_record_attendance: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_kind: string
+          p_method: string
+          p_student: string
+        }
+        Returns: string
+      }
       f_cmd_role: {
         Args: { p_actor: string; p_role: string }
         Returns: boolean
@@ -2245,6 +2264,40 @@ export type Database = {
           profile_id: string
           suffix: string
           university_id: string
+        }[]
+      }
+      florence_event_attendance: {
+        Args: { p_event: string }
+        Returns: {
+          academic_status: Database["public"]["Enums"]["academic_status"]
+          first_name: string
+          last_name: string
+          status: string
+          student_id: string
+          time_in: string
+          time_in_method: string
+          time_in_recorded_by: string
+          time_out: string
+          time_out_method: string
+          time_out_recorded_by: string
+          university_id: string
+          year_level: number
+        }[]
+      }
+      florence_event_consequence_preview: {
+        Args: { p_event: string }
+        Returns: {
+          academic_status: Database["public"]["Enums"]["academic_status"]
+          demerit_days: number
+          fine_amount: number
+          first_name: string
+          last_name: string
+          outcome: string
+          student_id: string
+          time_in: string
+          time_out: string
+          university_id: string
+          year_level: number
         }[]
       }
       florence_executive_candidate: {
@@ -2353,8 +2406,11 @@ export type Database = {
           enrollment_id: string
           first_name: string
           has_account: boolean
+          invitation_expires_at: string
+          invitation_state: string
           last_name: string
           middle_name: string
+          pending_invitation_id: string
           semester_id: string
           student_id: string
           suffix: string
@@ -2406,6 +2462,16 @@ export type Database = {
           p_key: string
           p_label: string
           p_university_id: string
+        }
+        Returns: Json
+      }
+      import_event_attendance: {
+        Args: {
+          p_actor: string
+          p_apply: boolean
+          p_event: string
+          p_key: string
+          p_rows: Json
         }
         Returns: Json
       }
@@ -2462,6 +2528,26 @@ export type Database = {
           p_received_at: string
           p_semester: string
           p_student: string
+        }
+        Returns: Json
+      }
+      record_event_attendance: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_key: string
+          p_kind: string
+          p_student: string
+        }
+        Returns: Json
+      }
+      record_event_attendance_qr: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_key: string
+          p_kind: string
+          p_university_id: string
         }
         Returns: Json
       }
@@ -2524,6 +2610,20 @@ export type Database = {
         }
         Returns: Json
       }
+      roster_cancel_invitation: {
+        Args: { p_actor: string; p_invitation: string; p_key: string }
+        Returns: Json
+      }
+      roster_invite_student: {
+        Args: {
+          p_actor: string
+          p_expires_at: string
+          p_key: string
+          p_student: string
+          p_token_hash: string
+        }
+        Returns: Json
+      }
       roster_update_student: {
         Args: {
           p_academic_status: string
@@ -2538,6 +2638,30 @@ export type Database = {
           p_year_level: number
         }
         Returns: Json
+      }
+      save_event: {
+        Args: {
+          p_absence_demerit_days: number
+          p_absence_fine: string
+          p_academic_statuses: string[]
+          p_actor: string
+          p_ends_at: string
+          p_event: string
+          p_late_after_minutes: number
+          p_late_demerit_days: number
+          p_late_fine: string
+          p_name: string
+          p_requires_time_out: boolean
+          p_semester: string
+          p_starts_at: string
+          p_time_in_from: string
+          p_time_in_until: string
+          p_time_out_from: string
+          p_time_out_until: string
+          p_venue: string
+          p_year_levels: number[]
+        }
+        Returns: string
       }
       set_service_participants: {
         Args: {
