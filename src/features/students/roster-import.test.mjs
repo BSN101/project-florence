@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
 import { isAuthorizedRosterManager } from "./contracts.ts";
-import { mergeRosterImportFindings, parseCsv, parseRosterCsv } from "./csv.ts";
+import { CSV_TEMPLATE_CONTENT, mergeRosterImportFindings, parseCsv, parseRosterCsv } from "./csv.ts";
 import {
   applyRosterImportSchema,
   csvRosterRowSchema,
@@ -317,5 +317,18 @@ describe("isAuthorizedRosterManager authorization predicate", () => {
     assert.equal(isAuthorizedRosterManager(null), false);
     assert.equal(isAuthorizedRosterManager(undefined), false);
     assert.equal(isAuthorizedRosterManager(""), false);
+  });
+});
+
+describe("CSV template content contract", () => {
+  test("template strictly conforms to the canonical 8-column header contract and valid sample rows", () => {
+    const result = parseRosterCsv(CSV_TEMPLATE_CONTENT);
+    assert.ok(!("error" in result));
+    assert.equal(result.invalid.length, 0);
+    assert.equal(result.rows.length, 2);
+    assert.equal(result.rows[0].university_id, "26-1-00123");
+    assert.equal(result.rows[0].academic_status, "regular");
+    assert.equal(result.rows[1].university_id, "26-1-00124");
+    assert.equal(result.rows[1].academic_status, "irregular");
   });
 });

@@ -5,6 +5,7 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  Download,
   FileSpreadsheet,
   FileUp,
   Loader2,
@@ -28,7 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { applyRosterImportAction, previewRosterImportAction } from "../actions";
 import type { RosterImportPreview, RosterImportRowResult } from "../contracts";
-import { FIXED_CSV_ROSTER_HEADERS } from "../schemas";
+import { downloadRosterTemplate } from "./download-template-button";
 
 const statusStyles: Record<string, string> = {
   ready: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
@@ -45,8 +46,21 @@ const actionConfig: Record<string, { label: string; icon: typeof UserPlus }> = {
 
 type FilterType = "all" | "ready" | "conflicts" | "invalid";
 
-export function ImportRosterDialog({ className }: { className?: string } = {}) {
-  const [open, setOpen] = useState(false);
+export function ImportRosterDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  trigger,
+  className,
+}: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode;
+  className?: string;
+} = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
   const [csvText, setCsvText] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<RosterImportPreview | null>(null);
@@ -67,6 +81,18 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
     setSuccessResult(null);
     setFilter("all");
   };
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && isPending) return;
+    if (isControlled) {
+      controlledOnOpenChange?.(next);
+    } else {
+      setInternalOpen(next);
+    }
+    if (!next) resetState();
+  };
+
+  const setOpen = (next: boolean) => handleOpenChange(next);
 
   const handleFile = async (file: File | undefined) => {
     setError(null);
@@ -137,26 +163,25 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
   const issuesCount = preview ? preview.invalid + preview.conflicts : 0;
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next && isPending) return;
-        setOpen(next);
-        if (!next) resetState();
-      }}
-    >
-      <DialogTrigger
-        render={
-          <Button
-            variant="outline"
-            className={cn("gap-2 font-medium whitespace-nowrap", className)}
-            title="Import students via CSV file"
-          >
-            <Upload className="size-4 shrink-0" />
-            <span>Import Roster CSV</span>
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {!isControlled && (
+        <DialogTrigger
+          render={
+            trigger ? (
+              <>{trigger}</>
+            ) : (
+              <Button
+                variant="outline"
+                className={cn("gap-2 font-medium whitespace-nowrap", className)}
+                title="Import students via CSV file"
+              >
+                <Upload className="size-4 shrink-0" />
+                <span>Import Roster CSV</span>
+              </Button>
+            )
+          }
+        />
+      )}
 
       <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] sm:max-w-4xl lg:max-w-5xl overflow-y-auto overflow-x-hidden min-w-0 p-5 sm:p-7 gap-6">
         <DialogHeader className="gap-1.5 pb-1 border-b border-border/60">
@@ -209,7 +234,19 @@ export function ImportRosterDialog({ className }: { className?: string } = {}) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadRosterTemplate}
+                    disabled={isPending}
+                    className="h-9 px-3 text-xs font-medium gap-1.5"
+                    title="Download pre-formatted 8-column CSV roster template"
+                  >
+                    <Download className="size-3.5 text-muted-foreground" />
+                    <span>Download Template</span>
+                  </Button>
                   {fileName && (
                     <Button
                       type="button"

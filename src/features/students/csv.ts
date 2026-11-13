@@ -15,6 +15,11 @@ export const FIXED_CSV_ROSTER_HEADERS = [
   "academic_status",
 ] as const;
 
+export const CSV_TEMPLATE_CONTENT = `university_id,last_name,first_name,middle_name,suffix,email,year_level,academic_status
+26-1-00123,Dela Cruz,Juan Carlos,Santos,Jr.,juancarlos.delacruz@university.edu.ph,1,regular
+26-1-00124,Reyes,Maria Teresa,Aquino,,mariateresa.reyes@university.edu.ph,2,irregular
+`;
+
 export const MAX_ROSTER_IMPORT_ROWS = 10000;
 
 /** RFC 4180-style CSV parsing: handles quotes, escaped quotes, CRLF/LF, optional BOM. */
