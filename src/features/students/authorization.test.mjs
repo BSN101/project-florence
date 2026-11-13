@@ -1,71 +1,49 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
+import {
+  isAuthorizedDirectoryViewer,
+  isAuthorizedRosterManager,
+} from "./contracts.ts";
+
 describe("Task T-018 / FL-008: Server Action Authorization Rules", () => {
-  function checkRosterManagerAuthorization(context) {
-    if (context.workspace !== "council") {
-      throw new Error("AccessDeniedError: wrong workspace");
-    }
-    if (context.councilRole !== "executive" && context.councilRole !== "operations") {
-      throw new Error("AccessDeniedError: forbidden");
-    }
-    return true;
-  }
-
-  function checkDirectoryViewerAuthorization(workspace, context) {
-    if (workspace === "council") {
-      if (context.councilRole !== "executive" && context.councilRole !== "operations") {
-        throw new Error("AccessDeniedError: forbidden");
-      }
-    } else if (workspace === "faculty") {
-      const isInstructor =
-        context.roles.includes("Academic Instructor") || context.roles.includes("Clinical Instructor");
-      if (!isInstructor) throw new Error("AccessDeniedError: forbidden");
-    } else {
-      throw new Error("AccessDeniedError: forbidden");
-    }
-    return true;
-  }
-
   test("Council Executive is authorized to manage roster invitations", () => {
-    const ctx = { workspace: "council", councilRole: "executive", roles: [] };
-    assert.equal(checkRosterManagerAuthorization(ctx), true);
+    assert.equal(isAuthorizedRosterManager("executive"), true);
   });
 
   test("Council Operations is authorized to manage roster invitations", () => {
-    const ctx = { workspace: "council", councilRole: "operations", roles: [] };
-    assert.equal(checkRosterManagerAuthorization(ctx), true);
+    assert.equal(isAuthorizedRosterManager("operations"), true);
   });
 
   test("Council Representative is denied authorization to manage roster invitations", () => {
-    const ctx = { workspace: "council", councilRole: "representative", roles: [] };
-    assert.throws(() => checkRosterManagerAuthorization(ctx), /AccessDeniedError: forbidden/);
+    assert.equal(isAuthorizedRosterManager("representative"), false);
   });
 
-  test("Student workspace is denied authorization to manage roster invitations", () => {
-    const ctx = { workspace: "student", councilRole: null, roles: [] };
-    assert.throws(() => checkRosterManagerAuthorization(ctx), /AccessDeniedError/);
+  test("Student or unassigned role is denied authorization to manage roster invitations", () => {
+    assert.equal(isAuthorizedRosterManager(null), false);
+    assert.equal(isAuthorizedRosterManager(undefined), false);
   });
 
   test("Directory viewer allows Council Exec/Ops and Faculty instructors", () => {
-    assert.equal(checkDirectoryViewerAuthorization("council", { councilRole: "executive", roles: [] }), true);
-    assert.equal(checkDirectoryViewerAuthorization("council", { councilRole: "operations", roles: [] }), true);
-    assert.throws(
-      () => checkDirectoryViewerAuthorization("council", { councilRole: "representative", roles: [] }),
-      /AccessDeniedError: forbidden/
-    );
+    assert.equal(isAuthorizedDirectoryViewer("council", "executive", []), true);
+    assert.equal(isAuthorizedDirectoryViewer("council", "operations", []), true);
+    assert.equal(isAuthorizedDirectoryViewer("council", "representative", []), false);
 
     assert.equal(
-      checkDirectoryViewerAuthorization("faculty", { councilRole: null, roles: ["Academic Instructor"] }),
+      isAuthorizedDirectoryViewer("faculty", null, ["Academic Instructor"]),
       true
     );
     assert.equal(
-      checkDirectoryViewerAuthorization("faculty", { councilRole: null, roles: ["Clinical Instructor", "RLE Coordinator"] }),
+      isAuthorizedDirectoryViewer("faculty", null, ["Clinical Instructor", "RLE Coordinator"]),
       true
     );
-    assert.throws(
-      () => checkDirectoryViewerAuthorization("faculty", { councilRole: null, roles: [] }),
-      /AccessDeniedError: forbidden/
+    assert.equal(
+      isAuthorizedDirectoryViewer("faculty", null, ["Platform Admin"]),
+      false
+    );
+    assert.equal(
+      isAuthorizedDirectoryViewer("faculty", null, []),
+      false
     );
   });
 });

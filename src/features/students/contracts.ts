@@ -40,6 +40,24 @@ export type InvitationEligibilitySummary = {
   archivedCount: number;
 };
 
+export function isAuthorizedRosterManager(councilRole: string | null | undefined): boolean {
+  return councilRole === "executive" || councilRole === "operations";
+}
+
+export function isAuthorizedDirectoryViewer(
+  workspace: "council" | "faculty",
+  councilRole: string | null | undefined,
+  roles: string[] = []
+): boolean {
+  if (workspace === "council") {
+    return councilRole === "executive" || councilRole === "operations";
+  }
+  if (workspace === "faculty") {
+    return roles.includes("Academic Instructor") || roles.includes("Clinical Instructor");
+  }
+  return false;
+}
+
 export function isStudentEligibleForInvite(student: StudentRosterItem): boolean {
   if (student.has_account) return false;
   if (student.account_status !== "active") return false;

@@ -1,4 +1,4 @@
-import { AlertCircle, Clock, Mail } from "lucide-react";
+import { AlertCircle, Clock, Mail, XCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { StudentRosterItem } from "../contracts";
@@ -59,6 +59,20 @@ export function InvitationStatusBadge({
       >
         <AlertCircle className={isSm ? "size-3" : "size-3.5"} />
         Invitation expired
+      </span>
+    );
+  }
+
+  if (student.invitation_state === "cancelled") {
+    return (
+      <span
+        className={cn(
+          baseClasses,
+          "border border-rose-600/30 bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+        )}
+      >
+        <XCircle className={isSm ? "size-3" : "size-3.5"} />
+        Invitation cancelled
       </span>
     );
   }

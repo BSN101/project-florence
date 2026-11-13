@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { displayName, sortName } from "@/lib/format-name";
+import { displayName } from "@/lib/format-name";
 
 import {
   cancelStudentInvitationDirectAction,
@@ -45,11 +45,6 @@ export function InviteStudentDialog({
     startTransition(async () => {
       const res = await inviteStudentDirectAction(student.student_id);
       setResult(res);
-      if (res.success) {
-        setTimeout(() => {
-          handleOpenChange(false);
-        }, 1200);
-      }
     });
   };
 
@@ -115,17 +110,19 @@ export function InviteStudentDialog({
             disabled={isPending}
             className="w-full sm:w-auto"
           >
-            Cancel
+            {result?.success ? "Done" : "Cancel"}
           </Button>
-          <Button
-            type="button"
-            onClick={handleInvite}
-            disabled={isPending || Boolean(result?.success)}
-            className="w-full sm:w-auto gap-2"
-          >
-            {isPending && <Loader2 className="size-4 animate-spin" />}
-            {isReissue ? "Reissue Invitation" : "Send Invitation"}
-          </Button>
+          {!result?.success && (
+            <Button
+              type="button"
+              onClick={handleInvite}
+              disabled={isPending}
+              className="w-full sm:w-auto gap-2"
+            >
+              {isPending && <Loader2 className="size-4 animate-spin" />}
+              {isReissue ? "Reissue Invitation" : "Send Invitation"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -156,11 +153,6 @@ export function CancelInvitationDialog({
     startTransition(async () => {
       const res = await cancelStudentInvitationDirectAction(student.pending_invitation_id!);
       setResult(res);
-      if (res.success) {
-        setTimeout(() => {
-          handleOpenChange(false);
-        }, 1200);
-      }
     });
   };
 
@@ -228,18 +220,20 @@ export function CancelInvitationDialog({
             disabled={isPending}
             className="w-full sm:w-auto"
           >
-            Keep Invitation
+            {result?.success ? "Done" : "Keep Invitation"}
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleCancel}
-            disabled={isPending || Boolean(result?.success)}
-            className="w-full sm:w-auto gap-2"
-          >
-            {isPending && <Loader2 className="size-4 animate-spin" />}
-            Cancel Invitation
-          </Button>
+          {!result?.success && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={isPending}
+              className="w-full sm:w-auto gap-2"
+            >
+              {isPending && <Loader2 className="size-4 animate-spin" />}
+              Cancel Invitation
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -262,10 +256,42 @@ export function StudentRowActions({
   const hasEmail = Boolean(student.email && student.email.trim() !== "");
   const isPending = student.invitation_state === "pending" && Boolean(student.pending_invitation_id);
   const isExpired = student.invitation_state === "expired";
+  const isCancelled = student.invitation_state === "cancelled";
+
+  // When uninvited or cancelled, the student can receive a fresh invitation.
+  const canInvite = (!student.invitation_state || isCancelled) && hasEmail;
+  // When pending or expired, Council can reissue to resend a fresh link and close previous.
+  const canReissue = (isPending || isExpired) && hasEmail;
 
   return (
     <>
       <div className="flex items-center gap-1">
+        {canInvite && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setInviteOpen(true)}
+            className="h-8 gap-1 px-2 text-xs font-medium text-primary hover:bg-primary/10 hover:text-primary"
+            title={isCancelled ? "Re-invite student" : "Invite student"}
+          >
+            <Mail className="size-3.5" />
+            <span className="hidden sm:inline">{isCancelled ? "Re-invite" : "Invite"}</span>
+          </Button>
+        )}
+
+        {canReissue && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setReissueOpen(true)}
+            className="h-8 gap-1 px-2 text-xs font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
+            title="Reissue invitation link"
+          >
+            <RefreshCw className="size-3.5" />
+            <span className="hidden sm:inline">Reissue</span>
+          </Button>
+        )}
+
         {isPending && (
           <Button
             variant="ghost"
@@ -275,33 +301,7 @@ export function StudentRowActions({
             title="Cancel pending invitation"
           >
             <XCircle className="size-3.5" />
-            <span className="hidden sm:inline">Cancel invite</span>
-          </Button>
-        )}
-
-        {isExpired && hasEmail && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setReissueOpen(true)}
-            className="h-8 gap-1 px-2 text-xs font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
-            title="Reissue invitation"
-          >
-            <RefreshCw className="size-3.5" />
-            <span className="hidden sm:inline">Reissue</span>
-          </Button>
-        )}
-
-        {!student.invitation_state && hasEmail && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setInviteOpen(true)}
-            className="h-8 gap-1 px-2 text-xs font-medium text-primary hover:bg-primary/10 hover:text-primary"
-            title="Invite student"
-          >
-            <Mail className="size-3.5" />
-            <span className="hidden sm:inline">Invite</span>
+            <span className="hidden sm:inline">Cancel</span>
           </Button>
         )}
       </div>

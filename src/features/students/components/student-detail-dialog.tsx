@@ -42,6 +42,10 @@ export function StudentDetailDialog({
   const hasEmail = Boolean(student.email && student.email.trim() !== "");
   const isPending = student.invitation_state === "pending" && Boolean(student.pending_invitation_id);
   const isExpired = student.invitation_state === "expired";
+  const isCancelled = student.invitation_state === "cancelled";
+
+  const canInvite = (!student.invitation_state || isCancelled) && hasEmail;
+  const canReissue = (isPending || isExpired) && hasEmail;
 
   return (
     <>
@@ -177,7 +181,7 @@ export function StudentDetailDialog({
               <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3">
                 <span className="text-[11px] font-medium text-muted-foreground">Account Access Management</span>
                 <div className="flex flex-wrap gap-2">
-                  {!student.invitation_state && hasEmail && (
+                  {canInvite && (
                     <Button
                       type="button"
                       size="sm"
@@ -185,11 +189,11 @@ export function StudentDetailDialog({
                       className="gap-1.5 text-xs"
                     >
                       <Mail className="size-3.5" />
-                      <span>Invite Student</span>
+                      <span>{isCancelled ? "Re-invite Student" : "Invite Student"}</span>
                     </Button>
                   )}
 
-                  {isExpired && hasEmail && (
+                  {canReissue && (
                     <Button
                       type="button"
                       size="sm"

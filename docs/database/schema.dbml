@@ -604,6 +604,7 @@ Table invitations {
   indexes {
     token_hash [unique]
     profile_id [unique, note: 'At most one pending invitation: WHERE status = pending']
+    (profile_id, purpose, created_at) [note: 'Fast lateral lookup of latest student invitation']
   }
   Note: '''
 ### 3.4 `invitations`

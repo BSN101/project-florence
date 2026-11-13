@@ -2,6 +2,11 @@
 -- Council Executive and Council Operations only.
 begin;
 
+-- Schema & Indexes -------------------------------------------------------------
+
+create index if not exists idx_invitations_profile_purpose_created
+    on public.invitations (profile_id, purpose, created_at desc);
+
 -- Private helper (never granted) ----------------------------------------------
 
 create or replace function public.f_cmd_student_target(p_profile uuid)

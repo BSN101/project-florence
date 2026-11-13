@@ -6,10 +6,13 @@ import { createInvitationToken } from "@/features/access/invitation-token";
 import { runCommand } from "@/features/access/provisioning-service";
 import { trustedRequestOrigin } from "@/features/auth/request-origin";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
+import { createCommandClient } from "@/server/db/command-client";
 import { createUserClient } from "@/server/db/user-client";
 import { sendInvitationEmail } from "@/server/email/invitation-email";
 
 import {
+  isAuthorizedDirectoryViewer,
+  isAuthorizedRosterManager,
   isStudentEligibleForInvite,
   type BulkInviteResult,
   type StudentActionResult,
@@ -25,7 +28,7 @@ import {
 /** The Council workspace alone is not authority; only Executive and Operations manage the roster. */
 export async function requireRosterManager() {
   const context = await requireWorkspace("council");
-  if (context.councilRole !== "executive" && context.councilRole !== "operations") throw new AccessDeniedError("forbidden");
+  if (!isAuthorizedRosterManager(context.councilRole)) throw new AccessDeniedError("forbidden");
   return context;
 }
 
@@ -37,14 +40,8 @@ export async function requireRosterManager() {
  */
 export async function requireDirectoryViewer(workspace: "council" | "faculty") {
   const context = await requireWorkspace(workspace);
-  if (workspace === "council") {
-    if (context.councilRole !== "executive" && context.councilRole !== "operations") {
-      throw new AccessDeniedError("forbidden");
-    }
-  } else if (workspace === "faculty") {
-    const isInstructor =
-      context.roles.includes("Academic Instructor") || context.roles.includes("Clinical Instructor");
-    if (!isInstructor) throw new AccessDeniedError("forbidden");
+  if (!isAuthorizedDirectoryViewer(workspace, context.councilRole, context.roles)) {
+    throw new AccessDeniedError("forbidden");
   }
   return context;
 }
@@ -178,6 +175,7 @@ export async function bulkInviteStudents(raw: unknown): Promise<BulkInviteResult
     };
   }
 
+  const commandClient = createCommandClient();
   const origin = await trustedRequestOrigin();
   let invitedCount = 0;
   let failedCount = 0;
@@ -185,15 +183,15 @@ export async function bulkInviteStudents(raw: unknown): Promise<BulkInviteResult
 
   for (const student of eligible) {
     const invitation = createInvitationToken();
-    const { result, failure } = await runCommand("roster_invite_student", {
+    const { data: result, error: rpcError } = await commandClient.rpc("roster_invite_student", {
       p_key: crypto.randomUUID(),
       p_actor: actor.profile.id,
       p_student: student.student_id,
       p_token_hash: invitation.tokenHash,
       p_expires_at: invitation.expiresAt,
-    }, "/council");
+    });
 
-    if (failure || !result) {
+    if (rpcError || !result) {
       failedCount++;
       continue;
     }
