@@ -1,7 +1,8 @@
 import "server-only";
 
 import { createUserClient } from "@/server/db/user-client";
-import type { AttendanceSummary, AttendeeRow, EventCounts, EventDTO, EventRulesDTO } from "./contracts";
+import type { AttendanceSummary, AttendeeRow, EventCounts, EventDTO, EventRulesDTO, FeedbackRow, MyEventRow } from "./contracts";
+import type { FeedbackResponses } from "./feedback";
 
 const eventFields =
   "id, semester_id, name, venue, starts_at, ends_at, time_in_from, time_in_until, time_out_from, time_out_until, late_after_minutes, year_levels, academic_statuses, audience_frozen_at, attendance_locked_at, archived_at, consequence_bucket";
@@ -70,4 +71,29 @@ export async function getAttendanceCounts(eventIds: string[]): Promise<Record<st
     if (row.time_in) c.timedIn += 1;
   }
   return counts;
+}
+
+/** The signed-in student's events in a semester (florence_my_events). */
+export async function getMyEvents(semesterId: string): Promise<MyEventRow[]> {
+  const client = await createUserClient();
+  const { data, error } = await client.rpc("florence_my_events", { p_semester: semesterId });
+  if (error) throw new Error(`Failed to fetch your events: ${error.message}`);
+  return data;
+}
+
+/** The student's own submitted answers for the given events (RLS: own rows only). */
+export async function getMyFeedback(eventIds: string[]): Promise<Record<string, FeedbackResponses>> {
+  if (eventIds.length === 0) return {};
+  const client = await createUserClient();
+  const { data, error } = await client.from("event_feedback").select("event_id, responses").in("event_id", eventIds);
+  if (error) throw new Error(`Failed to fetch your feedback: ${error.message}`);
+  return Object.fromEntries(data.map((row) => [row.event_id, row.responses as FeedbackResponses]));
+}
+
+/** Identified responses; the function refuses anyone but Executive/Operations. */
+export async function getEventFeedback(eventId: string): Promise<FeedbackRow[]> {
+  const client = await createUserClient();
+  const { data, error } = await client.rpc("florence_event_feedback", { p_event: eventId });
+  if (error) throw new Error(`Failed to fetch feedback: ${error.message}`);
+  return data;
 }

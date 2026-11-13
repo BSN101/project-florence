@@ -29,6 +29,12 @@ export type ConsequencePreviewRow =
 export type AttendeeRow = Database["public"]["Functions"]["florence_event_attendance"]["Returns"][number];
 export type AttendeeStatus = "not_in" | "on_time" | "late" | "absent" | "missing_time_out";
 
+/** A student's own event with attendance, status, consequences and feedback state. */
+export type MyEventRow = Database["public"]["Functions"]["florence_my_events"]["Returns"][number];
+
+/** Identified feedback response; Executive/Operations only. */
+export type FeedbackRow = Database["public"]["Functions"]["florence_event_feedback"]["Returns"][number];
+
 export type EventCounts = { participants: number; timedIn: number };
 
 export type ConsequenceTotals = { absent: number; late: number; fines: number; fineTotal: number; demeritDays: number };
