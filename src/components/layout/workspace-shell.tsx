@@ -5,6 +5,7 @@ import type { Workspace } from "@/features/access/access-policy";
 import { destinationHref, getWorkspaceNavigation, workspaceLabels } from "@/features/access/workspace-navigation";
 import { SemesterContext } from "@/features/semesters/components/semester-context";
 import { SemesterFilter } from "@/features/semesters/components/semester-filter";
+import { getUnreadNotificationCount } from "@/features/notifications/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 import { AppSidebar } from "./app-sidebar";
@@ -39,11 +40,25 @@ export async function WorkspaceShell({ workspace, destination = "", semester, ch
     ?? visibleSemesters.find((item) => item.is_current)?.id
     ?? visibleSemesters[0]?.id;
 
+  const unreadNotifications = workspace === "student"
+    ? await getUnreadNotificationCount().catch(() => 0)
+    : 0;
+
   return (
     <SidebarProvider>
-      <AppSidebar workspace={workspace} navigation={navigation} currentSlug={destination} access={access} />
+      <AppSidebar
+        workspace={workspace}
+        navigation={navigation}
+        currentSlug={destination}
+        access={access}
+        unreadNotifications={unreadNotifications}
+      />
       <SidebarInset>
-        <WorkspaceHeader title={currentItem.label} />
+        <WorkspaceHeader
+          title={currentItem.label}
+          workspace={workspace}
+          unreadNotifications={unreadNotifications}
+        />
         <div className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-10">
           <div className="mx-auto flex max-w-5xl flex-col gap-8">
             <section className="flex flex-col gap-5">
