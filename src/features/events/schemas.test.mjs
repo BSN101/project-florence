@@ -9,10 +9,10 @@ const valid = {
   semesterId: uuid,
   name: "  General Assembly ",
   venue: "",
-  startsAt: "2026-11-20T00:00:00.000Z",
-  endsAt: "2026-11-20T04:00:00.000Z",
-  timeInFrom: "2026-11-19T23:30:00.000Z",
+  // 2026-11-20, 08:00–12:00 Manila.
+  timeInFrom: "2026-11-20T00:00:00.000Z",
   timeOutFrom: null,
+  closesAt: "2026-11-20T04:00:00.000Z",
   lateAfterMinutes: "15",
   yearLevels: [1, 2],
   academicStatuses: ["regular"],
@@ -31,20 +31,21 @@ test("accepts a valid event and normalizes text and numbers", () => {
   assert.equal(result.data.lateAfterMinutes, 15);
 });
 
-test("rejects end before start and time-in opening at or after the end", () => {
-  const result = saveEventSchema.safeParse({ ...valid, endsAt: valid.startsAt, timeInFrom: valid.startsAt });
-  assert.equal(result.success, false);
-  const paths = result.error.issues.map((issue) => issue.path[0]);
-  assert.ok(paths.includes("endsAt"));
-  assert.ok(paths.includes("timeInFrom"));
+test("attendance must close after time-in opens, on the same Manila date", () => {
+  const issues = (input) => saveEventSchema.safeParse(input).error?.issues.map((issue) => issue.path[0]) ?? [];
+  assert.deepEqual(issues({ ...valid, closesAt: valid.timeInFrom }), ["closesAt"]);
+  // 2026-11-21 00:30 Manila is the next day.
+  assert.deepEqual(issues({ ...valid, closesAt: "2026-11-20T16:30:00.000Z" }), ["closesAt"]);
+  // 23:30 Manila is still the event date.
+  assert.deepEqual(issues({ ...valid, closesAt: "2026-11-20T15:30:00.000Z" }), []);
 });
 
-test("time-out opening is required only when time-out is required, and must sit inside the event", () => {
+test("time-out opening is required only when time-out is required, and must sit before closing", () => {
   assert.equal(saveEventSchema.safeParse({ ...valid, requiresTimeOut: true }).success, false);
   assert.equal(saveEventSchema.safeParse({ ...valid, requiresTimeOut: true, timeOutFrom: "2026-11-20T03:30:00.000Z" }).success, true);
   assert.equal(saveEventSchema.safeParse({ ...valid, timeOutFrom: "2026-11-20T03:30:00.000Z" }).success, true);
   assert.equal(saveEventSchema.safeParse({ ...valid, timeOutFrom: "2026-11-19T23:00:00.000Z" }).success, false); // before time-in opens
-  assert.equal(saveEventSchema.safeParse({ ...valid, timeOutFrom: valid.endsAt }).success, false); // at event end
+  assert.equal(saveEventSchema.safeParse({ ...valid, timeOutFrom: valid.closesAt }).success, false); // at closing
 });
 
 test("rejects empty audience, bad year levels and fractional demerits", () => {

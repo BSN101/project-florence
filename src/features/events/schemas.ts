@@ -13,10 +13,10 @@ export const saveEventSchema = z
     semesterId: id,
     name: z.string().trim().min(1, "Name is required").max(150),
     venue: z.string().trim().max(150).transform((value) => value || null),
-    startsAt: instant,
-    endsAt: instant,
+    // One event day: time-in opening is the actual start, and both windows close at closesAt.
     timeInFrom: instant,
     timeOutFrom: instant.nullable(),
+    closesAt: instant,
     lateAfterMinutes: wholeNumber,
     yearLevels: z.array(z.number().int().min(1).max(4)).min(1, "Select at least one year level"),
     academicStatuses: z.array(z.enum(ACADEMIC_STATUSES)).min(1, "Select at least one academic status"),
@@ -29,12 +29,12 @@ export const saveEventSchema = z
   .superRefine((data, ctx) => {
     const t = (value: string) => Date.parse(value);
     const issue = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
-    if (t(data.endsAt) <= t(data.startsAt)) issue("endsAt", "End must be after start");
-    if (t(data.timeInFrom) >= t(data.endsAt)) issue("timeInFrom", "Time-in must open before the event ends");
+    if (t(data.closesAt) <= t(data.timeInFrom)) issue("closesAt", "Attendance must close after time-in opens");
+    else if (manilaDate(data.closesAt) !== manilaDate(data.timeInFrom)) issue("closesAt", "Attendance must close on the event date");
     if (data.timeOutFrom === null) {
       if (data.requiresTimeOut) issue("timeOutFrom", "Set when time-out opens, or stop requiring time-out");
-    } else if (t(data.timeOutFrom) < t(data.timeInFrom) || t(data.timeOutFrom) >= t(data.endsAt)) {
-      issue("timeOutFrom", "Time-out must open after time-in opens and before the event ends");
+    } else if (t(data.timeOutFrom) <= t(data.timeInFrom) || t(data.timeOutFrom) >= t(data.closesAt)) {
+      issue("timeOutFrom", "Time-out must open after time-in opens and before attendance closes");
     }
   });
 
@@ -76,6 +76,11 @@ export type AttendanceImportInput = z.infer<typeof attendanceImportSchema>;
 /** Asia/Manila has a fixed +08:00 offset (no DST). `value` is a datetime-local string. */
 export function manilaInputToIso(value: string): string | null {
   return value ? new Date(`${value}:00+08:00`).toISOString() : null;
+}
+
+/** Manila calendar date (YYYY-MM-DD) of an instant. */
+export function manilaDate(value: string): string {
+  return isoToManilaInput(value).slice(0, 10);
 }
 
 export function isoToManilaInput(value: string | null): string {

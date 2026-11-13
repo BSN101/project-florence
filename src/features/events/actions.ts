@@ -55,14 +55,15 @@ export async function saveEvent(input: SaveEventInput): Promise<EventActionResul
       p_semester: d.semesterId,
       p_name: d.name,
       p_venue: nullable(d.venue),
-      p_starts_at: d.startsAt,
-      p_ends_at: d.endsAt,
+      // The event is a date: time-in opening is its start and the closing time its end.
+      p_starts_at: d.timeInFrom,
+      p_ends_at: d.closesAt,
       p_time_in_from: d.timeInFrom,
-      // Both windows close at the event end so late arrivals can be recorded live; time-out
+      // Both windows close together so late arrivals can still be recorded; time-out
       // opens later to stop early exits. No time-out opening means no time-out recording.
-      p_time_in_until: d.endsAt,
+      p_time_in_until: d.closesAt,
       p_time_out_from: nullable(d.timeOutFrom),
-      p_time_out_until: nullable(d.timeOutFrom && d.endsAt),
+      p_time_out_until: nullable(d.timeOutFrom && d.closesAt),
       p_late_after_minutes: d.lateAfterMinutes,
       p_year_levels: d.yearLevels,
       p_academic_statuses: d.academicStatuses,
