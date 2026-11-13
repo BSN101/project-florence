@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { AddStudentDialog } from "@/features/students/components/add-student-dialog";
+import { BulkInviteDialog } from "@/features/students/components/bulk-invite-dialog";
 import { DownloadTemplateButton } from "@/features/students/components/download-template-button";
 import { RosterTable } from "@/features/students/components/roster-table";
 import type { StudentRosterItem } from "@/features/students/contracts";
@@ -84,7 +85,12 @@ export default async function CouncilPage({
 
               <div className="flex w-full flex-col gap-2 shrink-0 md:w-56 lg:w-60 xl:w-auto xl:flex-row xl:items-center">
                 <DownloadTemplateButton className="w-full justify-center xl:w-auto" />
-                {canEdit && <AddStudentDialog className="w-full justify-center xl:w-auto" />}
+                {canEdit && (
+                  <>
+                    <BulkInviteDialog semesterId={selected.id} students={students} className="w-full justify-center xl:w-auto" />
+                    <AddStudentDialog className="w-full justify-center xl:w-auto" />
+                  </>
+                )}
               </div>
             </div>
             {loadFailed ? (

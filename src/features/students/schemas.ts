@@ -66,3 +66,22 @@ export const createStudentSchema = csvRosterRowSchema;
 export const updateStudentSchema = csvRosterRowSchema.omit({ university_id: true }).extend({
   student_id: z.string().uuid("Invalid student identifier"),
 });
+
+export const inviteStudentSchema = z.object({
+  studentId: z.string().uuid("Invalid student identifier"),
+  requestKey: z.string().uuid().optional(),
+});
+export type InviteStudentInput = z.infer<typeof inviteStudentSchema>;
+
+export const cancelInvitationSchema = z.object({
+  invitationId: z.string().uuid("Invalid invitation identifier"),
+  requestKey: z.string().uuid().optional(),
+});
+export type CancelInvitationInput = z.infer<typeof cancelInvitationSchema>;
+
+export const bulkInviteSchema = z.object({
+  semesterId: z.string().uuid("Invalid semester identifier"),
+  // Students already handled in this run; excluding them lets the batch loop finish without resending.
+  excludeIds: z.array(z.string().uuid()).max(5000).default([]),
+});
+export type BulkInviteInput = z.infer<typeof bulkInviteSchema>;
