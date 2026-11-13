@@ -40,7 +40,8 @@ export function StudentDetailDialog({
   const fullSorted = sortName(student);
 
   const hasEmail = Boolean(student.email && student.email.trim() !== "");
-  const isPending = student.invitation_state === "pending" && Boolean(student.pending_invitation_id);
+  // Any live invitation, including one whose email failed, can be reissued or cancelled.
+  const isPending = Boolean(student.pending_invitation_id);
   const isExpired = student.invitation_state === "expired";
   const isCancelled = student.invitation_state === "cancelled";
 

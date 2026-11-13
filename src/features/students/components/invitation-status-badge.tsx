@@ -49,6 +49,21 @@ export function InvitationStatusBadge({
     );
   }
 
+  // The invitation is still valid; only the email is in doubt, so Council can reissue.
+  if (student.invitation_state === "undelivered" || student.invitation_state === "unconfirmed") {
+    return (
+      <span
+        className={cn(
+          baseClasses,
+          "border border-amber-600/30 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+        )}
+      >
+        <AlertCircle className={isSm ? "size-3" : "size-3.5"} />
+        {student.invitation_state === "undelivered" ? "Email not delivered" : "Email unconfirmed"}
+      </span>
+    );
+  }
+
   if (student.invitation_state === "expired") {
     return (
       <span
