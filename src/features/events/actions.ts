@@ -8,6 +8,7 @@ import { createCommandClient } from "@/server/db/command-client";
 import { createUserClient } from "@/server/db/user-client";
 
 import { mergeImportFindings, parseAttendanceCsv, type ImportRowResult } from "./attendance-import";
+import { feedbackSchema, toResponses, type FeedbackInput } from "./feedback";
 import type { ConsequencePreviewRow, ConsequenceTotals, EventActionResult } from "./contracts";
 import { consequenceTotals, sameTotals } from "./event-state";
 import {
@@ -296,6 +297,26 @@ export async function generateConsequences(input: GenerateConsequencesInput): Pr
     const { obligation_count: fines, demerit_count: demerits } = data as { obligation_count: number; demerit_count: number };
     const label = bucket === "office" ? "Office" : "RLE";
     return { success: true, message: `Generated ${fines} fine${fines === 1 ? "" : "s"} and ${demerits} ${label} demerit${demerits === 1 ? "" : "s"}. Attendance is now locked.` };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** A student's final, identified feedback. The student is the session profile, never the browser. */
+export async function submitFeedback(input: FeedbackInput): Promise<EventActionResult> {
+  try {
+    const context = await requireWorkspace("student");
+    const parsed = feedbackSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check your answers" };
+    const { error } = await createCommandClient().rpc("submit_event_feedback", {
+      p_key: parsed.data.requestKey,
+      p_actor: context.profile.id,
+      p_event: parsed.data.eventId,
+      p_responses: toResponses(parsed.data),
+    });
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/student/events");
+    return { success: true, message: "Thank you. Your feedback was submitted." };
   } catch (err) {
     return failure(err);
   }

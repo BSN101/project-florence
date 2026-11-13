@@ -5,7 +5,7 @@ import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { EventDetail, type EventTab } from "@/features/events/components/event-detail";
 import { EventList } from "@/features/events/components/event-list";
 import { canCapture } from "@/features/events/event-state";
-import { getAttendanceCounts, getEventAttendance, getEventRules, getEvents } from "@/features/events/queries";
+import { getAttendanceCounts, getEventAttendance, getEventFeedback, getEventRules, getEvents } from "@/features/events/queries";
 import { getActiveFineDefinitions } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -32,19 +32,23 @@ export default async function CouncilEventsPage({ searchParams }: {
   const canManage = access.councilRole === "executive" || access.councilRole === "operations";
   const events = semesterId ? await getEvents(semesterId) : [];
   const selected = typeof eventParam === "string" ? events.find((item) => item.id === eventParam) : undefined;
-  // Executive/Operations open any published event; Representatives only capture-ready ones.
-  if (eventParam !== undefined && (!selected || !(canManage ? selected.audience_frozen_at !== null : canCapture(selected)))) notFound();
+  // Every Council role opens any published event (FL-015); drafts have no event page.
+  if (eventParam !== undefined && (!selected || selected.audience_frozen_at === null)) notFound();
 
   const backHref = `?semester=${semesterId}`;
   let content: React.ReactNode = null;
   if (semesterId && selected) {
-    const [attendees, rules] = await Promise.all([
-      getEventAttendance(selected.id),
+    // Representatives see participants only while capture is open (florence_event_attendance enforces it).
+    const canViewAttendance = canManage || canCapture(selected);
+    const [attendees, rules, feedback] = await Promise.all([
+      canViewAttendance ? getEventAttendance(selected.id) : Promise.resolve([]),
       canManage ? getEventRules([selected.id]) : Promise.resolve([]),
+      canManage ? getEventFeedback(selected.id) : Promise.resolve(null),
     ]);
-    const tabs: EventTab[] = ["attendance", "activity", "details", "consequences"];
+    const tabs: EventTab[] = ["attendance", "activity", "details", "consequences", "feedback"];
     content = (
-      <EventDetail event={selected} rules={rules[0] ?? null} attendees={attendees} canManage={canManage}
+      <EventDetail event={selected} rules={rules[0] ?? null} attendees={attendees} feedback={feedback}
+        canManage={canManage} canViewAttendance={canViewAttendance}
         viewerId={access.profile.id} backHref={backHref} now={new Date().toISOString()}
         initialTab={tabs.find((t) => t === tab) ?? "attendance"} />
     );

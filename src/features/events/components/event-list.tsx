@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import type { FineDefinitionDTO } from "@/features/finance/contracts";
 import { archiveEvent, publishEvent } from "../actions";
 import type { EventCounts, EventDTO, EventRulesDTO } from "../contracts";
-import { canCapture, eventPhase } from "../event-state";
+import { eventPhase } from "../event-state";
 import { ConfirmEventDialog } from "./confirm-event-dialog";
 import { PhaseBadge } from "./event-badges";
 import { EventFormDialog } from "./event-form-dialog";
@@ -47,13 +47,13 @@ export function EventList({
   const [editing, setEditing] = useState<EventDTO | "new" | null>(null);
   const [confirming, setConfirming] = useState<{ event: EventDTO; kind: "publish" | "archive" } | null>(null);
   const current = Date.parse(now);
-  // Representatives only work with capture-ready events.
-  const visible = events.filter((event) =>
-    canManage ? (showArchived ? event.archived_at !== null : event.archived_at === null) : canCapture(event));
+  // Representatives see every published event (FL-015) but never drafts.
+  const visible = events.filter((event) => (canManage || event.audience_frozen_at !== null)
+    && (showArchived ? event.archived_at !== null : event.archived_at === null));
   const waiting = canManage ? events.filter((event) => eventPhase(event, current) === "closed") : [];
   const href = (event: EventDTO, tab?: string) => `?semester=${semesterId}&event=${event.id}${tab ? `&tab=${tab}` : ""}`;
-  // Drafts have no event page yet; Representatives only open capture-ready events.
-  const opens = (event: EventDTO) => (canManage ? event.audience_frozen_at !== null : canCapture(event));
+  // Drafts have no event page yet.
+  const opens = (event: EventDTO) => event.audience_frozen_at !== null;
 
   // Whole row/card opens the event; the name stays a real link for keyboard and screen readers.
   function rowProps(event: EventDTO) {
@@ -111,19 +111,19 @@ export function EventList({
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">Events</h2>
           <p className="text-sm text-muted-foreground">
-            {canManage ? "Configure events, publish their audience and follow attendance." : "Record attendance for published events."}
+            {canManage ? "Configure events, publish their audience and follow attendance." : "View events and record attendance while capture is open."}
           </p>
         </div>
-        {canManage && (
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowArchived((value) => !value)}>
-              {showArchived ? "Show active" : "Show archived"}
-            </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={() => setShowArchived((value) => !value)}>
+            {showArchived ? "Show active" : "Show archived"}
+          </Button>
+          {canManage && (
             <Button type="button" onClick={() => setEditing("new")} className="gap-1.5">
               <Plus className="size-4" /> New event
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {waiting.length > 0 && !showArchived && (
@@ -147,7 +147,7 @@ export function EventList({
       <div className="h-[28rem] overflow-y-auto overscroll-contain rounded-xl border border-border bg-card shadow-xs">
         {visible.length === 0 ? (
           <p className="py-12 text-center text-sm font-medium text-muted-foreground">
-            {canManage ? "No events in this semester." : "No events are open for attendance in this semester."}
+            {showArchived ? "No archived events in this semester." : "No events in this semester."}
           </p>
         ) : (
           <>

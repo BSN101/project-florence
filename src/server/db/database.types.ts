@@ -2086,6 +2086,10 @@ export type Database = {
         Args: { p_email: string; p_except: string }
         Returns: undefined
       }
+      f_cmd_event_closes: {
+        Args: { e: Database["public"]["Tables"]["events"]["Row"] }
+        Returns: string
+      }
       f_cmd_event_outcome: {
         Args: {
           e: Database["public"]["Tables"]["events"]["Row"]
@@ -2300,6 +2304,17 @@ export type Database = {
           year_level: number
         }[]
       }
+      florence_event_feedback: {
+        Args: { p_event: string }
+        Returns: {
+          first_name: string
+          last_name: string
+          responses: Json
+          student_id: string
+          submitted_at: string
+          university_id: string
+        }[]
+      }
       florence_executive_candidate: {
         Args: { p_university_id: string }
         Returns: {
@@ -2364,6 +2379,31 @@ export type Database = {
           expires_at: string
           id: string
           status: string
+        }[]
+      }
+      florence_my_events: {
+        Args: { p_semester: string }
+        Returns: {
+          attendance_locked_at: string
+          consequence_bucket: Database["public"]["Enums"]["bucket"]
+          demerit_days: number
+          event_id: string
+          feedback_closes_at: string
+          feedback_eligible: boolean
+          feedback_opens_at: string
+          feedback_submitted_at: string
+          fine_amount: number
+          fine_waived: boolean
+          late_after_minutes: number
+          name: string
+          status: string
+          time_in: string
+          time_in_from: string
+          time_in_until: string
+          time_out: string
+          time_out_from: string
+          time_out_until: string
+          venue: string
         }[]
       }
       florence_provisioning_accounts: {
@@ -2669,6 +2709,15 @@ export type Database = {
           p_key: string
           p_rows: Json
           p_session: string
+        }
+        Returns: Json
+      }
+      submit_event_feedback: {
+        Args: {
+          p_actor: string
+          p_event: string
+          p_key: string
+          p_responses: Json
         }
         Returns: Json
       }
