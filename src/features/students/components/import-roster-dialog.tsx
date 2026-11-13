@@ -215,7 +215,7 @@ export function ImportRosterDialog({
         />
       )}
 
-      <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] sm:max-w-4xl lg:max-w-5xl overflow-y-auto overflow-x-hidden min-w-0 p-5 sm:p-7 gap-6">
+      <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] sm:max-w-4xl lg:max-w-5xl overflow-y-auto overflow-x-hidden min-w-0 p-5 sm:p-6 gap-6">
         <DialogHeader className="gap-1.5 pb-1 border-b border-border/60">
           <div className="flex items-center gap-2.5">
             <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -654,13 +654,13 @@ export function ImportRosterDialog({
         )}
 
         {!successResult && (
-          <DialogFooter className="mt-2 pt-3 border-t border-border/60 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3 w-full min-w-0">
+          <DialogFooter className="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6 mt-4 flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center sm:justify-end sm:gap-3 rounded-b-xl border-t border-border bg-muted/30 px-5 py-3.5 sm:px-6 sm:py-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isPending}
-              className="w-full sm:w-auto font-medium"
+              className="w-full sm:w-auto sm:min-w-28 h-9 font-medium"
             >
               Cancel
             </Button>
@@ -668,7 +668,7 @@ export function ImportRosterDialog({
               type="button"
               onClick={handleApply}
               disabled={isPending || !canImport}
-              className="w-full gap-2 font-medium sm:w-auto px-5"
+              className="w-full sm:w-auto sm:min-w-32 h-9 gap-2 font-medium px-4"
             >
               {isPending && <Loader2 className="size-4 animate-spin" />}
               <span>Import Roster</span>
