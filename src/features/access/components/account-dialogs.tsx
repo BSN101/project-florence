@@ -19,7 +19,7 @@ import { useProvisioningCommand } from "./use-provisioning-command";
 
 type DialogProps = { account: ProvisioningAccount; onClose: () => void };
 
-function Shell({ title, description, onClose, pending, destructive, children }: {
+export function Shell({ title, description, onClose, pending, destructive, children }: {
   title: string; description: string; onClose: () => void; pending: boolean; destructive?: boolean; children: React.ReactNode;
 }) {
   return (
@@ -38,7 +38,7 @@ function Shell({ title, description, onClose, pending, destructive, children }: 
 }
 
 /** Shows the outcome; after a success the only option left is closing. */
-function Footer({ result, pending, onClose, submitLabel, destructive, onSubmit }: {
+export function Footer({ result, pending, onClose, submitLabel, destructive, onSubmit }: {
   result: ProvisioningResult | null; pending: boolean; onClose: () => void; submitLabel: string;
   destructive?: boolean; onSubmit?: () => void;
 }) {
