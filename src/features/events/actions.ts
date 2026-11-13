@@ -8,16 +8,17 @@ import { createCommandClient } from "@/server/db/command-client";
 import { createUserClient } from "@/server/db/user-client";
 
 import { mergeImportFindings, parseAttendanceCsv, type ImportRowResult } from "./attendance-import";
-import type { EventActionResult, ParticipantResult } from "./contracts";
+import type { ConsequencePreviewRow, ConsequenceTotals, EventActionResult } from "./contracts";
+import { consequenceTotals, sameTotals } from "./event-state";
 import {
   attendanceImportSchema,
   eventIdSchema,
-  participantSearchSchema,
+  generateConsequencesSchema,
   qrAttendanceSchema,
   recordAttendanceSchema,
   saveEventSchema,
   type AttendanceImportInput,
-  type ParticipantSearchInput,
+  type GenerateConsequencesInput,
   type QrAttendanceInput,
   type RecordAttendanceInput,
   type SaveEventInput,
@@ -115,38 +116,6 @@ export async function archiveEvent(input: { eventId: string }): Promise<EventAct
     if (!data?.length) return { success: false, error: "Event not found or already archived" };
     revalidatePath(path);
     return { success: true, message: "Event archived" };
-  } catch (err) {
-    return failure(err);
-  }
-}
-
-/** Restricted participant lookup for any Council role, including Representatives. */
-export async function searchParticipants(
-  input: ParticipantSearchInput,
-): Promise<{ success: true; results: ParticipantResult[] } | { success: false; error: string }> {
-  try {
-    await requireWorkspace("council");
-    const parsed = participantSearchSchema.safeParse(input);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid search" };
-    const client = await createUserClient();
-    const { data: matches, error } = await client.rpc("florence_attendance_lookup", {
-      p_event: parsed.data.eventId, p_query: parsed.data.query, p_limit: 20,
-    });
-    if (error) return { success: false, error: error.message };
-    if (!matches?.length) return { success: true, results: [] };
-    const { data: rows, error: rowsError } = await client.from("event_attendance")
-      .select("student_id, time_in, time_out").eq("event_id", parsed.data.eventId)
-      .in("student_id", matches.map((m) => m.student_id));
-    if (rowsError) return { success: false, error: rowsError.message };
-    const byStudent = new Map(rows.map((row) => [row.student_id, row]));
-    return {
-      success: true,
-      results: matches.map((m) => ({
-        ...m,
-        time_in: byStudent.get(m.student_id)?.time_in ?? null,
-        time_out: byStudent.get(m.student_id)?.time_out ?? null,
-      })),
-    };
   } catch (err) {
     return failure(err);
   }
@@ -277,6 +246,56 @@ export async function importAttendance(input: AttendanceImportInput): Promise<Ev
     revalidatePath(path);
     const { recorded, skipped } = data as { recorded: number; skipped: number };
     return { success: true, message: `Imported ${recorded} row${recorded === 1 ? "" : "s"}; ${skipped} skipped` };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+type ConsequencePreview = { rows: ConsequencePreviewRow[]; totals: ConsequenceTotals };
+
+async function loadPreview(eventId: string): Promise<ConsequencePreview | { error: string }> {
+  const client = await createUserClient();
+  const { data, error } = await client.rpc("florence_event_consequence_preview", { p_event: eventId });
+  if (error) return { error: error.message };
+  return { rows: data, totals: consequenceTotals(data) };
+}
+
+/** Executive/Operations review; after generation it lists what was generated. */
+export async function previewConsequences(
+  input: { eventId: string },
+): Promise<({ success: true } & ConsequencePreview) | { success: false; error: string }> {
+  try {
+    await requireEventManager();
+    const parsed = eventIdSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: "Invalid event" };
+    const preview = await loadPreview(parsed.data.eventId);
+    return "error" in preview ? { success: false, error: preview.error } : { success: true, ...preview };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** Generates once and locks attendance. The request key is fixed per review, so retries replay. */
+export async function generateConsequences(input: GenerateConsequencesInput): Promise<EventActionResult> {
+  try {
+    const context = await requireEventManager();
+    const parsed = generateConsequencesSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid request" };
+    const { eventId, bucket, requestKey, expected } = parsed.data;
+    // Late CSV imports can change outcomes after the review; make the user look again.
+    const current = await loadPreview(eventId);
+    if ("error" in current) return { success: false, error: current.error };
+    if (!sameTotals(current.totals, expected)) {
+      return { success: false, error: "Attendance changed since this preview. Review the updated consequences again." };
+    }
+    const { data, error } = await createCommandClient().rpc("generate_event_consequences", {
+      p_key: requestKey, p_actor: context.profile.id, p_event: eventId, p_bucket: bucket,
+    });
+    if (error) return { success: false, error: error.message };
+    revalidatePath(path);
+    const { obligation_count: fines, demerit_count: demerits } = data as { obligation_count: number; demerit_count: number };
+    const label = bucket === "office" ? "Office" : "RLE";
+    return { success: true, message: `Generated ${fines} fine${fines === 1 ? "" : "s"} and ${demerits} ${label} demerit${demerits === 1 ? "" : "s"}. Attendance is now locked.` };
   } catch (err) {
     return failure(err);
   }

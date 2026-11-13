@@ -1,10 +1,10 @@
 import "server-only";
 
 import { createUserClient } from "@/server/db/user-client";
-import type { AttendanceSummary, EventDTO, EventRulesDTO } from "./contracts";
+import type { AttendanceSummary, AttendeeRow, EventCounts, EventDTO, EventRulesDTO } from "./contracts";
 
 const eventFields =
-  "id, semester_id, name, venue, starts_at, ends_at, time_in_from, time_in_until, time_out_from, time_out_until, late_after_minutes, year_levels, academic_statuses, audience_frozen_at, attendance_locked_at, archived_at";
+  "id, semester_id, name, venue, starts_at, ends_at, time_in_from, time_in_until, time_out_from, time_out_until, late_after_minutes, year_levels, academic_statuses, audience_frozen_at, attendance_locked_at, archived_at, consequence_bucket";
 
 /** Events in one semester; RLS limits rows to Council or preserved participants. */
 export async function getEvents(semesterId: string): Promise<EventDTO[]> {
@@ -45,4 +45,29 @@ export async function getAttendanceSummary(eventId: string): Promise<AttendanceS
   };
   const [participants, timedIn, timedOut] = await Promise.all([count(), count("time_in"), count("time_out")]);
   return { participants, timedIn, timedOut };
+}
+
+/** Attendee list with capture details; the function enforces who may see it. */
+export async function getEventAttendance(eventId: string): Promise<AttendeeRow[]> {
+  const client = await createUserClient();
+  const { data, error } = await client.rpc("florence_event_attendance", { p_event: eventId });
+  if (error) throw new Error(`Failed to fetch attendance: ${error.message}`);
+  return data;
+}
+
+/** Participant and timed-in counts per event for the list view. */
+// shortcut: fetches one thin row per participant and counts here; fine for a semester's
+// events (thousands of rows), switch to a grouped SQL view if lists grow far beyond that.
+export async function getAttendanceCounts(eventIds: string[]): Promise<Record<string, EventCounts>> {
+  if (eventIds.length === 0) return {};
+  const client = await createUserClient();
+  const { data, error } = await client.from("event_attendance").select("event_id, time_in").in("event_id", eventIds);
+  if (error) throw new Error(`Failed to count attendance: ${error.message}`);
+  const counts: Record<string, EventCounts> = {};
+  for (const row of data) {
+    const c = (counts[row.event_id] ??= { participants: 0, timedIn: 0 });
+    c.participants += 1;
+    if (row.time_in) c.timedIn += 1;
+  }
+  return counts;
 }

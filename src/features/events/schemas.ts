@@ -40,9 +40,13 @@ export const saveEventSchema = z
 
 export const eventIdSchema = z.object({ eventId: id });
 
-export const participantSearchSchema = z.object({
+const count = z.number().int().min(0);
+export const generateConsequencesSchema = z.object({
   eventId: id,
-  query: z.string().trim().min(2, "Enter at least 2 characters").max(100),
+  bucket: z.enum(["office", "rle"], { message: "Choose Office or RLE" }),
+  requestKey: id,
+  // Totals the user reviewed; generation is refused if attendance changed since.
+  expected: z.object({ absent: count, late: count, fines: count, fineTotal: z.number().min(0), demeritDays: count }),
 });
 
 export const recordAttendanceSchema = z.object({
@@ -68,9 +72,9 @@ export const attendanceImportSchema = z.object({
 });
 
 export type SaveEventInput = z.input<typeof saveEventSchema>;
-export type ParticipantSearchInput = z.infer<typeof participantSearchSchema>;
 export type RecordAttendanceInput = z.infer<typeof recordAttendanceSchema>;
 export type QrAttendanceInput = z.infer<typeof qrAttendanceSchema>;
+export type GenerateConsequencesInput = z.infer<typeof generateConsequencesSchema>;
 export type AttendanceImportInput = z.infer<typeof attendanceImportSchema>;
 
 /** Asia/Manila has a fixed +08:00 offset (no DST). `value` is a datetime-local string. */
