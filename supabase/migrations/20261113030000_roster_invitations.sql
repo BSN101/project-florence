@@ -170,6 +170,9 @@ begin
     order by i.created_at desc, i.id;
 end $$;
 
+-- The output columns change, which create or replace cannot do; ACL is restored below.
+drop function if exists public.florence_roster(uuid);
+
 create or replace function public.florence_roster(p_semester uuid)
  returns table(
     enrollment_id uuid,
@@ -242,6 +245,9 @@ end $$;
 -- ACL -------------------------------------------------------------------------
 
 revoke all on function public.f_cmd_student_target(uuid) from public, anon, authenticated;
+
+revoke all on function public.florence_roster(uuid) from public, anon, authenticated, service_role;
+grant execute on function public.florence_roster(uuid) to authenticated;
 
 grant execute on function public.roster_invite_student(uuid, uuid, uuid, text, timestamptz) to service_role;
 revoke all on function public.roster_invite_student(uuid, uuid, uuid, text, timestamptz) from public, anon, authenticated;
