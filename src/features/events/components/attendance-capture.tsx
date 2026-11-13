@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileUp, Loader2, Search } from "lucide-react";
+import { ArrowLeft, FileUp, Loader2, ScanLine, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ function within(from: string | null, until: string | null, at: number) {
   return from !== null && until !== null && at >= Date.parse(from) && at <= Date.parse(until);
 }
 
-/** Manual attendance capture by restricted participant search. QR capture is a later task. */
+/** Attendance capture: QR scanning, restricted participant search and the paper CSV import. */
 export function AttendanceCapture({
   event,
   summary,
@@ -94,9 +94,21 @@ export function AttendanceCapture({
             {" · "}Late after {event.late_after_minutes} min
           </p>
         </div>
-        <Button type="button" variant="outline" className="gap-1.5" onClick={() => setImporting(true)}>
-          <FileUp className="size-4" /> Import paper attendance
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {([["time_in", "Scan time-in", timeInOpen], ["time_out", "Scan time-out", timeOutOpen]] as const).map(([side, label, open]) => (
+            open
+              ? <Button key={side} className="gap-1.5" nativeButton={false}
+                  render={<Link href={`/council/events/scan?event=${event.id}&side=${side}`} />}>
+                  <ScanLine className="size-4" /> {label}
+                </Button>
+              : <Button key={side} className="gap-1.5" disabled title="This window is closed">
+                  <ScanLine className="size-4" /> {label}
+                </Button>
+          ))}
+          <Button type="button" variant="outline" className="gap-1.5" onClick={() => setImporting(true)}>
+            <FileUp className="size-4" /> Import paper attendance
+          </Button>
+        </div>
         </div>
         <dl className="grid grid-cols-3 gap-3 text-center">
           {[["Participants", summary.participants], ["Timed in", summary.timedIn], ["Timed out", summary.timedOut]].map(([label, value]) => (
