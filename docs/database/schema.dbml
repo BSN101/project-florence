@@ -407,6 +407,12 @@ All are `service_role`-only; the server resolves `p_actor` from the verified ses
 
 - `florence_event_attendance(p_event)` — `authenticated` read for the Council event page. Executive/Operations may read any published event; Representatives only events still open to capture (published, unarchived, unlocked). Returns each preserved participant with snapshot year level/status, times, capture methods, recorder display names and a live status: `not_in`/`on_time`/`late` while capture is open; once closed or locked, `absent` and `missing_time_out` follow `f_cmd_event_outcome`, so the list matches consequence generation. Read-only.
 
+### 16.8 Student events and feedback
+
+- `florence_my_events(p_semester)` — `authenticated`; returns only the signed-in student's preserved participant rows for published events in the semester (archived events only once generated). Includes times, the same live status as `florence_event_attendance`, own fine (and whether waived), active demerit days, bucket, the feedback window (`feedback_opens_at` = when attendance closes via `f_cmd_event_closes`, `feedback_closes_at` = 7 days later), eligibility (timed in) and own submission time. Read-only.
+- `submit_event_feedback(p_key, p_actor, p_event, p_responses)` — `service_role`-only; the server resolves the student from the session. Validates fixed questionnaire v1 exactly (`version` 1, `q1`–`q5` whole numbers 1–5, optional `comment` up to 1000 characters, no other keys); requires a published, unarchived event, a participant who timed in, and the 7-day window. One response per student/event via the unique key; a same-key retry replays the first result, another attempt fails with "Feedback already submitted". `event_feedback` stays append-only.
+- `florence_event_feedback(p_event)` — `authenticated`, Executive/Operations only (`f_access_private.council()`); identified responses with student name and university number. Representatives and students are refused.
+
 ### 16.8 Optional atomic candidates to evaluate during implementation
 
 Do **not** automatically implement these as RPCs. The following transaction contracts are mandatory; a server-held transaction may implement them instead of a DB function:
