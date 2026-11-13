@@ -66,3 +66,24 @@ export const createStudentSchema = csvRosterRowSchema;
 export const updateStudentSchema = csvRosterRowSchema.omit({ university_id: true }).extend({
   student_id: z.string().uuid("Invalid student identifier"),
 });
+
+export const rosterImportRowInputSchema = z.object({
+  row: z.number().int().min(2),
+  university_id: z.string().trim(),
+  last_name: z.string().trim(),
+  first_name: z.string().trim(),
+  middle_name: optionalText,
+  suffix: optionalText,
+  email: optionalEmail,
+  year_level: yearLevelSchema,
+  academic_status: academicStatusSchema,
+});
+
+export const previewRosterImportSchema = z.object({
+  csvText: z.string().min(1, "CSV file is empty"),
+});
+
+export const applyRosterImportSchema = z.object({
+  requestKey: z.string().uuid("Invalid request key"),
+  csvText: z.string().min(1, "CSV file is empty"),
+});
