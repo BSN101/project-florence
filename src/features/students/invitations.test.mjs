@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { describe, test } from "node:test";
 
 import {
+  countBulkOutcomes,
   getInvitationEligibilitySummary,
   isStudentEligibleForInvite,
 } from "./contracts.ts";
@@ -108,6 +109,19 @@ describe("getInvitationEligibilitySummary", () => {
     assert.equal(summary.archivedCount, 1);
   });
 
+  test("undelivered and unconfirmed invitations are eligible for a fresh link and counted as resends", () => {
+    const live = { pending_invitation_id: crypto.randomUUID() };
+    const undelivered = createMockStudent({ invitation_state: "undelivered", ...live });
+    const unconfirmed = createMockStudent({ invitation_state: "unconfirmed", ...live });
+    assert.equal(isStudentEligibleForInvite(undelivered), true);
+    assert.equal(isStudentEligibleForInvite(unconfirmed), true);
+
+    const summary = getInvitationEligibilitySummary([undelivered, unconfirmed, createMockStudent()]);
+    assert.equal(summary.eligibleCount, 3);
+    assert.equal(summary.resendCount, 2);
+    assert.equal(summary.pendingCount, 0);
+  });
+
   test("handles empty roster gracefully", () => {
     const summary = getInvitationEligibilitySummary([]);
     assert.equal(summary.totalStudents, 0);
@@ -148,5 +162,22 @@ describe("Invitation Schemas Validation", () => {
 
     const invalid = { semesterId: "invalid" };
     assert.equal(bulkInviteSchema.safeParse(invalid).success, false);
+  });
+
+  test("bulkInviteSchema defaults excludeIds and rejects non-UUIDs", () => {
+    assert.deepEqual(bulkInviteSchema.parse({ semesterId: crypto.randomUUID() }).excludeIds, []);
+    assert.equal(bulkInviteSchema.safeParse({ semesterId: crypto.randomUUID(), excludeIds: ["x"] }).success, false);
+  });
+});
+
+describe("countBulkOutcomes", () => {
+  test("tallies each outcome status for the progress counters", () => {
+    const o = (status) => ({ studentId: crypto.randomUUID(), name: "A, B", status });
+    assert.deepEqual(countBulkOutcomes([o("sent"), o("sent"), o("email_failed"), o("failed"), o("skipped")]), {
+      sent: 2,
+      email_failed: 1,
+      failed: 1,
+      skipped: 1,
+    });
   });
 });
