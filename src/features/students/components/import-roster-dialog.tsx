@@ -278,8 +278,8 @@ export function ImportRosterDialog({
                 className="sr-only"
               />
 
-              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              <div className="flex flex-col items-center text-center gap-4 sm:flex-row sm:items-center sm:text-left sm:justify-between w-full min-w-0">
+                <div className="flex flex-col items-center gap-3 min-w-0 w-full sm:flex-row sm:items-center sm:gap-3.5 sm:flex-1">
                   <div
                     className={cn(
                       "flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors",
@@ -290,13 +290,13 @@ export function ImportRosterDialog({
                   >
                     <FileUp className="size-5 text-primary" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground truncate">
+                  <div className="min-w-0 flex-1 w-full">
+                    <p className="text-sm font-semibold text-foreground break-words sm:truncate">
                       {isDragging
                         ? "Drop your CSV file here..."
                         : fileName ?? "Drag & drop a student roster CSV, or browse"}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5 break-words">
                       {isDragging
                         ? "Release file to begin preview and identity validation"
                         : "Supports the canonical 8-column format up to 1 MB"}
@@ -305,7 +305,7 @@ export function ImportRosterDialog({
                 </div>
 
                 <div
-                  className="flex items-center gap-2.5 shrink-0 self-end sm:self-center"
+                  className="flex w-full sm:w-auto items-center justify-center sm:justify-end gap-2.5 shrink-0"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {fileName && (
@@ -329,7 +329,7 @@ export function ImportRosterDialog({
                     variant={fileName ? "outline" : "default"}
                     size="sm"
                     disabled={isPending}
-                    className="cursor-pointer gap-2 h-9 px-4 font-medium"
+                    className="cursor-pointer gap-2 h-9 px-4 font-medium w-full sm:w-auto justify-center"
                     onClick={() => document.getElementById(fileInputId)?.click()}
                   >
                     {isPending ? (
