@@ -2,10 +2,10 @@ import { connection } from "next/server";
 import { notFound } from "next/navigation";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
-import { AttendanceCapture } from "@/features/events/components/attendance-capture";
+import { EventDetail, type EventTab } from "@/features/events/components/event-detail";
 import { EventList } from "@/features/events/components/event-list";
 import { canCapture } from "@/features/events/event-state";
-import { getAttendanceSummary, getEventRules, getEvents } from "@/features/events/queries";
+import { getAttendanceCounts, getEventAttendance, getEventRules, getEvents } from "@/features/events/queries";
 import { getActiveFineDefinitions } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -13,10 +13,10 @@ import { getAccessContext } from "@/server/auth/access-context";
 export const instant = false;
 
 export default async function CouncilEventsPage({ searchParams }: {
-  searchParams: Promise<{ semester?: string | string[]; event?: string | string[] }>;
+  searchParams: Promise<{ semester?: string | string[]; event?: string | string[]; tab?: string | string[] }>;
 }) {
   await connection();
-  const { semester, event: eventParam } = await searchParams;
+  const { semester, event: eventParam, tab } = await searchParams;
   const access = await getAccessContext();
   // WorkspaceShell handles unauthenticated/forbidden states and validates the semester param.
   if (access.status !== "ready" || !access.workspaces.includes("council")) {
@@ -32,21 +32,30 @@ export default async function CouncilEventsPage({ searchParams }: {
   const canManage = access.councilRole === "executive" || access.councilRole === "operations";
   const events = semesterId ? await getEvents(semesterId) : [];
   const selected = typeof eventParam === "string" ? events.find((item) => item.id === eventParam) : undefined;
-  if (eventParam !== undefined && (!selected || !canCapture(selected))) notFound();
+  // Executive/Operations open any published event; Representatives only capture-ready ones.
+  if (eventParam !== undefined && (!selected || !(canManage ? selected.audience_frozen_at !== null : canCapture(selected)))) notFound();
 
   const backHref = `?semester=${semesterId}`;
   let content: React.ReactNode = null;
   if (semesterId && selected) {
+    const [attendees, rules] = await Promise.all([
+      getEventAttendance(selected.id),
+      canManage ? getEventRules([selected.id]) : Promise.resolve([]),
+    ]);
+    const tabs: EventTab[] = ["attendance", "activity", "details", "consequences"];
     content = (
-      <AttendanceCapture event={selected} summary={await getAttendanceSummary(selected.id)}
-        viewerId={access.profile.id} backHref={backHref} now={new Date().toISOString()} />
+      <EventDetail event={selected} rules={rules[0] ?? null} attendees={attendees} canManage={canManage}
+        viewerId={access.profile.id} backHref={backHref} now={new Date().toISOString()}
+        initialTab={tabs.find((t) => t === tab) ?? "attendance"} />
     );
   } else if (semesterId) {
-    const [rules, fines] = canManage
-      ? await Promise.all([getEventRules(events.map((item) => item.id)), getActiveFineDefinitions()])
-      : [[], []];
+    const [rules, fines, counts] = await Promise.all([
+      canManage ? getEventRules(events.map((item) => item.id)) : Promise.resolve([]),
+      canManage ? getActiveFineDefinitions() : Promise.resolve([]),
+      getAttendanceCounts(events.filter((item) => item.audience_frozen_at).map((item) => item.id)),
+    ]);
     content = (
-      <EventList events={events} rules={rules} fines={fines} semesterId={semesterId}
+      <EventList events={events} rules={rules} fines={fines} counts={counts} semesterId={semesterId}
         canManage={canManage} now={new Date().toISOString()} />
     );
   }
