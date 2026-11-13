@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { AddStudentDialog } from "@/features/students/components/add-student-dialog";
 import { DownloadTemplateButton } from "@/features/students/components/download-template-button";
+import { ImportRosterDialog } from "@/features/students/components/import-roster-dialog";
 import { RosterTable } from "@/features/students/components/roster-table";
 import type { StudentRosterItem } from "@/features/students/contracts";
 import { getRoster } from "@/features/students/queries";
@@ -84,6 +85,7 @@ export default async function CouncilPage({
 
               <div className="flex w-full flex-col gap-2 shrink-0 md:w-56 lg:w-60 xl:w-auto xl:flex-row xl:items-center">
                 <DownloadTemplateButton className="w-full justify-center xl:w-auto" />
+                {canEdit && <ImportRosterDialog className="w-full justify-center xl:w-auto" />}
                 {canEdit && <AddStudentDialog className="w-full justify-center xl:w-auto" />}
               </div>
             </div>
