@@ -2227,6 +2227,14 @@ export type Database = {
         Args: { p_actor: string; p_profile: string }
         Returns: Json
       }
+      file_download_key: {
+        Args: { p_actor: string; p_file: string }
+        Returns: {
+          media_type: string
+          purpose: string
+          storage_key: string
+        }[]
+      }
       florence_attendance_lookup: {
         Args: { p_event: string; p_limit?: number; p_query: string }
         Returns: {
@@ -2604,6 +2612,17 @@ export type Database = {
           p_reason: string
           p_receipt: string
           p_refunded_at: string
+        }
+        Returns: Json
+      }
+      register_file: {
+        Args: {
+          p_actor: string
+          p_byte_size: number
+          p_key: string
+          p_media_type: string
+          p_purpose: string
+          p_storage_key: string
         }
         Returns: Json
       }
