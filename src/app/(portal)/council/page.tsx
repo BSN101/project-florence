@@ -58,7 +58,7 @@ export default async function CouncilPage({
               </p>
             </div>
             {canManage && (
-              <Button render={<Link href="/council/semesters" />} className="gap-2 font-medium">
+              <Button nativeButton={false} render={<Link href="/council/semesters" />} className="gap-2 font-medium">
                 <Settings className="size-4" />
                 Manage Semesters
               </Button>

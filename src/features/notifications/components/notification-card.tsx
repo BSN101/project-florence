@@ -135,6 +135,7 @@ export function NotificationCard({
         <Button
           variant="link"
           size="sm"
+          nativeButton={false}
           render={<Link href={meta.href} onClick={handleLinkClick} />}
           className="h-auto p-0 font-medium text-primary hover:text-primary/80 gap-1 text-xs"
         >

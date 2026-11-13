@@ -26,6 +26,7 @@ export function WorkspaceHeader({
         <Button
           variant="ghost"
           size="sm"
+          nativeButton={false}
           render={<Link href="/student/notifications" />}
           className="relative size-9 p-0 rounded-lg text-muted-foreground hover:text-foreground"
           title={
