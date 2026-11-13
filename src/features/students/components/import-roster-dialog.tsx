@@ -290,13 +290,16 @@ export function ImportRosterDialog({
                   >
                     <FileUp className="size-5 text-primary" />
                   </div>
-                  <div className="min-w-0 flex-1 w-full">
-                    <p className="text-sm font-semibold text-foreground break-words sm:truncate">
+                  <div className="min-w-0 flex-1 w-full overflow-hidden">
+                    <p
+                      className="text-sm font-semibold text-foreground truncate max-w-full"
+                      title={fileName ?? undefined}
+                    >
                       {isDragging
                         ? "Drop your CSV file here..."
                         : fileName ?? "Drag & drop a student roster CSV, or browse"}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 break-words">
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full sm:break-words">
                       {isDragging
                         ? "Release file to begin preview and identity validation"
                         : "Supports the canonical 8-column format up to 1 MB"}
@@ -305,7 +308,7 @@ export function ImportRosterDialog({
                 </div>
 
                 <div
-                  className="flex w-full sm:w-auto items-center justify-center sm:justify-end gap-2.5 shrink-0"
+                  className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto shrink-0"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {fileName && (
@@ -318,7 +321,7 @@ export function ImportRosterDialog({
                         resetState();
                       }}
                       disabled={isPending}
-                      className="text-xs text-muted-foreground hover:text-foreground h-9"
+                      className="text-xs text-muted-foreground hover:text-destructive h-9 px-3 shrink-0"
                     >
                       <X className="size-3.5 mr-1" />
                       Remove
@@ -329,7 +332,10 @@ export function ImportRosterDialog({
                     variant={fileName ? "outline" : "default"}
                     size="sm"
                     disabled={isPending}
-                    className="cursor-pointer gap-2 h-9 px-4 font-medium w-full sm:w-auto justify-center"
+                    className={cn(
+                      "cursor-pointer gap-2 h-9 px-4 font-medium shrink-0 justify-center",
+                      fileName ? "w-auto" : "w-full sm:w-auto max-w-xs"
+                    )}
                     onClick={() => document.getElementById(fileInputId)?.click()}
                   >
                     {isPending ? (
