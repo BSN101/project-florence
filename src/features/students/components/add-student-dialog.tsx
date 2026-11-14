@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState, useTransition } from "react";
-import { AlertCircle, CheckCircle2, Loader2, UserPlus } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -110,7 +110,7 @@ export function AddStudentDialog({ className }: { className?: string }) {
       <DialogTrigger
         render={
           <Button className={cn("gap-2 font-medium whitespace-nowrap", className)}>
-            <UserPlus className="size-4 shrink-0" />
+            <Plus className="size-4 shrink-0" />
             <span>Add Student</span>
           </Button>
         }

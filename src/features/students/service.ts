@@ -7,6 +7,7 @@ import { commandError, deliverInvitation, runCommand, sendAndRecordInvitation } 
 import { trustedRequestOrigin } from "@/features/auth/request-origin";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
+import type { Json } from "@/server/db/database.types";
 import { createUserClient } from "@/server/db/user-client";
 
 import {
@@ -16,15 +17,31 @@ import {
   isStudentEligibleForInvite,
   type BulkInviteOutcome,
   type BulkInviteResult,
+  type RosterImportPreview,
+  type RosterImportPreviewResult,
+  type RosterImportResult,
   type StudentActionResult,
 } from "./contracts";
+import { mergeRosterImportFindings, parseRosterCsv } from "./csv";
 import {
+  applyRosterImportSchema,
   bulkInviteSchema,
   cancelInvitationSchema,
   createStudentSchema,
   inviteStudentSchema,
+  previewRosterImportSchema,
+  rosterFormatFindings,
   updateStudentSchema,
 } from "./schemas";
+
+/** Parses the file and finds every format problem per row; only well-formed rows go to the database. */
+function checkRosterFile(csvText: string) {
+  const parsed = parseRosterCsv(csvText);
+  if ("error" in parsed) return parsed;
+  const invalid = rosterFormatFindings(parsed.rows, parsed.invalid);
+  const bad = new Set(invalid.map((r) => r.row));
+  return { rows: parsed.rows.filter((r) => !bad.has(r.row)), invalid };
+}
 
 /** The Council workspace alone is not authority; only Executive and Operations manage the roster. */
 export async function requireRosterManager() {
@@ -79,6 +96,90 @@ export async function updateStudentRosterEntry(raw: unknown): Promise<StudentAct
     p_email: s.email, p_year_level: s.year_level, p_academic_status: s.academic_status,
   }, "/council");
   return failure ?? { success: true, message: "Student details updated." };
+}
+
+export async function previewRosterImport(raw: unknown): Promise<RosterImportPreviewResult> {
+  const actor = await requireRosterManager();
+  const parsed = previewRosterImportSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid preview payload" };
+  }
+  const csvResult = checkRosterFile(parsed.data.csvText);
+  if ("error" in csvResult) {
+    return { success: false, error: csvResult.error };
+  }
+
+  // The database needs at least one row; a file with only malformed rows has nothing to ask it.
+  let preview: RosterImportPreview = {
+    semester_id: "", ready: 0, conflicts: 0, invalid: 0, created: 0, re_enrolled: 0, updated: 0, rows: [],
+  };
+  if (csvResult.rows.length > 0) {
+    const client = createCommandClient();
+    const { data, error } = await client.rpc("roster_import_csv", {
+      p_key: crypto.randomUUID(),
+      p_actor: actor.profile.id,
+      p_rows: csvResult.rows as unknown as Json,
+      p_apply: false,
+    });
+    if (error) return { success: false, error: (commandError(error) as { error: string }).error };
+    preview = data as RosterImportPreview;
+  }
+
+  return { success: true, preview: mergeRosterImportFindings(preview, csvResult.invalid) };
+}
+
+export async function applyRosterImport(raw: unknown): Promise<RosterImportResult> {
+  const actor = await requireRosterManager();
+  const parsed = applyRosterImportSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid import payload" };
+  }
+  const csvResult = checkRosterFile(parsed.data.csvText);
+  if ("error" in csvResult) {
+    return { success: false, error: csvResult.error };
+  }
+  if (csvResult.invalid.length > 0) {
+    return {
+      success: false,
+      error: `Import has ${csvResult.invalid.length} invalid row(s); preview the file and resolve them`,
+    };
+  }
+
+  const { result, failure } = await runCommand(
+    "roster_import_csv",
+    {
+      p_key: parsed.data.requestKey,
+      p_actor: actor.profile.id,
+      p_rows: csvResult.rows,
+      p_apply: true,
+    },
+    "/council",
+  );
+
+  if (failure) {
+    return { success: false, error: !failure.success ? failure.error : "Failed to import roster." };
+  }
+
+  const res = result as {
+    total?: number;
+    created?: number;
+    re_enrolled?: number;
+    updated?: number;
+    replayed?: boolean;
+  };
+
+  const total = Number(res?.total ?? 0);
+  const created = Number(res?.created ?? 0);
+  const re_enrolled = Number(res?.re_enrolled ?? 0);
+  const updated = Number(res?.updated ?? 0);
+
+  return {
+    success: true,
+    message: res?.replayed
+      ? `Roster import was already applied (${total} student${total === 1 ? "" : "s"}).`
+      : `Successfully imported ${total} student${total === 1 ? "" : "s"} (${created} new, ${re_enrolled} re-enrolled, ${updated} updated).`,
+    summary: { total, created, re_enrolled, updated },
+  };
 }
 
 /**

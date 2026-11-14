@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { AddStudentDialog } from "@/features/students/components/add-student-dialog";
 import { BulkInviteDialog } from "@/features/students/components/bulk-invite-dialog";
-import { DownloadTemplateButton } from "@/features/students/components/download-template-button";
+import { RosterCsvMenu } from "@/features/students/components/roster-csv-menu";
 import { RosterTable } from "@/features/students/components/roster-table";
 import type { StudentRosterItem } from "@/features/students/contracts";
 import { getRoster } from "@/features/students/queries";
@@ -68,7 +68,7 @@ export default async function CouncilPage({
         ) : (
           <>
             {/* Header and Action Controls */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0 flex-1 space-y-1">
                 <h2 className="font-heading text-lg font-medium text-foreground">
                   Student Roster
@@ -83,12 +83,19 @@ export default async function CouncilPage({
                 </p>
               </div>
 
-              <div className="flex w-full flex-col gap-2 shrink-0 md:w-56 lg:w-60 xl:w-auto xl:flex-row xl:items-center">
-                <DownloadTemplateButton className="w-full justify-center xl:w-auto" />
+              <div className="flex w-full flex-wrap items-center gap-2 sm:gap-2.5 sm:w-auto sm:justify-end shrink-0">
+                {canManage && (
+                  <RosterCsvMenu
+                    canEdit={canEdit}
+                    semesterId={selected.id}
+                    semesterLabel={`${selected.term} (AY ${selected.academic_year_start}–${selected.academic_year_start + 1})`}
+                    students={students}
+                  />
+                )}
                 {canEdit && (
                   <>
-                    <BulkInviteDialog semesterId={selected.id} students={students} className="w-full justify-center xl:w-auto" />
-                    <AddStudentDialog className="w-full justify-center xl:w-auto" />
+                    <BulkInviteDialog semesterId={selected.id} students={students} />
+                    <AddStudentDialog />
                   </>
                 )}
               </div>

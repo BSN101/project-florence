@@ -24,6 +24,57 @@ export type StudentActionResult =
   | { success: true; message: string }
   | { success: false; error: string };
 
+export type RosterImportRowAction = "create" | "re_enroll" | "update" | "none";
+export type RosterImportRowStatus = "ready" | "conflict" | "invalid";
+
+export type RosterImportRowInput = {
+  row: number;
+  university_id: string;
+  last_name: string;
+  first_name: string;
+  middle_name: string | null;
+  suffix: string | null;
+  email: string | null;
+  year_level: number | null;
+  academic_status: string;
+};
+
+export type RosterImportRowResult = {
+  row: number;
+  university_id: string;
+  name: string;
+  action: RosterImportRowAction;
+  status: RosterImportRowStatus;
+  message: string;
+};
+
+export type RosterImportPreview = {
+  semester_id: string;
+  ready: number;
+  conflicts: number;
+  invalid: number;
+  created: number;
+  re_enrolled: number;
+  updated: number;
+  rows: RosterImportRowResult[];
+};
+
+export type RosterImportPreviewResult =
+  | { success: true; preview: RosterImportPreview }
+  | { success: false; error: string };
+
+export type RosterImportResult =
+  | {
+      success: true;
+      message: string;
+      summary: { total: number; created: number; re_enrolled: number; updated: number };
+    }
+  | {
+      success: false;
+      error: string;
+      preview?: RosterImportPreview;
+    };
+
 /** Students per bulk-invite request; small so the progress bar moves often. */
 export const BULK_INVITE_BATCH_SIZE = 5;
 

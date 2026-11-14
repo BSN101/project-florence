@@ -2,13 +2,21 @@
 
 import { guarded } from "@/features/access/provisioning-service";
 
-import type { BulkInviteResult, RosterCandidate, StudentActionResult } from "./contracts";
+import type {
+  BulkInviteResult,
+  RosterCandidate,
+  RosterImportPreviewResult,
+  RosterImportResult,
+  StudentActionResult,
+} from "./contracts";
 import { lookupRosterCandidate } from "./queries";
 import {
   addStudentToRoster,
+  applyRosterImport,
   bulkInviteStudents,
   cancelStudentInvitation,
   inviteStudent,
+  previewRosterImport,
   updateStudentRosterEntry,
 } from "./service";
 
@@ -23,6 +31,19 @@ export async function updateStudentAction(_prev: StudentActionResult | null, for
 /** Throws on denial or failure so the dialog can show an error instead of "new student". */
 export async function lookupStudentAction(universityId: string): Promise<RosterCandidate | null> {
   return lookupRosterCandidate(universityId);
+}
+
+export async function previewRosterImportAction(
+  csvText: string,
+): Promise<RosterImportPreviewResult> {
+  return guarded(() => previewRosterImport({ csvText }));
+}
+
+export async function applyRosterImportAction(
+  requestKey: string,
+  csvText: string,
+): Promise<RosterImportResult> {
+  return guarded(() => applyRosterImport({ requestKey, csvText }));
 }
 
 export async function inviteStudentDirectAction(studentId: string): Promise<StudentActionResult> {
