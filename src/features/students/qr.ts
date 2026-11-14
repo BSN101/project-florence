@@ -23,6 +23,8 @@ export function buildAttendanceQrPayload(universityId: string): string {
  * Rendered with dark modules on an opaque white background for scanner readability.
  */
 export async function generateAttendanceQrDataUrl(universityId: string): Promise<string> {
+  // The PNG depends only on universityId, so encode it once instead of on every student home request.
+  "use cache";
   const payload = buildAttendanceQrPayload(universityId);
   return QRCode.toDataURL(payload, {
     errorCorrectionLevel: "M",

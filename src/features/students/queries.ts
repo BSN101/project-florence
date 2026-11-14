@@ -13,9 +13,15 @@ export async function getRoster(
 ): Promise<StudentRosterItem[]> {
   await requireDirectoryViewer(workspace);
   const client = await createUserClient();
-  const { data, error } = await client.rpc("florence_roster", { p_semester: semesterId });
-  if (error) throw new Error("Unable to load the roster");
-  return data;
+  // Page past the API row cap; the function's stable sort keeps pages from overlapping.
+  const students: StudentRosterItem[] = [];
+  for (let from = 0; ; ) {
+    const { data, error } = await client.rpc("florence_roster", { p_semester: semesterId }).range(from, from + 999);
+    if (error) throw new Error("Unable to load the roster");
+    if (!data.length) return students;
+    students.push(...data);
+    from += data.length;
+  }
 }
 
 /** Exact-number lookup only, for the add-student preview. */

@@ -23,13 +23,14 @@ export default async function EventScanPage({ searchParams }: {
 
   const parsed = eventIdSchema.safeParse({ eventId: event });
   if (!parsed.success) notFound();
-  const selected = await getEvent(parsed.data.eventId);
+  // Counts start alongside the event lookup; they are discarded if the event is not capturable.
+  const [selected, summary] = await Promise.all([getEvent(parsed.data.eventId), getAttendanceSummary(parsed.data.eventId)]);
   if (!selected || !canCapture(selected)) notFound();
 
   return (
     <QrScanStation
       event={selected}
-      summary={await getAttendanceSummary(selected.id)}
+      summary={summary}
       initialSide={side === "time_out" ? "time_out" : "time_in"}
       backHref={`/council/events?semester=${selected.semester_id}&event=${selected.id}`}
       now={new Date().toISOString()}

@@ -5,7 +5,8 @@ import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { EventDetail, type EventTab } from "@/features/events/components/event-detail";
 import { EventList } from "@/features/events/components/event-list";
 import { canCapture } from "@/features/events/event-state";
-import { getAttendanceCounts, getEventAttendance, getEventFeedback, getEventRules, getEvents } from "@/features/events/queries";
+import { getAttendanceCounts, getEvent, getEventAttendance, getEventFeedback, getEventRules, getEvents } from "@/features/events/queries";
+import { eventIdSchema } from "@/features/events/schemas";
 import { getActiveFineDefinitions } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -30,10 +31,10 @@ export default async function CouncilEventsPage({ searchParams }: {
     : access.semesters.find((item) => item.is_current)?.id
     ?? access.semesters[0]?.id;
   const canManage = access.councilRole === "executive" || access.councilRole === "operations";
-  const events = semesterId ? await getEvents(semesterId) : [];
-  const selected = typeof eventParam === "string" ? events.find((item) => item.id === eventParam) : undefined;
+  const eventId = eventParam === undefined ? undefined : eventIdSchema.safeParse({ eventId: eventParam });
+  const selected = semesterId && eventId?.success ? await getEvent(eventId.data.eventId) : null;
   // Every Council role opens any published event (FL-015); drafts have no event page.
-  if (eventParam !== undefined && (!selected || selected.audience_frozen_at === null)) notFound();
+  if (eventParam !== undefined && (!selected || selected.semester_id !== semesterId || selected.audience_frozen_at === null)) notFound();
 
   const backHref = `?semester=${semesterId}`;
   let content: React.ReactNode = null;
@@ -53,9 +54,12 @@ export default async function CouncilEventsPage({ searchParams }: {
         initialTab={tabs.find((t) => t === tab) ?? "attendance"} />
     );
   } else if (semesterId) {
-    const [rules, fines, counts] = await Promise.all([
-      canManage ? getEventRules(events.map((item) => item.id)) : Promise.resolve([]),
+    const [events, fines] = await Promise.all([
+      getEvents(semesterId),
       canManage ? getActiveFineDefinitions() : Promise.resolve([]),
+    ]);
+    const [rules, counts] = await Promise.all([
+      canManage ? getEventRules(events.map((item) => item.id)) : Promise.resolve([]),
       getAttendanceCounts(events.filter((item) => item.audience_frozen_at).map((item) => item.id)),
     ]);
     content = (
