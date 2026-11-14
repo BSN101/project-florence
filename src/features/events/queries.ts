@@ -56,21 +56,13 @@ export async function getEventAttendance(eventId: string): Promise<AttendeeRow[]
   return data;
 }
 
-/** Participant and timed-in counts per event for the list view. */
-// shortcut: fetches one thin row per participant and counts here; fine for a semester's
-// events (thousands of rows), switch to a grouped SQL view if lists grow far beyond that.
+/** Participant and timed-in counts per event for the list view, grouped in SQL under attendance RLS. */
 export async function getAttendanceCounts(eventIds: string[]): Promise<Record<string, EventCounts>> {
   if (eventIds.length === 0) return {};
   const client = await createUserClient();
-  const { data, error } = await client.from("event_attendance").select("event_id, time_in").in("event_id", eventIds);
+  const { data, error } = await client.rpc("florence_event_attendance_counts", { p_events: eventIds });
   if (error) throw new Error(`Failed to count attendance: ${error.message}`);
-  const counts: Record<string, EventCounts> = {};
-  for (const row of data) {
-    const c = (counts[row.event_id] ??= { participants: 0, timedIn: 0 });
-    c.participants += 1;
-    if (row.time_in) c.timedIn += 1;
-  }
-  return counts;
+  return Object.fromEntries(data.map((row) => [row.event_id, { participants: row.participants, timedIn: row.timed_in }]));
 }
 
 /** The signed-in student's events in a semester (florence_my_events). */
@@ -81,11 +73,11 @@ export async function getMyEvents(semesterId: string): Promise<MyEventRow[]> {
   return data;
 }
 
-/** The student's own submitted answers for the given events (RLS: own rows only). */
-export async function getMyFeedback(eventIds: string[]): Promise<Record<string, FeedbackResponses>> {
-  if (eventIds.length === 0) return {};
+/** All of the student's own submitted answers, keyed by event (one per event). */
+export async function getMyFeedback(studentId: string): Promise<Record<string, FeedbackResponses>> {
   const client = await createUserClient();
-  const { data, error } = await client.from("event_feedback").select("event_id, responses").in("event_id", eventIds);
+  // RLS also lets Council read every row, so a Council member viewing as a student needs this filter.
+  const { data, error } = await client.from("event_feedback").select("event_id, responses").eq("student_id", studentId);
   if (error) throw new Error(`Failed to fetch your feedback: ${error.message}`);
   return Object.fromEntries(data.map((row) => [row.event_id, row.responses as FeedbackResponses]));
 }
