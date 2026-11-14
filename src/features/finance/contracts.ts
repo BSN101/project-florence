@@ -65,6 +65,38 @@ export function isAuthorizedPaymentAccountManager(
 }
 
 /**
+ * Defensive error message sanitizer for payment accounts.
+ * Eliminates database leakage (SQLSTATEs, table names, schema details) while returning user-safe guidance.
+ */
+export function sanitizePaymentAccountError(
+  error: unknown,
+  fallbackMessage = "An unexpected error occurred while saving the payment account. Please try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === "42501") {
+      return "You do not have permission to modify payment accounts.";
+    }
+    if (err.code === "23503") {
+      return "This operation is restricted because the account is referenced by existing payment records.";
+    }
+    if (err.code === "23505") {
+      return "A payment destination with identical reference details already exists.";
+    }
+    if (err.message) {
+      if (err.message.includes("Invalid payment destination QR purpose")) {
+        return "The attached QR code is invalid or not registered for payment accounts.";
+      }
+      if (err.message.includes("Active destination snapshot required")) {
+        return "An active payment account snapshot is required for this operation.";
+      }
+    }
+  }
+  return fallbackMessage;
+}
+
+/**
  * Client-safe projection for historical fee publications.
  * Directly derived from the fee_publications table.
  */

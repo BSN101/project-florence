@@ -7,11 +7,12 @@ import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 import { getDownloadUrl, uploadFile, UploadRejectedError } from "@/server/storage/files";
 
-import type {
-  DefinitionActionResult,
-  FeePublicationPreview,
-  PaymentAccountActionResult,
-  PublishFeeResult,
+import {
+  type DefinitionActionResult,
+  type FeePublicationPreview,
+  type PaymentAccountActionResult,
+  type PublishFeeResult,
+  sanitizePaymentAccountError,
 } from "./contracts";
 import {
   assertAuthorizedCouncilExecutive,
@@ -551,7 +552,7 @@ export async function createPaymentAccount(
     if (error || !data) {
       return {
         success: false,
-        error: error?.message ?? "Failed to create payment account",
+        error: sanitizePaymentAccountError(error, "Failed to create payment account. Please try again."),
       };
     }
 
@@ -570,7 +571,7 @@ export async function createPaymentAccount(
     }
     return {
       success: false,
-      error: err instanceof Error ? err.message : "An unexpected error occurred",
+      error: "An unexpected error occurred while saving the payment account. Please try again.",
     };
   }
 }
@@ -603,10 +604,16 @@ export async function updatePaymentAccount(
       .maybeSingle();
 
     if (fetchError || !existing) {
-      return { success: false, error: "Payment account not found" };
+      return {
+        success: false,
+        error: sanitizePaymentAccountError(fetchError, "Payment account not found or unavailable."),
+      };
     }
     if (existing.archived_at !== null) {
-      return { success: false, error: "Archived payment accounts cannot be modified" };
+      return {
+        success: false,
+        error: "Archived payment accounts cannot be modified.",
+      };
     }
 
     const { data: updated, error: updateError } = await commandClient
@@ -625,12 +632,15 @@ export async function updatePaymentAccount(
       .maybeSingle();
 
     if (updateError) {
-      return { success: false, error: updateError.message };
+      return {
+        success: false,
+        error: sanitizePaymentAccountError(updateError, "Failed to update payment account. Please try again."),
+      };
     }
     if (!updated) {
       return {
         success: false,
-        error: "Payment account is no longer active. Refresh and try again.",
+        error: "This payment account is no longer active or was modified by another administrator. Please refresh.",
       };
     }
 
@@ -649,7 +659,7 @@ export async function updatePaymentAccount(
     }
     return {
       success: false,
-      error: err instanceof Error ? err.message : "An unexpected error occurred",
+      error: "An unexpected error occurred while updating the payment account. Please try again.",
     };
   }
 }
@@ -678,10 +688,13 @@ export async function archivePaymentAccount(
       .maybeSingle();
 
     if (fetchError || !existing) {
-      return { success: false, error: "Payment account not found" };
+      return {
+        success: false,
+        error: sanitizePaymentAccountError(fetchError, "Payment account not found or unavailable."),
+      };
     }
     if (existing.archived_at !== null) {
-      return { success: false, error: "Payment account is already archived" };
+      return { success: false, error: "Payment account is already archived." };
     }
 
     const now = new Date().toISOString();
@@ -697,12 +710,15 @@ export async function archivePaymentAccount(
       .maybeSingle();
 
     if (archiveError) {
-      return { success: false, error: archiveError.message };
+      return {
+        success: false,
+        error: sanitizePaymentAccountError(archiveError, "Failed to archive payment account. Please try again."),
+      };
     }
     if (!archived) {
       return {
         success: false,
-        error: "Payment account was already archived or removed.",
+        error: "This payment account was already archived or removed. Please refresh.",
       };
     }
 
@@ -721,7 +737,7 @@ export async function archivePaymentAccount(
     }
     return {
       success: false,
-      error: err instanceof Error ? err.message : "An unexpected error occurred",
+      error: "An unexpected error occurred while archiving the payment account. Please try again.",
     };
   }
 }
@@ -737,8 +753,15 @@ export async function uploadPaymentAccountQr(
     await assertAuthorizedCouncilExecutive();
     const file = formData.get("file");
     if (!file || !(file instanceof File)) {
-      return { success: false, error: "Please select an image file to upload" };
+      return { success: false, error: "Please select an image file to upload." };
     }
+    if (file.size === 0) {
+      return { success: false, error: "The selected file is empty." };
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      return { success: false, error: "The QR code file must be smaller than 2 MB." };
+    }
+
     const requestKey = randomUUID();
     const fileId = await uploadFile("payment_account_qr", file, requestKey);
     return { success: true, fileId };
@@ -754,7 +777,7 @@ export async function uploadPaymentAccountQr(
     }
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to upload QR code",
+      error: "Failed to upload QR code. Please try again with a valid PNG, JPEG, or WebP image.",
     };
   }
 }
@@ -768,9 +791,13 @@ export async function getPaymentAccountQrUrl(
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
   try {
     await assertAuthorizedCouncilExecutive();
+    if (!fileId || typeof fileId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fileId)) {
+      return { success: false, error: "Invalid QR code file identifier." };
+    }
+
     const url = await getDownloadUrl(fileId, "council");
     if (!url) {
-      return { success: false, error: "QR code image not found or access denied" };
+      return { success: false, error: "QR code image not found or access expired." };
     }
     return { success: true, url };
   } catch (err) {
@@ -779,7 +806,7 @@ export async function getPaymentAccountQrUrl(
     }
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to load QR code image",
+      error: "Failed to load QR code image. Please try again.",
     };
   }
 }
