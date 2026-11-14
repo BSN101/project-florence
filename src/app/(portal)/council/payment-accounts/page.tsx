@@ -52,7 +52,13 @@ export default async function CouncilPaymentAccountsPage({
     );
   }
 
-  const accounts = await getPaymentAccounts({ includeArchived: true });
+  let accounts: PaymentAccountDTO[] = [];
+  let loadError: string | null = null;
+  try {
+    accounts = await getPaymentAccounts({ includeArchived: true });
+  } catch {
+    loadError = "Unable to load payment accounts at this time. Please refresh the page.";
+  }
 
   return (
     <WorkspaceShell
@@ -60,6 +66,11 @@ export default async function CouncilPaymentAccountsPage({
       destination="payment-accounts"
       semester={semester}
     >
+      {loadError && (
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive mb-6">
+          {loadError}
+        </div>
+      )}
       <PaymentAccountList accounts={accounts} canManage={true} />
     </WorkspaceShell>
   );
