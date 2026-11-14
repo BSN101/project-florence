@@ -192,7 +192,7 @@ Support customized invitations, acceptance and password recovery/reset. The acce
 
 **Recovery.** Supabase Auth still sends password-recovery email for established accounts.
 
-**Delivery** is a separate outcome. A failed send never undoes the profile or invitation, and a retried command never sends a second email or creates a second identity. The admin reissues instead.
+**Delivery** is a separate outcome. A failed send never undoes the profile or invitation, and a retried command never sends a second email or creates a second identity. The admin reissues instead. The server records Florence's own send outcome (`sent` or `failed`, no provider data) in the insert-only `invitation_deliveries` table so the roster can show an undelivered email and bulk invite can offer a fresh link.
 
 Operational email for payments, merits or demerits is not included by this auth-email support.
 
