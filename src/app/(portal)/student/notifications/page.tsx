@@ -7,6 +7,9 @@ import { getAccessContext } from "@/server/auth/access-context";
 
 export const instant = false;
 
+// shortcut: only the newest page is shown (mark-all still covers older unread rows); add paging if students exceed it.
+const PAGE_SIZE = 50;
+
 export default async function StudentNotificationsPage({
   searchParams,
 }: {
@@ -21,7 +24,7 @@ export default async function StudentNotificationsPage({
   }
 
   const [notifications, unreadCount] = await Promise.all([
-    getStudentNotifications({ limit: 50 }),
+    getStudentNotifications(PAGE_SIZE),
     getUnreadNotificationCount(),
   ]);
 
@@ -30,6 +33,7 @@ export default async function StudentNotificationsPage({
       <NotificationList
         initialNotifications={notifications}
         initialUnreadCount={unreadCount}
+        truncated={notifications.length === PAGE_SIZE}
       />
     </WorkspaceShell>
   );

@@ -10,33 +10,20 @@ const notificationFields =
   "id, recipient_id, kind, message, target_type, target_id, read_at, created_at";
 
 /**
- * Fetches paginated notifications for the authenticated student.
+ * Fetches the newest notifications for the authenticated student.
  * RLS (`recipient_id = f_access_private.me()`) strictly isolates rows.
  */
-export async function getStudentNotifications(options?: {
-  limit?: number;
-  offset?: number;
-  unreadOnly?: boolean;
-}): Promise<NotificationDTO[]> {
+export async function getStudentNotifications(limit: number): Promise<NotificationDTO[]> {
   await requireWorkspace("student");
-  const limit = options?.limit ?? 25;
-  const offset = options?.offset ?? 0;
-  const unreadOnly = options?.unreadOnly ?? false;
-
   const client = await createUserClient();
-  let query = client
+  const { data, error } = await client
     .from("notifications")
     .select(notificationFields)
     .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+    .limit(limit);
 
-  if (unreadOnly) {
-    query = query.is("read_at", null);
-  }
-
-  const { data, error } = await query;
   if (error) throw new Error(`Failed to fetch notifications: ${error.message}`);
-  return (data as NotificationDTO[]) ?? [];
+  return data ?? [];
 }
 
 /**
