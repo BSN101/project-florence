@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { connection } from "next/server";
 import { resolveAccess, type AccessEnrollment, type AccessGrants, type AccessProfile, type CurrentSemester, type SemesterOption } from "../../features/access/access-policy";
 import { createUserClient } from "../db/user-client";
@@ -11,8 +12,11 @@ export type AccessContext =
   | ({ status: "ready"; email: string | null; profile: AccessProfile; enrollments: AccessEnrollment[];
       semesters: SemesterOption[]; currentSemester: CurrentSemester | null } & AccessGrants);
 
-/** Only a verified Auth user and the RLS-visible own profile can establish access. */
-export async function getAccessContext(): Promise<AccessContext> {
+/**
+ * Only a verified Auth user and the RLS-visible own profile can establish access.
+ * Memoized per server request, so the page, shell and workspace layout share one lookup.
+ */
+export const getAccessContext = cache(async function getAccessContext(): Promise<AccessContext> {
   await connection();
   try {
     const client = await createUserClient();
@@ -53,4 +57,4 @@ export async function getAccessContext(): Promise<AccessContext> {
   } catch {
     return { status: "error" };
   }
-}
+});

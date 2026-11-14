@@ -184,7 +184,7 @@ export function QrScanStation({ event, summary, initialSide, backHref, now: serv
   const timedOut = summary.timedOut + recorded.time_out;
 
   return (
-    <main className="fixed inset-0 flex flex-col bg-background text-foreground">
+    <main className="fixed inset-0 flex flex-col bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] text-foreground">
       <header className="flex flex-col gap-2 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" className="-ml-2 gap-1" nativeButton={false} render={<Link href={backHref} />}>

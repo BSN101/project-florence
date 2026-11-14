@@ -119,7 +119,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
     <div className="flex flex-col gap-4">
       {/* Search and Filters Bar */}
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative min-w-0 flex-1 sm:min-w-[280px]">
             <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
             <Input
@@ -130,9 +130,9 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
             />
           </div>
 
-          <div className="grid w-full grid-cols-1 gap-2.5 shrink-0 sm:grid-cols-3 lg:flex lg:w-auto lg:items-center lg:gap-2.5">
+          <div className="grid w-full grid-cols-1 gap-2.5 shrink-0 sm:grid-cols-3 xl:flex xl:w-auto xl:items-center xl:gap-2.5">
             {/* Year Level Filter */}
-            <div className="w-full lg:w-[150px]">
+            <div className="w-full xl:w-[150px]">
               <Select value={yearFilter} onValueChange={(val) => { setYearFilter(val ?? "all"); setPage(0); }}>
                 <SelectTrigger className="w-full text-xs">
                   <span className="truncate">{yearLabel}</span>
@@ -148,7 +148,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
             </div>
 
             {/* Academic Status Filter */}
-            <div className="w-full lg:w-[150px]">
+            <div className="w-full xl:w-[150px]">
               <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? "all"); setPage(0); }}>
                 <SelectTrigger className="w-full text-xs">
                   <span className="truncate">{statusLabel}</span>
@@ -162,7 +162,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
             </div>
 
             {/* Account / Invitation Filter */}
-            <div className="w-full lg:w-[160px]">
+            <div className="w-full xl:w-[160px]">
               <Select value={accountFilter} onValueChange={(val) => { setAccountFilter(val ?? "all"); setPage(0); }}>
                 <SelectTrigger className="w-full text-xs">
                   <span className="truncate">{accountLabel}</span>
@@ -213,7 +213,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
       ) : (
         <>
           {/* Mobile & Tablet Card View (< lg) */}
-          <div className="min-h-[360px] max-h-[600px] overflow-y-auto pr-1 pb-1 lg:hidden">
+          <div className="pb-1 md:min-h-[360px] md:max-h-[600px] md:overflow-y-auto md:pr-1 lg:hidden">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {pageStudents.map((student) => {
                 const fullName = sortName(student);
