@@ -11,6 +11,11 @@ import { getAccessContext } from "@/server/auth/access-context";
 import { AppSidebar } from "./app-sidebar";
 import { WorkspaceHeader } from "./workspace-header";
 
+/** Starts the shell's own queries early; call it before a page's data work so they overlap. */
+export function preloadWorkspaceShell(workspace: Workspace) {
+  if (workspace === "student") void getUnreadNotificationCount().catch(() => 0);
+}
+
 export async function WorkspaceShell({ workspace, destination = "", semester, children }: {
   workspace: Workspace;
   destination?: string;

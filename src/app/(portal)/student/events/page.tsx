@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 
-import { WorkspaceShell } from "@/components/layout/workspace-shell";
+import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
 import { StudentEvents } from "@/features/events/components/student-events";
 import { getMyEvents, getMyFeedback } from "@/features/events/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
@@ -27,6 +27,7 @@ export default async function StudentEventsPage({ searchParams }: {
     : enrolled.find((s) => s.is_current)?.id ?? enrolled[0]?.id;
 
   let content: React.ReactNode = null;
+  preloadWorkspaceShell("student");
   if (semesterId) {
     const [events, allFeedback] = await Promise.all([getMyEvents(semesterId), getMyFeedback(access.profile.id)]);
     // Only this semester's answers reach the client.
