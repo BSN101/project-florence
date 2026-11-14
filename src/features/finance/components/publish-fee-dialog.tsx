@@ -310,7 +310,8 @@ function PublishFeeForm({
             !selectedFeeId ||
             selectedYears.length === 0 ||
             selectedStatuses.length === 0 ||
-            effectivePreview?.newObligationsCount === 0
+            !effectivePreview ||
+            effectivePreview.newObligationsCount === 0
           }
         >
           {isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
