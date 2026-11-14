@@ -81,9 +81,11 @@ export function PaymentAccountList({
         )}
       </div>
 
-      <div className="flex border-b border-border">
+      <div role="tablist" aria-label="Payment account status" className="flex border-b border-border">
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "active"}
           onClick={() => setActiveTab("active")}
           className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
             activeTab === "active"
@@ -96,6 +98,8 @@ export function PaymentAccountList({
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "archived"}
           onClick={() => setActiveTab("archived")}
           className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
             activeTab === "archived"
