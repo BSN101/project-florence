@@ -15,11 +15,12 @@ export class UploadRejectedError extends Error {}
 type Encode = (image: ReturnType<typeof sharp>) => ReturnType<typeof sharp>;
 
 // Best quality first. Re-encoding can grow an already-compressed upload, so later steps trade quality for size.
-// Dithering stays off: it scatters noise that compresses badly and adds nothing to a QR's hard edges.
+// QR dithering stays off: it scatters noise that compresses badly and adds nothing to a QR's hard edges.
 const encodings: Record<"payment_proof" | "payment_account_qr", Encode[]> = {
   // Quality 60 is the floor that keeps receipt text readable.
   payment_proof: [80, 70, 60].map((quality): Encode => (i) => i.webp({ quality })),
-  payment_account_qr: [256, 64, 16].map((colours): Encode => (i) => i.png({ compressionLevel: 9, palette: true, colours, dither: 0 })),
+  // QRs only need to scan: 16 colours keeps logos recognisable (with some banding) at a few KB.
+  payment_account_qr: [(i) => i.png({ compressionLevel: 9, palette: true, colours: 16, dither: 0 })],
 };
 
 /** First encoding no larger than the upload; if none is, the smallest. Always re-encodes, so metadata never survives. */

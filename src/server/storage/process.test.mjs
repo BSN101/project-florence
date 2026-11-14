@@ -62,7 +62,7 @@ test("payment-account QR codes stay scannable after compression", async () => {
 });
 
 // A QR on a gradient with a coloured logo, exported as a JPEG screenshot, like an e-wallet "save QR" image.
-async function qrScreenshot(text, quality = 85) {
+async function qrScreenshot(text) {
   const W = 1080, H = 1920, bg = Buffer.alloc(W * H * 3);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = (y * W + x) * 3; bg[i] = 0; bg[i + 1] = 90 + Math.round((y * 100) / H); bg[i + 2] = 200 + Math.round((x * 55) / W);
@@ -71,7 +71,7 @@ async function qrScreenshot(text, quality = 85) {
   const logo = await sharp({ create: { width: 140, height: 140, channels: 3, background: "#0b5cff" } }).png().toBuffer();
   return sharp(bg, { raw: { width: W, height: H, channels: 3 } })
     .composite([{ input: qr, left: 140, top: 560 }, { input: logo, left: 470, top: 890 }])
-    .jpeg({ quality }).toBuffer();
+    .jpeg({ quality: 85 }).toBuffer();
 }
 
 async function decodeQr(png) {
@@ -79,21 +79,12 @@ async function decodeQr(png) {
   return jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data;
 }
 
-test("a JPEG QR screenshot is not stored larger than uploaded and still scans", async () => {
+test("a JPEG QR screenshot is stored as a small 16-colour PNG that still scans", async () => {
   const text = "00020101021127600011ph.ppmi.p2m0111GXCHPHM2XXX";
   const input = await qrScreenshot(text);
   const out = await processUpload("payment_account_qr", new Uint8Array(input));
   assert.equal((await sharp(out).metadata()).format, "png");
-  assert.ok(out.byteLength <= input.byteLength, `${out.byteLength} > ${input.byteLength}`);
-  assert.equal(await decodeQr(out), text);
-});
-
-test("a heavily compressed QR screenshot falls back to fewer colours and still scans", async () => {
-  const text = "00020101021127600011ph.ppmi.p2m0111GXCHPHM2XXX";
-  // At quality 5 the JPEG is small enough that only the 16-colour step fits under it.
-  const input = await qrScreenshot(text, 5);
-  const out = await processUpload("payment_account_qr", new Uint8Array(input));
-  assert.ok(out.byteLength <= input.byteLength, `${out.byteLength} > ${input.byteLength}`);
+  assert.ok(out.byteLength < 10 * 1024, `${out.byteLength} bytes`);
   assert.equal(await decodeQr(out), text);
 });
 
