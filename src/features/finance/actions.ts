@@ -11,7 +11,6 @@ import { previewFeeObligations } from "./queries";
 import {
   archiveDefinitionSchema,
   createDefinitionSchema,
-  previewFeeObligationsSchema,
   publishFeeObligationsSchema,
   updateDefinitionSchema,
   type ArchiveDefinitionInput,
