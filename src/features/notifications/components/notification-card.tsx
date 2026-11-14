@@ -6,7 +6,6 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { markNotificationAsReadAction } from "../actions";
 import { getNotificationMeta, type NotificationDTO } from "../contracts";
 
 export function formatRelativeTime(isoString: string): string {
@@ -45,7 +44,7 @@ export function NotificationCard({
   onMarkAsRead,
 }: {
   notification: NotificationDTO;
-  onMarkAsRead?: (id: string) => void;
+  onMarkAsRead: (id: string) => Promise<void>;
 }) {
   const [isPending, startTransition] = useTransition();
   const meta = getNotificationMeta(notification.kind);
@@ -56,20 +55,11 @@ export function NotificationCard({
     e.preventDefault();
     e.stopPropagation();
     if (!isUnread || isPending) return;
-
-    onMarkAsRead?.(notification.id);
-    startTransition(async () => {
-      await markNotificationAsReadAction(notification.id);
-    });
+    startTransition(() => onMarkAsRead(notification.id));
   };
 
   const handleLinkClick = () => {
-    if (isUnread) {
-      onMarkAsRead?.(notification.id);
-      startTransition(async () => {
-        await markNotificationAsReadAction(notification.id);
-      });
-    }
+    if (isUnread) startTransition(() => onMarkAsRead(notification.id));
   };
 
   return (
@@ -122,6 +112,8 @@ export function NotificationCard({
         <div className="flex flex-col items-end shrink-0 gap-1 text-right">
           <time
             dateTime={notification.created_at}
+            // Relative time can differ by a minute between server render and hydration.
+            suppressHydrationWarning
             title={formatFullDateTime(notification.created_at)}
             className="text-[11px] font-medium text-muted-foreground whitespace-nowrap"
           >
