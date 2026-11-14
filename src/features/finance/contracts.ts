@@ -55,6 +55,16 @@ export type PaymentAccountDTO = Pick<
 export type PaymentAccountCatalogItem = PaymentAccountDTO;
 
 /**
+ * Pure authorization check for payment account management (FL-047 / T-032).
+ * Only Council Executives have access; Operations and Representatives do not manage destinations.
+ */
+export function isAuthorizedPaymentAccountManager(
+  councilRole: string | null | undefined
+): boolean {
+  return councilRole === "executive";
+}
+
+/**
  * Client-safe projection for historical fee publications.
  * Directly derived from the fee_publications table.
  */

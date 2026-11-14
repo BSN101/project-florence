@@ -3,6 +3,7 @@ import { ShieldAlert } from "lucide-react";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { PaymentAccountList } from "@/features/finance/components/payment-account-list";
+import { isAuthorizedPaymentAccountManager } from "@/features/finance/contracts";
 import { getPaymentAccounts } from "@/features/finance/queries";
 import { getAccessContext } from "@/server/auth/access-context";
 
@@ -28,7 +29,7 @@ export default async function CouncilPaymentAccountsPage({
   }
 
   // FL-047: Council Executives only; Operations and Representatives do not manage destinations.
-  const isExecutive = access.councilRole === "executive";
+  const isExecutive = isAuthorizedPaymentAccountManager(access.councilRole);
 
   if (!isExecutive) {
     return (

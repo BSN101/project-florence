@@ -2,14 +2,15 @@ import "server-only";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
-import type {
-  FeeDefinitionCatalogItem,
-  FeeDefinitionDTO,
-  FeePublicationDTO,
-  FeePublicationPreview,
-  FineDefinitionCatalogItem,
-  FineDefinitionDTO,
-  PaymentAccountDTO,
+import {
+  type FeeDefinitionCatalogItem,
+  type FeeDefinitionDTO,
+  type FeePublicationDTO,
+  type FeePublicationPreview,
+  type FineDefinitionCatalogItem,
+  type FineDefinitionDTO,
+  type PaymentAccountDTO,
+  isAuthorizedPaymentAccountManager,
 } from "./contracts";
 import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./schemas";
 
@@ -32,7 +33,7 @@ export async function assertAuthorizedCouncilManager() {
  */
 export async function assertAuthorizedCouncilExecutive() {
   const context = await requireWorkspace("council");
-  if (context.councilRole !== "executive") {
+  if (!isAuthorizedPaymentAccountManager(context.councilRole)) {
     throw new AccessDeniedError("forbidden");
   }
   return context;
