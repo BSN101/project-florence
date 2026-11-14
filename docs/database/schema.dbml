@@ -1670,7 +1670,8 @@ Table notifications {
   read_at timestamptz [null, note: "Read time"]
   created_at timestamptz [not null, note: "Created time"]
   indexes {
-    (recipient_id, created_at) [note: 'Recommended V1 access-pattern candidate; see source guidance']
+    (recipient_id, created_at) [note: 'notifications_recipient_idx (created_at desc)']
+    recipient_id [note: 'idx_notifications_unread where read_at is null']
   }
   Note: '''
 ### 12.1 `notifications`

@@ -78,11 +78,12 @@ function roleLabel(access: ReadyAccess, workspace: Workspace) {
   return access.roles[0] ?? "Faculty";
 }
 
-export function AppSidebar({ workspace, navigation, currentSlug, access }: {
+export function AppSidebar({ workspace, navigation, currentSlug, access, unreadNotifications = 0 }: {
   workspace: Workspace;
   navigation: NavigationItem[];
   currentSlug: string;
   access: ReadyAccess;
+  unreadNotifications?: number;
 }) {
   const router = useRouter();
   const [isWorkspacePending, startWorkspaceTransition] = useTransition();
@@ -158,6 +159,11 @@ export function AppSidebar({ workspace, navigation, currentSlug, access }: {
                       render={<Link href={destinationHref(workspace, item.slug)} />}>
                       <Icon />
                       <span>{item.label}</span>
+                      {workspace === "student" && item.slug === "notifications" && unreadNotifications > 0 && (
+                        <span className="ml-auto flex min-w-5 h-5 items-center justify-center rounded-full bg-primary/15 text-primary px-1.5 text-[10px] font-bold">
+                          {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                        </span>
+                      )}
                       <LinkPendingIndicator />
                     </SidebarMenuButton>
                   </SidebarMenuItem>
