@@ -12,6 +12,26 @@ export const filePurposes = {
 
 export class UploadRejectedError extends Error {}
 
+type Encode = (image: ReturnType<typeof sharp>) => ReturnType<typeof sharp>;
+
+// Best quality first. Re-encoding can grow an already-compressed upload, so later steps trade quality for size.
+// Dithering stays off: it scatters noise that compresses badly and adds nothing to a QR's hard edges.
+const encodings: Record<"payment_proof" | "payment_account_qr", Encode[]> = {
+  payment_proof: [(i) => i.webp({ quality: 80 })],
+  payment_account_qr: [256, 64, 16].map((colours): Encode => (i) => i.png({ compressionLevel: 9, palette: true, colours, dither: 0 })),
+};
+
+/** First encoding no larger than the upload; if none is, the smallest. Always re-encodes, so metadata never survives. */
+async function smallestEncoding(image: ReturnType<typeof sharp>, steps: Encode[], inputBytes: number): Promise<Uint8Array> {
+  let smallest: Buffer | undefined;
+  for (const encode of steps) {
+    const out = await encode(image.clone()).toBuffer();
+    if (out.byteLength <= inputBytes) return new Uint8Array(out);
+    if (!smallest || out.byteLength < smallest.byteLength) smallest = out;
+  }
+  return new Uint8Array(smallest!);
+}
+
 const imageFormats = new Set(["jpeg", "png", "webp"]);
 // Decompression-bomb guard: refuse images that decode to more than 40 megapixels.
 const maxPixels = 40_000_000;
@@ -42,10 +62,10 @@ export async function processUpload(purpose: FilePurpose, input: Uint8Array): Pr
   // rotate() applies EXIF orientation; sharp drops all metadata (including GPS) by default.
   const upright = image.rotate();
   try {
-    const out = purpose === "payment_proof"
-      ? await upright.resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true }).webp({ quality: 80 }).toBuffer()
-      : await upright.resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true }).png({ compressionLevel: 9, palette: true }).toBuffer();
-    return new Uint8Array(out);
+    const resized = purpose === "payment_proof"
+      ? upright.resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
+      : upright.resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true });
+    return await smallestEncoding(resized, encodings[purpose], input.byteLength);
   } catch {
     throw new UploadRejectedError("The image couldn't be processed. Try a different file.");
   }
