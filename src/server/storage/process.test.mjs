@@ -42,6 +42,16 @@ test("small screenshot text stays readable enough to keep its contrast", async (
   assert.ok(channels[0].max > 240);
 });
 
+test("an already-compressed proof photo is not stored larger than uploaded", async () => {
+  const noise = Buffer.alloc(300 * 400 * 3);
+  for (let i = 0; i < noise.length; i++) noise[i] = (i * 2654435761) >>> 24;
+  const input = await sharp(noise, { raw: { width: 300, height: 400, channels: 3 } })
+    .resize(1200, 1600).blur(1.2).jpeg({ quality: 60 }).toBuffer();
+  const out = await processUpload("payment_proof", new Uint8Array(input));
+  assert.equal((await sharp(out).metadata()).format, "webp");
+  assert.ok(out.byteLength <= input.byteLength, `${out.byteLength} > ${input.byteLength}`);
+});
+
 test("payment-account QR codes stay scannable after compression", async () => {
   const input = await QRCode.toBuffer("00020101021127600011ph.ppmi.p2m0111GXCHPHM2XXX", { width: 1600, margin: 4 });
   const out = await processUpload("payment_account_qr", new Uint8Array(input));
