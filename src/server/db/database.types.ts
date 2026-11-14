@@ -2331,6 +2331,14 @@ export type Database = {
           year_level: number
         }[]
       }
+      florence_event_attendance_counts: {
+        Args: { p_events: string[] }
+        Returns: {
+          event_id: string
+          participants: number
+          timed_in: number
+        }[]
+      }
       florence_event_consequence_preview: {
         Args: { p_event: string }
         Returns: {
