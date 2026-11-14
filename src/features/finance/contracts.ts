@@ -48,7 +48,7 @@ export type FeePublicationDTO = Pick<
 >;
 
 export type FeePublicationHistoryItem = FeePublicationDTO & {
-  publisher_name: string;
+  publisher_name?: string;
 };
 
 /**

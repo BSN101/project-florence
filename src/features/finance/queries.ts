@@ -1,12 +1,24 @@
 import "server-only";
 
+import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
 import type {
   FeeDefinitionCatalogItem,
   FeeDefinitionDTO,
+  FeePublicationDTO,
+  FeePublicationPreview,
   FineDefinitionCatalogItem,
   FineDefinitionDTO,
 } from "./contracts";
+import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./schemas";
+
+async function assertAuthorizedCouncilManager() {
+  const context = await requireWorkspace("council");
+  if (context.councilRole !== "executive" && context.councilRole !== "operations") {
+    throw new AccessDeniedError("forbidden");
+  }
+  return context;
+}
 
 /**
  * Fetch active fee definitions for future fee publication (T-031).
@@ -79,5 +91,110 @@ export async function getFineDefinitions(options?: {
 
   const definitions = (data ?? []) as FineDefinitionCatalogItem[];
   return options?.includeArchived ? definitions : definitions.filter((fine) => fine.archived_at === null);
+}
+
+/**
+ * Preview audience size, existing obligations, and projected totals before publishing fee obligations.
+ * Restricted to Council Executive and Operations.
+ */
+export async function previewFeeObligations(
+  input: PreviewFeeObligationsInput
+): Promise<FeePublicationPreview> {
+  await assertAuthorizedCouncilManager();
+  const parsed = previewFeeObligationsSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error("Invalid audience preview input");
+  }
+
+  const client = await createUserClient();
+
+  const { data: feeDef, error: feeError } = await client
+    .from("fee_definitions")
+    .select("id, name, amount, archived_at")
+    .eq("id", parsed.data.feeDefinitionId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (feeError || !feeDef) {
+    throw new Error("Active fee definition required");
+  }
+
+  const { data: enrollments, error: enrollError } = await client
+    .from("enrollments")
+    .select("student_id")
+    .eq("semester_id", parsed.data.semesterId)
+    .in("year_level", parsed.data.yearLevels)
+    .in("academic_status", parsed.data.academicStatuses);
+
+  if (enrollError) {
+    throw new Error(`Failed to query enrollments: ${enrollError.message}`);
+  }
+
+  const matchingStudentIds = (enrollments ?? []).map((e) => e.student_id);
+  if (matchingStudentIds.length === 0) {
+    return {
+      totalMatchingStudents: 0,
+      alreadyObligatedCount: 0,
+      newObligationsCount: 0,
+      unitAmount: Number(feeDef.amount),
+      totalNewAmount: 0,
+    };
+  }
+
+  const { data: existingObligations, error: obligError } = await client
+    .from("obligations")
+    .select("student_id")
+    .eq("kind", "fee")
+    .eq("fee_definition_id", parsed.data.feeDefinitionId)
+    .eq("semester_id", parsed.data.semesterId)
+    .in("student_id", matchingStudentIds);
+
+  if (obligError) {
+    throw new Error(`Failed to query existing obligations: ${obligError.message}`);
+  }
+
+  const alreadyObligatedSet = new Set((existingObligations ?? []).map((o) => o.student_id));
+  const totalMatchingStudents = matchingStudentIds.length;
+  const alreadyObligatedCount = alreadyObligatedSet.size;
+  const newObligationsCount = Math.max(0, totalMatchingStudents - alreadyObligatedCount);
+  const unitAmount = Number(feeDef.amount);
+  const totalNewAmount = Number((newObligationsCount * unitAmount).toFixed(2));
+
+  return {
+    totalMatchingStudents,
+    alreadyObligatedCount,
+    newObligationsCount,
+    unitAmount,
+    totalNewAmount,
+  };
+}
+
+/**
+ * Fetch historical fee publications for audit and display.
+ * Restricted to Council Executive and Operations.
+ */
+export async function getFeePublications(
+  semesterId?: string
+): Promise<FeePublicationDTO[]> {
+  await assertAuthorizedCouncilManager();
+  const client = await createUserClient();
+
+  let query = client
+    .from("fee_publications")
+    .select(
+      "id, fee_definition_id, semester_id, year_levels, academic_statuses, description, amount, published_by, published_at"
+    )
+    .order("published_at", { ascending: false });
+
+  if (semesterId) {
+    query = query.eq("semester_id", semesterId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to fetch fee publications: ${error.message}`);
+  }
+
+  return data ?? [];
 }
 
