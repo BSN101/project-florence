@@ -359,3 +359,12 @@ test("payment account number needs at least 10 digits, ignoring separators", () 
   assert.equal(parse("0917-123-45"), false);
   assert.equal(parse("ABCDEFGHIJK"), false);
 });
+
+test("payment account update keeps an absent qrFileId undefined so the QR is left unchanged", () => {
+  const base = { id: validUuid, label: "GCash", accountName: "Treasury", accountReference: "09171234567" };
+  const absent = updatePaymentAccountSchema.safeParse(base);
+  assert.equal(absent.success, true);
+  assert.equal(absent.data.qrFileId, undefined);
+  assert.equal(updatePaymentAccountSchema.safeParse({ ...base, qrFileId: null }).data.qrFileId, null);
+  assert.equal(updatePaymentAccountSchema.safeParse({ ...base, qrFileId: "" }).data.qrFileId, null);
+});

@@ -58,9 +58,8 @@ export function EditPaymentAccountDialog({
     }
 
     startTransition(async () => {
-      let finalQrFileId: string | null | undefined = values.removeExistingQr
-        ? null
-        : account.qr_file_id;
+      // undefined keeps the current QR; null removes it.
+      let finalQrFileId: string | null | undefined = values.removeExistingQr ? null : undefined;
 
       if (values.qrFile) {
         const uploadRes = await prepareAndUploadPaymentAccountQr(values.qrFile);

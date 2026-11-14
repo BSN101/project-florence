@@ -604,7 +604,7 @@ export async function updatePaymentAccount(
         label: parsed.data.label,
         account_name: parsed.data.accountName,
         account_reference: parsed.data.accountReference,
-        qr_file_id: parsed.data.qrFileId ?? null,
+        ...(parsed.data.qrFileId !== undefined && { qr_file_id: parsed.data.qrFileId }),
         updated_at: new Date().toISOString(),
       })
       .eq("id", parsed.data.id)

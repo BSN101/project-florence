@@ -96,8 +96,9 @@ const accountReference = z
   // GCash numbers are 11 digits and institutional bank accounts at least 10; separators don't count.
   .refine((value) => value.replace(/\D/g, "").length >= 10, "Account number must have at least 10 digits");
 
+// Absent means "leave unchanged" on update; null or "" removes the QR.
 const accountQrFileId = z.preprocess(
-  (val) => (val === "" || val === undefined ? null : val),
+  (val) => (val === "" ? null : val),
   paymentAccountQrFileIdSchema.nullable().optional()
 );
 
