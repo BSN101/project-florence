@@ -76,6 +76,12 @@ export function EditPaymentAccountDialog({
         accountName: values.accountName.trim(),
         accountReference: values.accountReference.trim(),
         qrFileId: finalQrFileId,
+        expected: {
+          label: account.label,
+          accountName: account.account_name,
+          accountReference: account.account_reference,
+          qrFileId: account.qr_file_id,
+        },
       });
 
       if (!result.success) {

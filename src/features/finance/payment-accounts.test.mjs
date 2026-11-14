@@ -14,6 +14,7 @@ import {
 } from "./schemas.ts";
 
 const validUuid = "a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d";
+const expected = { label: "GCash", accountName: "Treasury", accountReference: "0917-000-0000", qrFileId: null };
 
 describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
   describe("Role-based access authorization", () => {
@@ -85,6 +86,7 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
           label: "GCash",
           accountName: "Treasury",
           accountReference: "0917-000-0000",
+          expected,
         }).success,
         false
       );
@@ -95,6 +97,7 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
           label: "   ",
           accountName: "Treasury",
           accountReference: "0917-000-0000",
+          expected,
         }).success,
         false
       );
@@ -105,6 +108,7 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
           label: "GCash",
           accountName: "",
           accountReference: "0917-000-0000",
+          expected,
         }).success,
         false
       );
@@ -115,6 +119,7 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
           label: "GCash",
           accountName: "Treasury",
           accountReference: "   ",
+          expected,
         }).success,
         false
       );

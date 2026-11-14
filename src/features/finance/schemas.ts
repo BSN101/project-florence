@@ -113,6 +113,13 @@ export const createPaymentAccountSchema = z.object({
 
 export const updatePaymentAccountSchema = createPaymentAccountSchema.extend({
   id: accountId,
+  // The values the editor loaded; the update applies only if the row still has them.
+  expected: z.object({
+    label: z.string(),
+    accountName: z.string(),
+    accountReference: z.string(),
+    qrFileId: paymentAccountQrFileIdSchema.nullable(),
+  }),
 });
 
 export const archivePaymentAccountSchema = z.object({

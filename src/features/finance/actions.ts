@@ -596,9 +596,10 @@ export async function updatePaymentAccount(
       };
     }
 
+    const { expected } = parsed.data;
     const commandClient = createCommandClient();
 
-    const { data: updated, error: updateError } = await commandClient
+    let update = commandClient
       .from("payment_accounts")
       .update({
         label: parsed.data.label,
@@ -609,8 +610,11 @@ export async function updatePaymentAccount(
       })
       .eq("id", parsed.data.id)
       .is("archived_at", null)
-      .select("id")
-      .maybeSingle();
+      .eq("label", expected.label)
+      .eq("account_name", expected.accountName)
+      .eq("account_reference", expected.accountReference);
+    update = expected.qrFileId === null ? update.is("qr_file_id", null) : update.eq("qr_file_id", expected.qrFileId);
+    const { data: updated, error: updateError } = await update.select("id").maybeSingle();
 
     if (updateError) {
       return {
@@ -621,7 +625,7 @@ export async function updatePaymentAccount(
     if (!updated) {
       return {
         success: false,
-        error: "This payment account is archived or no longer exists. Please refresh.",
+        error: "This account was changed or archived by someone else. Refresh and try again.",
       };
     }
 
