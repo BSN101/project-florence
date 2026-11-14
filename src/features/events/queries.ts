@@ -81,11 +81,11 @@ export async function getMyEvents(semesterId: string): Promise<MyEventRow[]> {
   return data;
 }
 
-/** The student's own submitted answers for the given events (RLS: own rows only). */
-export async function getMyFeedback(eventIds: string[]): Promise<Record<string, FeedbackResponses>> {
-  if (eventIds.length === 0) return {};
+/** All of the student's own submitted answers, keyed by event (one per event). */
+export async function getMyFeedback(studentId: string): Promise<Record<string, FeedbackResponses>> {
   const client = await createUserClient();
-  const { data, error } = await client.from("event_feedback").select("event_id, responses").in("event_id", eventIds);
+  // RLS also lets Council read every row, so a Council member viewing as a student needs this filter.
+  const { data, error } = await client.from("event_feedback").select("event_id, responses").eq("student_id", studentId);
   if (error) throw new Error(`Failed to fetch your feedback: ${error.message}`);
   return Object.fromEntries(data.map((row) => [row.event_id, row.responses as FeedbackResponses]));
 }

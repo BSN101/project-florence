@@ -28,8 +28,9 @@ export default async function StudentEventsPage({ searchParams }: {
 
   let content: React.ReactNode = null;
   if (semesterId) {
-    const events = await getMyEvents(semesterId);
-    const feedback = await getMyFeedback(events.filter((e) => e.feedback_submitted_at).map((e) => e.event_id));
+    const [events, allFeedback] = await Promise.all([getMyEvents(semesterId), getMyFeedback(access.profile.id)]);
+    // Only this semester's answers reach the client.
+    const feedback = Object.fromEntries(events.filter((e) => allFeedback[e.event_id]).map((e) => [e.event_id, allFeedback[e.event_id]]));
     content = <StudentEvents events={events} feedback={feedback} now={new Date().toISOString()} />;
   }
 
