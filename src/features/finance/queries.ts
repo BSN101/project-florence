@@ -25,6 +25,19 @@ export async function assertAuthorizedCouncilManager() {
 }
 
 /**
+ * Enforce that the caller is an authenticated Council Executive (FL-047 / T-032).
+ * Council Operations, Representatives, Students, and Faculty are strictly forbidden.
+ * Operations may read historical snapshots through payments, but cannot manage payment accounts.
+ */
+export async function assertAuthorizedCouncilExecutive() {
+  const context = await requireWorkspace("council");
+  if (context.councilRole !== "executive") {
+    throw new AccessDeniedError("forbidden");
+  }
+  return context;
+}
+
+/**
  * Fetch active fee definitions for future fee publication (T-031).
  * Automatically filtered by database RLS so only authorized Council users receive records.
  */

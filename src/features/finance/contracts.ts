@@ -31,6 +31,34 @@ export type DefinitionActionResult =
   | { success: false; error: string; issues?: Record<string, string[]> };
 
 /**
+ * Standardized action result for payment account mutations (FL-047 / T-032).
+ * Reuses the DefinitionActionResult shape to avoid over-duplication.
+ */
+export type PaymentAccountActionResult = DefinitionActionResult;
+
+/**
+ * Client-safe projection for payment accounts (FL-047 / T-032).
+ * Picked directly from the database schema to avoid over-duplication.
+ */
+export type PaymentAccountDTO = Pick<
+  Tables["payment_accounts"]["Row"],
+  | "id"
+  | "label"
+  | "account_name"
+  | "account_reference"
+  | "instructions"
+  | "qr_file_id"
+  | "archived_at"
+  | "created_by"
+  | "created_at"
+  | "updated_at"
+>;
+
+export type PaymentAccountCatalogItem = PaymentAccountDTO & {
+  creator_name?: string;
+};
+
+/**
  * Client-safe projection for historical fee publications.
  * Directly derived from the fee_publications table.
  */

@@ -69,3 +69,58 @@ export type UpdateDefinitionInput = z.infer<typeof updateDefinitionSchema>;
 export type ArchiveDefinitionInput = z.infer<typeof archiveDefinitionSchema>;
 export type PreviewFeeObligationsInput = z.infer<typeof previewFeeObligationsSchema>;
 export type PublishFeeObligationsInput = z.infer<typeof publishFeeObligationsSchema>;
+
+const accountLabel = z
+  .string()
+  .trim()
+  .min(1, "Destination label cannot be empty")
+  .max(100, "Destination label cannot exceed 100 characters");
+
+const accountName = z
+  .string()
+  .trim()
+  .min(1, "Account name cannot be empty")
+  .max(100, "Account name cannot exceed 100 characters");
+
+const accountReference = z
+  .string()
+  .trim()
+  .min(1, "Account reference/number cannot be empty")
+  .max(100, "Account reference cannot exceed 100 characters");
+
+const accountInstructions = z.preprocess(
+  (val) => (typeof val === "string" && val.trim() === "" ? null : val ?? null),
+  z.string().trim().max(1000, "Instructions cannot exceed 1000 characters").nullable().optional()
+);
+
+const accountQrFileId = z.preprocess(
+  (val) => (val === "" || val === undefined ? null : val),
+  z.string().uuid("Invalid QR file identifier").nullable().optional()
+);
+
+const accountId = z.string().uuid("Invalid payment account identifier");
+
+export const createPaymentAccountSchema = z.object({
+  label: accountLabel,
+  accountName: accountName,
+  accountReference: accountReference,
+  instructions: accountInstructions.optional(),
+  qrFileId: accountQrFileId.optional(),
+});
+
+export const updatePaymentAccountSchema = z.object({
+  id: accountId,
+  label: accountLabel,
+  accountName: accountName,
+  accountReference: accountReference,
+  instructions: accountInstructions.optional(),
+  qrFileId: accountQrFileId.optional(),
+});
+
+export const archivePaymentAccountSchema = z.object({
+  id: accountId,
+});
+
+export type CreatePaymentAccountInput = z.infer<typeof createPaymentAccountSchema>;
+export type UpdatePaymentAccountInput = z.infer<typeof updatePaymentAccountSchema>;
+export type ArchivePaymentAccountInput = z.infer<typeof archivePaymentAccountSchema>;
