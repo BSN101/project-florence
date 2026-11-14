@@ -1,7 +1,7 @@
 "use client";
 
 import { MoreHorizontal, Search } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -38,7 +38,33 @@ export function AccountsTable<T extends Row>({ accounts, columns, actions, toolb
         </div>
         {toolbar && <div className="flex flex-col gap-2 sm:flex-row sm:items-center">{toolbar}</div>}
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      {/* Phones and tablets (the sidebar leaves the table too little room): one card per account, the first column as its title and the rest as labelled rows. */}
+      <ul className="flex flex-col gap-3 lg:hidden">
+        {rows.length === 0 && (
+          <li className="rounded-2xl border border-border bg-card px-4 py-8 text-center text-muted-foreground">{needle ? "No matches." : emptyText}</li>
+        )}
+        {rows.map((account) => {
+          const [title, ...details] = columns;
+          return (
+            <li key={account.id} className={`rounded-2xl border border-border bg-card p-4 ${account.account_status === "archived" ? "text-muted-foreground" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 pt-2.5">{title.cell(account)}</div>
+                <ActionsMenu actions={actions(account)} className="-mt-0.5 -mr-2 size-11 md:size-9" />
+              </div>
+              <dl className="mt-2 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-sm">
+                {details.map((column) => (
+                  <Fragment key={column.header}>
+                    <dt className="text-muted-foreground">{column.header}</dt>
+                    <dd className="min-w-0 break-words">{column.cell(account)}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+            </li>
+          );
+        })}
+      </ul>
+      {/* relative: contains the absolutely positioned sr-only header so it cannot widen the page. */}
+      <div className="relative hidden overflow-x-auto rounded-xl border border-border bg-card lg:block">
         <table className="w-full min-w-[40rem] text-left text-sm">
           <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
             <tr>
@@ -50,32 +76,34 @@ export function AccountsTable<T extends Row>({ accounts, columns, actions, toolb
             {rows.length === 0 && (
               <tr><td colSpan={columns.length + 1} className="px-4 py-8 text-center text-muted-foreground">{needle ? "No matches." : emptyText}</td></tr>
             )}
-            {rows.map((account) => {
-              const rowActions = actions(account);
-              return (
-                <tr key={account.id} className={account.account_status === "archived" ? "text-muted-foreground" : undefined}>
-                  {columns.map((column) => <td key={column.header} className={`px-4 py-3 align-top ${column.className ?? ""}`}>{column.cell(account)}</td>)}
-                  <td className="px-2 py-2 text-right align-top">
-                    {rowActions.length > 0 && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Actions" />}>
-                          <MoreHorizontal />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-48">
-                          {rowActions.map((action, index) => action === "separator"
-                            ? <DropdownMenuSeparator key={`separator-${index}`} />
-                            : <DropdownMenuItem key={action.label} onClick={action.onSelect}
-                                className={action.destructive ? "text-destructive" : undefined}>{action.label}</DropdownMenuItem>)}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {rows.map((account) => (
+              <tr key={account.id} className={account.account_status === "archived" ? "text-muted-foreground" : undefined}>
+                {columns.map((column) => <td key={column.header} className={`px-4 py-3 align-top ${column.className ?? ""}`}>{column.cell(account)}</td>)}
+                <td className="px-2 py-2 text-right align-top">
+                  <ActionsMenu actions={actions(account)} />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+function ActionsMenu({ actions, className }: { actions: RowAction[]; className?: string }) {
+  if (actions.length === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Actions" className={className} />}>
+        <MoreHorizontal />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-48">
+        {actions.map((action, index) => action === "separator"
+          ? <DropdownMenuSeparator key={`separator-${index}`} />
+          : <DropdownMenuItem key={action.label} onClick={action.onSelect}
+              className={action.destructive ? "text-destructive" : undefined}>{action.label}</DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
