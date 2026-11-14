@@ -54,7 +54,7 @@ export function ArchivePaymentAccountDialog({
         if (!open && !isPending) handleClose();
       }}
     >
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="size-5 shrink-0" />

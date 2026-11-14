@@ -90,7 +90,7 @@ export function CreatePaymentAccountDialog({
         if (!open && !isPending) handleClose();
       }}
     >
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add Payment Account</DialogTitle>
           <DialogDescription>

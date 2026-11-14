@@ -108,7 +108,8 @@ export function PaymentAccountList({
         </button>
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
+      {/* Fixed height so switching tabs or adding accounts doesn't shift the page. */}
+      <div className="h-[28rem] overflow-auto overscroll-contain rounded-xl border border-border bg-card shadow-xs">
         {currentList.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-sm font-medium text-muted-foreground">
@@ -123,9 +124,8 @@ export function PaymentAccountList({
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-border bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <thead className="sticky top-0 z-10 border-b border-border bg-muted text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <tr>
                   <th scope="col" className="px-6 py-3">Destination</th>
                   <th scope="col" className="px-6 py-3">Account Holder</th>
@@ -193,7 +193,6 @@ export function PaymentAccountList({
                 ))}
               </tbody>
             </table>
-          </div>
         )}
       </div>
 
