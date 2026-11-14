@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Archive, CheckCircle2, History, CreditCard, QrCode } from "lucide-react";
+import { Plus, Edit2, Archive, CheckCircle2, History, CreditCard, QrCode, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { PaymentAccountDTO } from "../contracts";
+import { getPaymentAccountQrUrl } from "../actions";
 import { CreatePaymentAccountDialog } from "./create-payment-account-dialog";
 import { EditPaymentAccountDialog } from "./edit-payment-account-dialog";
 import { ArchivePaymentAccountDialog } from "./archive-payment-account-dialog";
@@ -20,10 +28,29 @@ export function PaymentAccountList({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<PaymentAccountDTO | null>(null);
   const [archivingAccount, setArchivingAccount] = useState<PaymentAccountDTO | null>(null);
+  const [previewQr, setPreviewQr] = useState<{ label: string; fileId: string } | null>(null);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [isLoadingQr, setIsLoadingQr] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   const activeAccounts = accounts.filter((a) => a.archived_at === null);
   const archivedAccounts = accounts.filter((a) => a.archived_at !== null);
   const currentList = activeTab === "active" ? activeAccounts : archivedAccounts;
+
+  async function handleViewQr(label: string, fileId: string) {
+    setPreviewQr({ label, fileId });
+    setQrUrl(null);
+    setQrError(null);
+    setIsLoadingQr(true);
+
+    const result = await getPaymentAccountQrUrl(fileId);
+    setIsLoadingQr(false);
+    if (result.success) {
+      setQrUrl(result.url);
+    } else {
+      setQrError(result.error);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -118,10 +145,15 @@ export function PaymentAccountList({
                     </td>
                     <td className="px-6 py-4">
                       {item.qr_file_id ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        <button
+                          type="button"
+                          onClick={() => handleViewQr(item.label, item.qr_file_id!)}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                          title="Click to view QR code"
+                        >
                           <QrCode className="size-3" />
-                          Attached
-                        </span>
+                          View QR
+                        </button>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
@@ -180,6 +212,46 @@ export function PaymentAccountList({
         isOpen={archivingAccount !== null}
         onClose={() => setArchivingAccount(null)}
       />
+
+      <Dialog
+        open={previewQr !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewQr(null);
+            setQrUrl(null);
+            setQrError(null);
+          }
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-xs text-center">
+          <DialogHeader>
+            <DialogTitle>{previewQr?.label} QR Code</DialogTitle>
+            <DialogDescription>
+              Scan this QR code to complete transfer payments.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center justify-center min-h-[200px] py-4">
+            {isLoadingQr && (
+              <div className="flex flex-col items-center gap-2 text-muted-foreground text-sm">
+                <Loader2 className="size-6 animate-spin text-primary" />
+                <span>Loading QR code...</span>
+              </div>
+            )}
+            {qrError && (
+              <p className="text-sm text-destructive">{qrError}</p>
+            )}
+            {qrUrl && !isLoadingQr && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrUrl}
+                alt={`${previewQr?.label} QR Code`}
+                className="max-h-64 max-w-full rounded-lg border border-border shadow-xs object-contain"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

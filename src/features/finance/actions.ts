@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
+import { getDownloadUrl, uploadFile, UploadRejectedError } from "@/server/storage/files";
 
 import type {
   DefinitionActionResult,
@@ -721,6 +722,64 @@ export async function archivePaymentAccount(
     return {
       success: false,
       error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Upload an optional payment destination QR code image (PNG/WebP, max 2MB).
+ * Registered under purpose 'payment_account_qr' with strict Executive authorization.
+ */
+export async function uploadPaymentAccountQr(
+  formData: FormData
+): Promise<{ success: true; fileId: string } | { success: false; error: string }> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const file = formData.get("file");
+    if (!file || !(file instanceof File)) {
+      return { success: false, error: "Please select an image file to upload" };
+    }
+    const requestKey = randomUUID();
+    const fileId = await uploadFile("payment_account_qr", file, requestKey);
+    return { success: true, fileId };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may upload payment destination QR codes",
+      };
+    }
+    if (err instanceof UploadRejectedError) {
+      return { success: false, error: err.message };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to upload QR code",
+    };
+  }
+}
+
+/**
+ * Get a short-lived signed URL to preview a payment destination QR code image.
+ * Authorized for Council Executives.
+ */
+export async function getPaymentAccountQrUrl(
+  fileId: string
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const url = await getDownloadUrl(fileId, "council");
+    if (!url) {
+      return { success: false, error: "QR code image not found or access denied" };
+    }
+    return { success: true, url };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return { success: false, error: "Unauthorized" };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load QR code image",
     };
   }
 }

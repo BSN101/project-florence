@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { updatePaymentAccount } from "../actions";
+import { updatePaymentAccount, uploadPaymentAccountQr } from "../actions";
 import type { PaymentAccountDTO } from "../contracts";
 
 export function EditPaymentAccountDialog({
@@ -29,6 +29,8 @@ export function EditPaymentAccountDialog({
   const [accountName, setAccountName] = useState("");
   const [accountReference, setAccountReference] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [qrFileId, setQrFileId] = useState<string | null>(null);
+  const [qrFile, setQrFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -38,6 +40,8 @@ export function EditPaymentAccountDialog({
       setAccountName(account.account_name);
       setAccountReference(account.account_reference);
       setInstructions(account.instructions ?? "");
+      setQrFileId(account.qr_file_id);
+      setQrFile(null);
       setError(null);
     }
   }, [account]);
@@ -61,12 +65,25 @@ export function EditPaymentAccountDialog({
     }
 
     startTransition(async () => {
+      let finalQrFileId: string | null | undefined = qrFileId;
+      if (qrFile) {
+        const formData = new FormData();
+        formData.append("file", qrFile);
+        const uploadRes = await uploadPaymentAccountQr(formData);
+        if (!uploadRes.success) {
+          setError(uploadRes.error);
+          return;
+        }
+        finalQrFileId = uploadRes.fileId;
+      }
+
       const result = await updatePaymentAccount({
         id: account.id,
         label: label.trim(),
         accountName: accountName.trim(),
         accountReference: accountReference.trim(),
         instructions: instructions.trim() || undefined,
+        qrFileId: finalQrFileId,
       });
 
       if (!result.success) {
@@ -180,6 +197,28 @@ export function EditPaymentAccountDialog({
             />
             <p className="text-right text-[11px] text-muted-foreground mt-0.5">
               {instructions.length}/1000
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="edit-account-qr"
+              className="block text-sm font-medium text-foreground mb-1"
+            >
+              QR Code Image (Optional)
+            </label>
+            <Input
+              id="edit-account-qr"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setQrFile(e.target.files?.[0] ?? null)}
+              disabled={isPending}
+              className="cursor-pointer file:cursor-pointer"
+            />
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {qrFileId
+                ? "A QR code is currently attached. Select a new file to replace it."
+                : "Attach a QR code image (PNG, JPEG, or WebP up to 2 MB)."}
             </p>
           </div>
 

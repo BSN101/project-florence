@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { createPaymentAccount } from "../actions";
+import { createPaymentAccount, uploadPaymentAccountQr } from "../actions";
 
 export function CreatePaymentAccountDialog({
   isOpen,
@@ -26,6 +26,7 @@ export function CreatePaymentAccountDialog({
   const [accountName, setAccountName] = useState("");
   const [accountReference, setAccountReference] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [qrFile, setQrFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -47,11 +48,24 @@ export function CreatePaymentAccountDialog({
     }
 
     startTransition(async () => {
+      let qrFileId: string | undefined = undefined;
+      if (qrFile) {
+        const formData = new FormData();
+        formData.append("file", qrFile);
+        const uploadRes = await uploadPaymentAccountQr(formData);
+        if (!uploadRes.success) {
+          setError(uploadRes.error);
+          return;
+        }
+        qrFileId = uploadRes.fileId;
+      }
+
       const result = await createPaymentAccount({
         label: label.trim(),
         accountName: accountName.trim(),
         accountReference: accountReference.trim(),
         instructions: instructions.trim() || undefined,
+        qrFileId,
       });
 
       if (!result.success) {
@@ -63,6 +77,7 @@ export function CreatePaymentAccountDialog({
       setAccountName("");
       setAccountReference("");
       setInstructions("");
+      setQrFile(null);
       onClose();
     });
   }
@@ -165,6 +180,26 @@ export function CreatePaymentAccountDialog({
             />
             <p className="text-right text-[11px] text-muted-foreground mt-0.5">
               {instructions.length}/1000
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="account-qr"
+              className="block text-sm font-medium text-foreground mb-1"
+            >
+              QR Code Image (Optional)
+            </label>
+            <Input
+              id="account-qr"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setQrFile(e.target.files?.[0] ?? null)}
+              disabled={isPending}
+              className="cursor-pointer file:cursor-pointer"
+            />
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              PNG, JPEG, or WebP up to 2 MB.
             </p>
           </div>
 
