@@ -12,7 +12,11 @@ import type {
 } from "./contracts";
 import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./schemas";
 
-async function assertAuthorizedCouncilManager() {
+/**
+ * Enforce that the caller is an authenticated Council member with Executive or Operations authority.
+ * Council Representatives, Students, and Faculty are strictly forbidden.
+ */
+export async function assertAuthorizedCouncilManager() {
   const context = await requireWorkspace("council");
   if (context.councilRole !== "executive" && context.councilRole !== "operations") {
     throw new AccessDeniedError("forbidden");

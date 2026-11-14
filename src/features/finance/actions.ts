@@ -3,11 +3,11 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
-import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
+import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 
 import type { DefinitionActionResult, FeePublicationPreview, PublishFeeResult } from "./contracts";
-import { previewFeeObligations } from "./queries";
+import { assertAuthorizedCouncilManager, previewFeeObligations } from "./queries";
 import {
   archiveDefinitionSchema,
   createDefinitionSchema,
@@ -19,18 +19,6 @@ import {
   type PublishFeeObligationsInput,
   type UpdateDefinitionInput,
 } from "./schemas";
-
-/**
- * Enforce that the caller is an authenticated Council member with Executive or Operations authority.
- * Council Representatives, Students, and Faculty are strictly forbidden.
- */
-async function assertAuthorizedCouncilManager() {
-  const context = await requireWorkspace("council");
-  if (context.councilRole !== "executive" && context.councilRole !== "operations") {
-    throw new AccessDeniedError("forbidden");
-  }
-  return context;
-}
 
 /**
  * Create a new reusable fine definition for event consequences.
