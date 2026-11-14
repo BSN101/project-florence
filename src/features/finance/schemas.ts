@@ -91,8 +91,8 @@ const accountName = z
 const accountReference = z
   .string()
   .trim()
-  .min(1, "Account reference/number cannot be empty")
-  .max(100, "Account reference cannot exceed 100 characters");
+  .min(1, "Account number cannot be empty")
+  .max(100, "Account number cannot exceed 100 characters");
 
 const accountQrFileId = z.preprocess(
   (val) => (val === "" || val === undefined ? null : val),

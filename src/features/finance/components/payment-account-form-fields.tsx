@@ -28,7 +28,7 @@ export function validatePaymentAccountFields(values: {
     return "Please provide the account holder name.";
   }
   if (!values.accountReference.trim()) {
-    return "Please provide the account or reference number.";
+    return "Please provide the account number.";
   }
   return null;
 }
@@ -156,7 +156,7 @@ export function PaymentAccountFormFields({
           htmlFor={`${idPrefix}-reference`}
           className="block text-sm font-medium text-foreground mb-1"
         >
-          Account / Reference Number
+          Account Number
         </label>
         <Input
           id={`${idPrefix}-reference`}

@@ -129,7 +129,7 @@ export function PaymentAccountList({
                 <tr>
                   <th scope="col" className="px-6 py-3">Destination</th>
                   <th scope="col" className="px-6 py-3">Account Holder</th>
-                  <th scope="col" className="px-6 py-3">Reference / Number</th>
+                  <th scope="col" className="px-6 py-3">Account Number</th>
                   <th scope="col" className="px-6 py-3">QR</th>
                   {canManage && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
                 </tr>
