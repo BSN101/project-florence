@@ -5,6 +5,8 @@ import {
   createDefinitionSchema,
   updateDefinitionSchema,
   archiveDefinitionSchema,
+  previewFeeObligationsSchema,
+  publishFeeObligationsSchema,
 } from "./schemas.ts";
 
 const validUuid = "11111111-1111-4111-8111-111111111111";
@@ -98,5 +100,169 @@ test("definition archival schema requires a valid UUID", () => {
   assert.equal(archiveDefinitionSchema.safeParse({ id: validUuid }).success, true);
   assert.equal(archiveDefinitionSchema.safeParse({ id: "invalid-uuid" }).success, false);
   assert.equal(archiveDefinitionSchema.safeParse({}).success, false);
+});
+
+test("fee obligation preview schema accepts valid audience selection", () => {
+  const result = previewFeeObligationsSchema.safeParse({
+    feeDefinitionId: validUuid,
+    semesterId: validUuid,
+    yearLevels: [1, 2, 3, 4],
+    academicStatuses: ["regular", "irregular"],
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.feeDefinitionId, validUuid);
+    assert.equal(result.data.semesterId, validUuid);
+    assert.deepEqual(result.data.yearLevels, [1, 2, 3, 4]);
+    assert.deepEqual(result.data.academicStatuses, ["regular", "irregular"]);
+  }
+});
+
+test("fee obligation schemas accept subset of year levels and academic statuses", () => {
+  const result = previewFeeObligationsSchema.safeParse({
+    feeDefinitionId: validUuid,
+    semesterId: validUuid,
+    yearLevels: [1, 3],
+    academicStatuses: ["regular"],
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.deepEqual(result.data.yearLevels, [1, 3]);
+    assert.deepEqual(result.data.academicStatuses, ["regular"]);
+  }
+});
+
+test("fee obligation schemas reject empty or invalid year levels", () => {
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: validUuid,
+      yearLevels: [],
+      academicStatuses: ["regular"],
+    }).success,
+    false,
+    "Empty year levels should be rejected"
+  );
+
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: validUuid,
+      yearLevels: [0],
+      academicStatuses: ["regular"],
+    }).success,
+    false,
+    "Year level 0 should be rejected"
+  );
+
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: validUuid,
+      yearLevels: [5],
+      academicStatuses: ["regular"],
+    }).success,
+    false,
+    "Year level 5 should be rejected"
+  );
+
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: validUuid,
+      yearLevels: [1, 1],
+      academicStatuses: ["regular"],
+    }).success,
+    false,
+    "Duplicate year levels should be rejected"
+  );
+});
+
+test("fee obligation schemas reject empty, invalid, or duplicate academic statuses", () => {
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: validUuid,
+      yearLevels: [1],
+      academicStatuses: [],
+    }).success,
+    false,
+    "Empty academic statuses should be rejected"
+  );
+
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: validUuid,
+      yearLevels: [1],
+      academicStatuses: ["invalid_status"],
+    }).success,
+    false,
+    "Invalid academic status should be rejected"
+  );
+
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: validUuid,
+      yearLevels: [1],
+      academicStatuses: ["regular", "regular"],
+    }).success,
+    false,
+    "Duplicate academic statuses should be rejected"
+  );
+});
+
+test("fee obligation schemas require valid UUIDs for fee definition and semester", () => {
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: "invalid",
+      semesterId: validUuid,
+      yearLevels: [1],
+      academicStatuses: ["regular"],
+    }).success,
+    false
+  );
+
+  assert.equal(
+    previewFeeObligationsSchema.safeParse({
+      feeDefinitionId: validUuid,
+      semesterId: "invalid",
+      yearLevels: [1],
+      academicStatuses: ["regular"],
+    }).success,
+    false
+  );
+});
+
+test("publish fee obligations schema accepts optional valid requestKey and rejects invalid requestKey", () => {
+  const withoutKey = publishFeeObligationsSchema.safeParse({
+    feeDefinitionId: validUuid,
+    semesterId: validUuid,
+    yearLevels: [1, 2],
+    academicStatuses: ["regular"],
+  });
+  assert.equal(withoutKey.success, true);
+
+  const withKey = publishFeeObligationsSchema.safeParse({
+    feeDefinitionId: validUuid,
+    semesterId: validUuid,
+    yearLevels: [1, 2],
+    academicStatuses: ["regular"],
+    requestKey: validUuid,
+  });
+  assert.equal(withKey.success, true);
+  if (withKey.success) {
+    assert.equal(withKey.data.requestKey, validUuid);
+  }
+
+  const withBadKey = publishFeeObligationsSchema.safeParse({
+    feeDefinitionId: validUuid,
+    semesterId: validUuid,
+    yearLevels: [1, 2],
+    academicStatuses: ["regular"],
+    requestKey: "not-a-uuid",
+  });
+  assert.equal(withBadKey.success, false);
 });
 
