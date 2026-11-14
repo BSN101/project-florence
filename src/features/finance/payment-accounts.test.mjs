@@ -176,15 +176,6 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
         qrGuard,
         "The attached QR code is invalid or not registered for payment accounts."
       );
-
-      const snapshotGuard = sanitizePaymentAccountError({
-        code: "P0001",
-        message: "Active destination snapshot required",
-      });
-      assert.equal(
-        snapshotGuard,
-        "An active payment account snapshot is required for this operation."
-      );
     });
 
     test("falls back to user-safe message on unexpected errors without exposing stack trace", () => {

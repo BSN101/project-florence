@@ -82,9 +82,6 @@ export function sanitizePaymentAccountError(
       if (err.message.includes("Invalid payment destination QR purpose")) {
         return "The attached QR code is invalid or not registered for payment accounts.";
       }
-      if (err.message.includes("Active destination snapshot required")) {
-        return "An active payment account snapshot is required for this operation.";
-      }
     }
   }
   return fallbackMessage;

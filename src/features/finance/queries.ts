@@ -260,23 +260,3 @@ export async function getPaymentAccounts(options?: {
 
   return data ?? [];
 }
-
-/**
- * Fetch active payment accounts for student transfer submission.
- * Enforces database RLS: students see active destinations only (archived_at is null).
- */
-export async function getActivePaymentAccounts(): Promise<PaymentAccountDTO[]> {
-  const client = await createUserClient();
-  const { data, error } = await client
-    .from("payment_accounts")
-    .select("id, label, account_name, account_reference, qr_file_id, archived_at")
-    .is("archived_at", null)
-    .order("label", { ascending: true });
-
-  if (error) {
-    throw new Error(`Failed to fetch active payment accounts: ${error.message}`);
-  }
-
-  return data ?? [];
-}
-
