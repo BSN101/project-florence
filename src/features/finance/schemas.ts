@@ -92,7 +92,9 @@ const accountReference = z
   .string()
   .trim()
   .min(1, "Account number cannot be empty")
-  .max(100, "Account number cannot exceed 100 characters");
+  .max(100, "Account number cannot exceed 100 characters")
+  // GCash numbers are 11 digits and institutional bank accounts at least 10; separators don't count.
+  .refine((value) => value.replace(/\D/g, "").length >= 10, "Account number must have at least 10 digits");
 
 const accountQrFileId = z.preprocess(
   (val) => (val === "" || val === undefined ? null : val),
@@ -104,7 +106,7 @@ const accountId = z.string().uuid("Invalid payment account identifier");
 export const createPaymentAccountSchema = z.object({
   label: accountLabel,
   accountName: accountName,
-  accountReference: accountReference,
+  accountReference,
   qrFileId: accountQrFileId.optional(),
 });
 

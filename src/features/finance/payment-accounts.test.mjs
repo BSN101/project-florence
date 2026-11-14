@@ -45,7 +45,7 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
         createPaymentAccountSchema.safeParse({
           label: over100,
           accountName: "Florence",
-          accountReference: "1234",
+          accountReference: "09171234567",
         }).success,
         false
       );
@@ -54,7 +54,7 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
         createPaymentAccountSchema.safeParse({
           label: "GCash",
           accountName: over100,
-          accountReference: "1234",
+          accountReference: "09171234567",
         }).success,
         false
       );
@@ -73,7 +73,7 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
       const boundary = createPaymentAccountSchema.safeParse({
         label: exact100,
         accountName: exact100,
-        accountReference: exact100,
+        accountReference: "1".repeat(100),
       });
       assert.equal(boundary.success, true);
     });

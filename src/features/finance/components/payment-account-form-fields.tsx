@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { compressImage, MAX_ORIGINAL_BYTES } from "@/lib/compress-image";
 import { uploadPaymentAccountQr } from "../actions";
-import { PAYMENT_ACCOUNT_QR_MAX_BYTES } from "../schemas";
+import { createPaymentAccountSchema, PAYMENT_ACCOUNT_QR_MAX_BYTES } from "../schemas";
 
 export type PaymentAccountFormValues = {
   label: string;
@@ -29,6 +29,10 @@ export function validatePaymentAccountFields(values: {
   }
   if (!values.accountReference.trim()) {
     return "Please provide the account number.";
+  }
+  const accountNumber = createPaymentAccountSchema.shape.accountReference.safeParse(values.accountReference);
+  if (!accountNumber.success) {
+    return accountNumber.error.issues[0]?.message ?? "Please provide a valid account number.";
   }
   return null;
 }

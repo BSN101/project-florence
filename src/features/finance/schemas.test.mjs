@@ -303,7 +303,7 @@ test("payment account creation schema rejects empty or whitespace-only required 
     createPaymentAccountSchema.safeParse({
       label: "",
       accountName: "Florence",
-      accountReference: "1234",
+      accountReference: "09171234567",
     }).success,
     false
   );
@@ -311,7 +311,7 @@ test("payment account creation schema rejects empty or whitespace-only required 
     createPaymentAccountSchema.safeParse({
       label: "GCash",
       accountName: "   ",
-      accountReference: "1234",
+      accountReference: "09171234567",
     }).success,
     false
   );
@@ -348,3 +348,14 @@ test("payment account archival schema requires valid UUID", () => {
   assert.equal(archivePaymentAccountSchema.safeParse({ id: "invalid" }).success, false);
 });
 
+
+test("payment account number needs at least 10 digits, ignoring separators", () => {
+  const parse = (accountReference) =>
+    createPaymentAccountSchema.safeParse({ label: "GCash", accountName: "Treasury", accountReference }).success;
+  assert.equal(parse("09171234567"), true);
+  assert.equal(parse("0917-123-4567"), true);
+  assert.equal(parse("1234567890"), true);
+  assert.equal(parse("123456789"), false);
+  assert.equal(parse("0917-123-45"), false);
+  assert.equal(parse("ABCDEFGHIJK"), false);
+});
