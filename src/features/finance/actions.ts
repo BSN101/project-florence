@@ -6,14 +6,17 @@ import { revalidatePath } from "next/cache";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 
-import type { DefinitionActionResult, PublishFeeResult } from "./contracts";
+import type { DefinitionActionResult, FeePublicationPreview, PublishFeeResult } from "./contracts";
+import { previewFeeObligations } from "./queries";
 import {
   archiveDefinitionSchema,
   createDefinitionSchema,
+  previewFeeObligationsSchema,
   publishFeeObligationsSchema,
   updateDefinitionSchema,
   type ArchiveDefinitionInput,
   type CreateDefinitionInput,
+  type PreviewFeeObligationsInput,
   type PublishFeeObligationsInput,
   type UpdateDefinitionInput,
 } from "./schemas";
@@ -468,6 +471,33 @@ export async function publishFeeObligations(
     return {
       success: false,
       error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Server action to preview audience obligation metrics before publishing.
+ * Authorized for Council Executive and Operations only.
+ */
+export async function previewFeeAudience(
+  input: PreviewFeeObligationsInput
+): Promise<
+  | { success: true; preview: FeePublicationPreview }
+  | { success: false; error: string }
+> {
+  try {
+    const preview = await previewFeeObligations(input);
+    return { success: true, preview };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may preview fee obligations",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load preview",
     };
   }
 }

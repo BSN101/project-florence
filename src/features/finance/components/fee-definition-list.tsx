@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Archive, CheckCircle2, History } from "lucide-react";
+import { Plus, Edit2, Archive, CheckCircle2, History, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { FeeDefinitionCatalogItem } from "../contracts";
 import { CreateFeeDialog } from "./create-fee-dialog";
 import { EditFeeDialog } from "./edit-fee-dialog";
 import { ArchiveFeeDialog } from "./archive-fee-dialog";
+import { PublishFeeDialog } from "./publish-fee-dialog";
 
 const currencyFormatter = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -26,14 +27,17 @@ function formatDate(isoString: string) {
 export function FeeDefinitionList({
   definitions,
   canManage,
+  semesterId,
 }: {
   definitions: FeeDefinitionCatalogItem[];
   canManage: boolean;
+  semesterId?: string;
 }) {
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDefinition, setEditingDefinition] = useState<FeeDefinitionCatalogItem | null>(null);
   const [archivingDefinition, setArchivingDefinition] = useState<FeeDefinitionCatalogItem | null>(null);
+  const [publishingDefinition, setPublishingDefinition] = useState<FeeDefinitionCatalogItem | null>(null);
 
   const activeFees = definitions.filter((f) => f.archived_at === null);
   const archivedFees = definitions.filter((f) => f.archived_at !== null);
@@ -134,6 +138,18 @@ export function FeeDefinitionList({
                       <td className="px-6 py-4 text-right space-x-2">
                         {activeTab === "active" ? (
                           <>
+                            {semesterId && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPublishingDefinition(item)}
+                                className="gap-1 text-xs"
+                              >
+                                <Send className="size-3.5" />
+                                Publish
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="ghost"
@@ -184,6 +200,16 @@ export function FeeDefinitionList({
         isOpen={archivingDefinition !== null}
         onClose={() => setArchivingDefinition(null)}
       />
+
+      {semesterId && (
+        <PublishFeeDialog
+          isOpen={publishingDefinition !== null}
+          onClose={() => setPublishingDefinition(null)}
+          definitions={activeFees}
+          semesterId={semesterId}
+          initialDefinitionId={publishingDefinition?.id}
+        />
+      )}
     </div>
   );
 }
