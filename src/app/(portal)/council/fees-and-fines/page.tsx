@@ -56,7 +56,13 @@ export default async function CouncilFeesAndFinesPage({
         </section>
         {canManage && (
           <section className="border-t border-border pt-8">
-            <FeePublicationList publications={publications} />
+            {semesterId ? (
+              <FeePublicationList publications={publications} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select a valid semester to publish fees and view publication history.
+              </p>
+            )}
           </section>
         )}
         <section className="border-t border-border pt-8">
