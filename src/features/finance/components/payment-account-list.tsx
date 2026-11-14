@@ -43,12 +43,17 @@ export function PaymentAccountList({
     setQrError(null);
     setIsLoadingQr(true);
 
-    const result = await getPaymentAccountQrUrl(fileId);
-    setIsLoadingQr(false);
-    if (result.success) {
-      setQrUrl(result.url);
-    } else {
-      setQrError(result.error);
+    try {
+      const result = await getPaymentAccountQrUrl(fileId);
+      if (result.success) {
+        setQrUrl(result.url);
+      } else {
+        setQrError(result.error);
+      }
+    } catch {
+      setQrError("Failed to load QR code image. Please check your connection.");
+    } finally {
+      setIsLoadingQr(false);
     }
   }
 
@@ -140,7 +145,10 @@ export function PaymentAccountList({
                     <td className="px-6 py-4 font-mono text-sm text-foreground">
                       {item.account_reference}
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground text-xs max-w-xs truncate">
+                    <td
+                      className="px-6 py-4 text-muted-foreground text-xs max-w-xs truncate"
+                      title={item.instructions || undefined}
+                    >
                       {item.instructions || "—"}
                     </td>
                     <td className="px-6 py-4">

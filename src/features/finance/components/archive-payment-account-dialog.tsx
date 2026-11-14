@@ -27,6 +27,12 @@ export function ArchivePaymentAccountDialog({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  function handleClose() {
+    if (isPending) return;
+    setError(null);
+    onClose();
+  }
+
   function handleArchive() {
     if (!account) return;
     setError(null);
@@ -37,7 +43,7 @@ export function ArchivePaymentAccountDialog({
         setError(result.error);
         return;
       }
-      onClose();
+      handleClose();
     });
   }
 
@@ -45,7 +51,7 @@ export function ArchivePaymentAccountDialog({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open && !isPending) onClose();
+        if (!open && !isPending) handleClose();
       }}
     >
       <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
@@ -88,7 +94,7 @@ export function ArchivePaymentAccountDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isPending}
             >
               Cancel

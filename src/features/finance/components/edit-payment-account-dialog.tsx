@@ -34,6 +34,35 @@ export function EditPaymentAccountDialog({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  function handleClose() {
+    if (isPending) return;
+    setError(null);
+    setQrFile(null);
+    onClose();
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setError(null);
+    const selected = e.target.files?.[0] ?? null;
+    if (!selected) {
+      setQrFile(null);
+      return;
+    }
+    if (!selected.type.startsWith("image/")) {
+      setError("Please select a valid image file (PNG, JPEG, or WebP).");
+      setQrFile(null);
+      e.target.value = "";
+      return;
+    }
+    if (selected.size > 2 * 1024 * 1024) {
+      setError("The QR code file must be smaller than 2 MB.");
+      setQrFile(null);
+      e.target.value = "";
+      return;
+    }
+    setQrFile(selected);
+  }
+
   useEffect(() => {
     if (account) {
       setLabel(account.label);
@@ -91,7 +120,7 @@ export function EditPaymentAccountDialog({
         return;
       }
 
-      onClose();
+      handleClose();
     });
   }
 
@@ -99,7 +128,7 @@ export function EditPaymentAccountDialog({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open && !isPending) onClose();
+        if (!open && !isPending) handleClose();
       }}
     >
       <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
@@ -211,7 +240,7 @@ export function EditPaymentAccountDialog({
               id="edit-account-qr"
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => setQrFile(e.target.files?.[0] ?? null)}
+              onChange={handleFileChange}
               disabled={isPending}
               className="cursor-pointer file:cursor-pointer"
             />
@@ -226,7 +255,7 @@ export function EditPaymentAccountDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isPending}
             >
               Cancel
