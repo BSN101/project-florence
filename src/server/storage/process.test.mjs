@@ -42,6 +42,16 @@ test("small screenshot text stays readable enough to keep its contrast", async (
   assert.ok(channels[0].max > 240);
 });
 
+test("an already-compressed proof photo is not stored larger than uploaded", async () => {
+  const noise = Buffer.alloc(300 * 400 * 3);
+  for (let i = 0; i < noise.length; i++) noise[i] = (i * 2654435761) >>> 24;
+  const input = await sharp(noise, { raw: { width: 300, height: 400, channels: 3 } })
+    .resize(1200, 1600).blur(1.2).jpeg({ quality: 60 }).toBuffer();
+  const out = await processUpload("payment_proof", new Uint8Array(input));
+  assert.equal((await sharp(out).metadata()).format, "webp");
+  assert.ok(out.byteLength <= input.byteLength, `${out.byteLength} > ${input.byteLength}`);
+});
+
 test("payment-account QR codes stay scannable after compression", async () => {
   const input = await QRCode.toBuffer("00020101021127600011ph.ppmi.p2m0111GXCHPHM2XXX", { width: 1600, margin: 4 });
   const out = await processUpload("payment_account_qr", new Uint8Array(input));
@@ -49,6 +59,33 @@ test("payment-account QR codes stay scannable after compression", async () => {
   assert.equal((await sharp(out).metadata()).format, "png");
   assert.ok(info.width <= 1024);
   assert.equal(jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data, "00020101021127600011ph.ppmi.p2m0111GXCHPHM2XXX");
+});
+
+// A QR on a gradient with a coloured logo, exported as a JPEG screenshot, like an e-wallet "save QR" image.
+async function qrScreenshot(text) {
+  const W = 1080, H = 1920, bg = Buffer.alloc(W * H * 3);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 3; bg[i] = 0; bg[i + 1] = 90 + Math.round((y * 100) / H); bg[i + 2] = 200 + Math.round((x * 55) / W);
+  }
+  const qr = await QRCode.toBuffer(text, { width: 800, margin: 4, errorCorrectionLevel: "H" });
+  const logo = await sharp({ create: { width: 140, height: 140, channels: 3, background: "#0b5cff" } }).png().toBuffer();
+  return sharp(bg, { raw: { width: W, height: H, channels: 3 } })
+    .composite([{ input: qr, left: 140, top: 560 }, { input: logo, left: 470, top: 890 }])
+    .jpeg({ quality: 85 }).toBuffer();
+}
+
+async function decodeQr(png) {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data;
+}
+
+test("a JPEG QR screenshot is stored as a small 16-colour PNG that still scans", async () => {
+  const text = "00020101021127600011ph.ppmi.p2m0111GXCHPHM2XXX";
+  const input = await qrScreenshot(text);
+  const out = await processUpload("payment_account_qr", new Uint8Array(input));
+  assert.equal((await sharp(out).metadata()).format, "png");
+  assert.ok(out.byteLength < 10 * 1024, `${out.byteLength} bytes`);
+  assert.equal(await decodeQr(out), text);
 });
 
 test("non-images, oversized files and decompression bombs are refused", async () => {

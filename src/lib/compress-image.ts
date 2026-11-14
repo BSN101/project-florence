@@ -6,6 +6,8 @@ export type ImageUploadPurpose = "payment_proof" | "payment_account_qr";
 /** Largest original accepted on the phone before compression. */
 export const MAX_ORIGINAL_BYTES = 15 * 1024 * 1024;
 
+const serverFormats = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 const settings = {
   payment_proof: { maxEdge: 2000, type: "image/jpeg", quality: 0.8 },
   payment_account_qr: { maxEdge: 1024, type: "image/png", quality: undefined },
@@ -31,6 +33,7 @@ export async function compressImage(file: File, purpose: ImageUploadPurpose): Pr
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
-  if (!blob || (blob.size >= file.size && file.type === type)) return file;
+  // Keep a smaller original the server accepts as is; it re-encodes anyway. Others (e.g. HEIC) must be converted.
+  if (!blob || (blob.size >= file.size && serverFormats.has(file.type))) return file;
   return new File([blob], file.name.replace(/\.[^.]*$/, "") + (type === "image/png" ? ".png" : ".jpg"), { type });
 }
