@@ -66,7 +66,7 @@ export function PaymentAccountList({
             Payment Accounts
           </h2>
           <p className="text-sm text-muted-foreground">
-            Manage destination accounts and instructions for student bank and e-wallet transfers.
+            Manage destination accounts for student bank and e-wallet transfers.
           </p>
         </div>
         {canManage && (
@@ -130,7 +130,6 @@ export function PaymentAccountList({
                   <th scope="col" className="px-6 py-3">Destination</th>
                   <th scope="col" className="px-6 py-3">Account Holder</th>
                   <th scope="col" className="px-6 py-3">Reference / Number</th>
-                  <th scope="col" className="px-6 py-3">Instructions</th>
                   <th scope="col" className="px-6 py-3">QR</th>
                   {canManage && <th scope="col" className="px-6 py-3 text-right">Actions</th>}
                 </tr>
@@ -144,12 +143,6 @@ export function PaymentAccountList({
                     <td className="px-6 py-4 text-foreground">{item.account_name}</td>
                     <td className="px-6 py-4 font-mono text-sm text-foreground">
                       {item.account_reference}
-                    </td>
-                    <td
-                      className="px-6 py-4 text-muted-foreground text-xs max-w-xs truncate"
-                      title={item.instructions || undefined}
-                    >
-                      {item.instructions || "—"}
                     </td>
                     <td className="px-6 py-4">
                       {item.qr_file_id ? (

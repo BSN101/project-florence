@@ -94,11 +94,6 @@ const accountReference = z
   .min(1, "Account reference/number cannot be empty")
   .max(100, "Account reference cannot exceed 100 characters");
 
-const accountInstructions = z.preprocess(
-  (val) => (typeof val === "string" && val.trim() === "" ? null : val ?? null),
-  z.string().trim().max(1000, "Instructions cannot exceed 1000 characters").nullable().optional()
-);
-
 const accountQrFileId = z.preprocess(
   (val) => (val === "" || val === undefined ? null : val),
   paymentAccountQrFileIdSchema.nullable().optional()
@@ -110,7 +105,6 @@ export const createPaymentAccountSchema = z.object({
   label: accountLabel,
   accountName: accountName,
   accountReference: accountReference,
-  instructions: accountInstructions.optional(),
   qrFileId: accountQrFileId.optional(),
 });
 

@@ -543,7 +543,6 @@ export async function createPaymentAccount(
         label: parsed.data.label,
         account_name: parsed.data.accountName,
         account_reference: parsed.data.accountReference,
-        instructions: parsed.data.instructions ?? null,
         qr_file_id: parsed.data.qrFileId ?? null,
         created_by: context.profile.id,
         updated_at: now,
@@ -605,7 +604,6 @@ export async function updatePaymentAccount(
         label: parsed.data.label,
         account_name: parsed.data.accountName,
         account_reference: parsed.data.accountReference,
-        instructions: parsed.data.instructions ?? null,
         qr_file_id: parsed.data.qrFileId ?? null,
         updated_at: new Date().toISOString(),
       })

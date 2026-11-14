@@ -34,7 +34,6 @@ export function EditPaymentAccountDialog({
     label: account?.label ?? "",
     accountName: account?.account_name ?? "",
     accountReference: account?.account_reference ?? "",
-    instructions: account?.instructions ?? "",
     qrFile: null,
     removeExistingQr: false,
   }));
@@ -77,7 +76,6 @@ export function EditPaymentAccountDialog({
         label: values.label.trim(),
         accountName: values.accountName.trim(),
         accountReference: values.accountReference.trim(),
-        instructions: values.instructions.trim() || undefined,
         qrFileId: finalQrFileId,
       });
 
@@ -101,7 +99,7 @@ export function EditPaymentAccountDialog({
         <DialogHeader>
           <DialogTitle>Edit Payment Account</DialogTitle>
           <DialogDescription>
-            Update destination details and instructions for future submissions.
+            Update destination details for future submissions.
           </DialogDescription>
         </DialogHeader>
 

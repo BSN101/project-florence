@@ -246,7 +246,7 @@ export async function getPaymentAccounts(options?: {
 
   let query = client
     .from("payment_accounts")
-    .select("id, label, account_name, account_reference, instructions, qr_file_id, archived_at")
+    .select("id, label, account_name, account_reference, qr_file_id, archived_at")
     .order("label", { ascending: true });
 
   if (!options?.includeArchived) {
@@ -269,7 +269,7 @@ export async function getActivePaymentAccounts(): Promise<PaymentAccountDTO[]> {
   const client = await createUserClient();
   const { data, error } = await client
     .from("payment_accounts")
-    .select("id, label, account_name, account_reference, instructions, qr_file_id, archived_at")
+    .select("id, label, account_name, account_reference, qr_file_id, archived_at")
     .is("archived_at", null)
     .order("label", { ascending: true });
 

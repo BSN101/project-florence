@@ -68,7 +68,7 @@ Add completed entries below as features are finalized. Do not prepopulate specul
 
 1. The Council Executive navigates to Payment accounts in the Council workspace.
 2. The system loads active and archived payment accounts using permitted projections, respecting column grants.
-3. The Executive clicks "Add Payment Account", specifies the destination label (e.g., GCash, Landbank), account holder name, reference number, optional instructions, and optionally uploads a QR code image (PNG, JPEG or WebP, max 2 MB).
+3. The Executive clicks "Add Payment Account", specifies the destination label (e.g., GCash, Landbank), account holder name, reference number, and optionally uploads a QR code image (PNG, JPEG or WebP, max 2 MB).
 4. The system validates inputs, stores the private QR image in R2 under purpose `payment_account_qr`, records the account with the Executive's profile attribution, and displays the new destination in the active list.
 5. The Executive may edit an active destination's details or replace its QR image. The system updates the account record without rewriting historical payment snapshots.
 6. The Executive may archive an active account through a confirmation dialog. The system sets `archived_at`, moves the account to the archived list and keeps the record.

@@ -38,9 +38,8 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
   });
 
   describe("Validation schema boundaries", () => {
-    test("create schema enforces max length limits (100 for strings, 1000 for instructions)", () => {
+    test("create schema enforces max length limits (100 characters)", () => {
       const over100 = "a".repeat(101);
-      const over1000 = "a".repeat(1001);
 
       assert.equal(
         createPaymentAccountSchema.safeParse({
@@ -69,24 +68,12 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
         false
       );
 
-      assert.equal(
-        createPaymentAccountSchema.safeParse({
-          label: "GCash",
-          accountName: "Florence",
-          accountReference: "1234",
-          instructions: over1000,
-        }).success,
-        false
-      );
-
       // Boundary values (exact max) succeed
       const exact100 = "a".repeat(100);
-      const exact1000 = "a".repeat(1000);
       const boundary = createPaymentAccountSchema.safeParse({
         label: exact100,
         accountName: exact100,
         accountReference: exact100,
-        instructions: exact1000,
       });
       assert.equal(boundary.success, true);
     });

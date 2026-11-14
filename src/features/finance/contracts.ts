@@ -47,7 +47,6 @@ export type PaymentAccountDTO = Pick<
   | "label"
   | "account_name"
   | "account_reference"
-  | "instructions"
   | "qr_file_id"
   | "archived_at"
 >;

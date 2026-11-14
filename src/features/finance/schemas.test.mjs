@@ -274,7 +274,6 @@ test("payment account creation schema accepts valid attributes and trims inputs"
     label: "  GCash - Council Treasury  ",
     accountName: "  Florence Nightingale  ",
     accountReference: "  0917-123-4567  ",
-    instructions: "  Include your student ID in the notes.  ",
     qrFileId: validUuid,
   });
   assert.equal(result.success, true);
@@ -282,22 +281,19 @@ test("payment account creation schema accepts valid attributes and trims inputs"
     assert.equal(result.data.label, "GCash - Council Treasury");
     assert.equal(result.data.accountName, "Florence Nightingale");
     assert.equal(result.data.accountReference, "0917-123-4567");
-    assert.equal(result.data.instructions, "Include your student ID in the notes.");
     assert.equal(result.data.qrFileId, validUuid);
   }
 });
 
-test("payment account creation schema treats empty instructions and qrFileId as null", () => {
+test("payment account creation schema treats an empty qrFileId as null", () => {
   const result = createPaymentAccountSchema.safeParse({
     label: "Landbank",
     accountName: "Nursing Student Council",
     accountReference: "1234-5678-90",
-    instructions: "   ",
     qrFileId: "",
   });
   assert.equal(result.success, true);
   if (result.success) {
-    assert.equal(result.data.instructions, null);
     assert.equal(result.data.qrFileId, null);
   }
 });

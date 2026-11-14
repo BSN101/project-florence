@@ -24,7 +24,6 @@ const emptyFormValues: PaymentAccountFormValues = {
   label: "",
   accountName: "",
   accountReference: "",
-  instructions: "",
   qrFile: null,
   removeExistingQr: false,
 };
@@ -72,7 +71,6 @@ export function CreatePaymentAccountDialog({
         label: values.label.trim(),
         accountName: values.accountName.trim(),
         accountReference: values.accountReference.trim(),
-        instructions: values.instructions.trim() || undefined,
         qrFileId,
       });
 
@@ -96,7 +94,7 @@ export function CreatePaymentAccountDialog({
         <DialogHeader>
           <DialogTitle>Add Payment Account</DialogTitle>
           <DialogDescription>
-            Configure a transfer destination and instructions used for student payments.
+            Configure a transfer destination used for student payments.
           </DialogDescription>
         </DialogHeader>
 

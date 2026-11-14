@@ -12,7 +12,6 @@ export type PaymentAccountFormValues = {
   label: string;
   accountName: string;
   accountReference: string;
-  instructions: string;
   qrFile: File | null;
   removeExistingQr: boolean;
 };
@@ -169,28 +168,6 @@ export function PaymentAccountFormFields({
           required
           maxLength={100}
         />
-      </div>
-
-      <div>
-        <label
-          htmlFor={`${idPrefix}-instructions`}
-          className="block text-sm font-medium text-foreground mb-1"
-        >
-          Transfer Instructions (Optional)
-        </label>
-        <textarea
-          id={`${idPrefix}-instructions`}
-          value={values.instructions}
-          onChange={(e) => onChange({ instructions: e.target.value })}
-          placeholder="e.g. Please put your Student Number in the message or remarks."
-          disabled={disabled}
-          maxLength={1000}
-          rows={3}
-          className="w-full rounded-lg border border-input bg-background p-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        />
-        <p className="text-right text-[11px] text-muted-foreground mt-0.5">
-          {values.instructions.length}/1000
-        </p>
       </div>
 
       <div className="space-y-1.5">
