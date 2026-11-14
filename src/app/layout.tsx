@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import NextTopLoader from "nextjs-toploader";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -17,7 +18,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col"><TooltipProvider>{children}</TooltipProvider></body>
+      <body className="min-h-full flex flex-col">
+        {/* Token-driven so the bar follows --primary; no spinner, the header already shows page context. */}
+        <NextTopLoader color="var(--primary)" height={3} showSpinner={false} shadow={false} showForHashAnchor={false} />
+        <TooltipProvider>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }
