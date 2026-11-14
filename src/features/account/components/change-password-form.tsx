@@ -1,5 +1,6 @@
 import { changePassword } from "@/features/account/actions";
-import { buttonClass, fieldClass } from "@/features/auth/components/auth-shell";
+import { fieldClass } from "@/features/auth/components/auth-shell";
+import { SubmitButton } from "@/features/auth/components/submit-button";
 
 const messages: Record<string, { role: "alert" | "status"; text: string; className: string }> = {
   "password-updated": {
@@ -41,7 +42,7 @@ export function ChangePasswordForm({ status }: { status?: string }) {
         <label className="flex flex-col gap-2 font-medium">Confirm new password
           <input className={fieldClass} type="password" name="confirmation" autoComplete="new-password" required minLength={12} maxLength={72} />
         </label>
-        <button className={`${buttonClass} w-fit`} type="submit">Update password</button>
+        <SubmitButton className="w-fit" pendingLabel="Updating password…">Update password</SubmitButton>
       </form>
     </section>
   );

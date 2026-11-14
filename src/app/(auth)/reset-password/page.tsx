@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
 import { completePasswordRecovery } from "@/features/auth/actions";
-import { AuthShell, buttonClass, fieldClass } from "@/features/auth/components/auth-shell";
+import { AuthShell, fieldClass } from "@/features/auth/components/auth-shell";
+import { SubmitButton } from "@/features/auth/components/submit-button";
 import { recoveryIntentCookieName, verifyRecoveryIntent } from "@/features/auth/recovery-intent";
 import { createUserClient } from "@/server/db/user-client";
 
@@ -35,7 +36,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
           <label className="flex flex-col gap-2 font-medium">Confirm new password
             <input className={fieldClass} type="password" name="confirmation" autoComplete="new-password" required minLength={12} maxLength={72} />
           </label>
-          <button className={buttonClass} type="submit">Reset password</button>
+          <SubmitButton pendingLabel="Resetting password…">Reset password</SubmitButton>
         </form>
       ) : <p className="text-muted-foreground">No valid recovery session is available. Open the latest link in your recovery email or request another one.</p>}
       <Link className="mt-6 inline-block font-medium text-primary underline" href="/forgot-password">Request a recovery link</Link>

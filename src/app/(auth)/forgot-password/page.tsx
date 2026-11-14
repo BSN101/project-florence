@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requestReset } from "@/features/auth/actions";
-import { AuthShell, buttonClass, fieldClass } from "@/features/auth/components/auth-shell";
+import { AuthShell, fieldClass } from "@/features/auth/components/auth-shell";
+import { SubmitButton } from "@/features/auth/components/submit-button";
 import { redirectAuthenticatedUser } from "@/features/auth/redirects";
 
 export const instant = false;
@@ -17,7 +18,7 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
         <label className="flex flex-col gap-2 font-medium">Email address
           <input className={fieldClass} type="email" name="email" autoComplete="email" required maxLength={254} />
         </label>
-        <button className={buttonClass} type="submit">Send recovery link</button>
+        <SubmitButton pendingLabel="Sending link…">Send recovery link</SubmitButton>
       </form>
       <Link className="mt-6 inline-block font-medium text-primary underline" href="/sign-in">Back to sign in</Link>
     </AuthShell>
