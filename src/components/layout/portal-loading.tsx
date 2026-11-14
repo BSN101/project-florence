@@ -12,11 +12,11 @@ export function PortalLoading() {
         <Skeleton className="mt-auto h-12 w-full" />
       </aside>
       <section className="min-w-0 flex-1">
-        <header className="flex min-h-16 items-center gap-4 border-b border-border px-5 sm:px-8">
+        <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
           <Skeleton className="size-8" />
           <Skeleton className="h-5 w-40" />
         </header>
-        <div className="mx-auto flex max-w-5xl flex-col gap-8 px-5 py-8 sm:px-8 lg:px-10">
+        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-5 sm:gap-8 sm:px-8 sm:py-8 lg:px-10">
           <div className="space-y-3">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-9 w-72 max-w-full" />

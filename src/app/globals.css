@@ -109,6 +109,9 @@
   }
 
   body {
+    /* viewport-fit=cover: keep in-flow content clear of a landscape iPhone notch. Fixed bars pad themselves. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
     background: var(--background);
     color: var(--foreground);
     font-size: 0.875rem;
@@ -141,7 +144,60 @@
   }
 }
 
+/* iOS Safari zooms the page when a focused text field is under 16px. Unlayered, so it wins over size utilities. */
+@media (max-width: 767px), (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Page navigation (React <ViewTransition> in PageTransition): only the content fades; the
+   header (anchored by its own name), tab bar and page chrome swap instantly, as iOS tab switches do. Phones only. */
+::view-transition-group(workspace-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(workspace-header) {
+  display: none;
+}
+::view-transition-new(workspace-header) {
+  animation: none;
+}
+::view-transition {
+  pointer-events: none; /* taps during the fade reach the live page */
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(.page-fade) {
+  animation: 90ms ease-out both page-fade-out;
+}
+::view-transition-new(.page-fade) {
+  animation: 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both page-fade-in;
+}
+@keyframes page-fade-in {
+  from { opacity: 0; }
+}
+@keyframes page-fade-out {
+  to { opacity: 0; }
+}
+@media (min-width: 768px) {
+  ::view-transition-old(.page-fade),
+  ::view-transition-new(.page-fade) {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+
   *, *::before, *::after {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;

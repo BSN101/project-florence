@@ -1,23 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 import {
   Bell,
   BookOpenCheck,
   CalendarDays,
-  Check,
   ChevronRight,
-  ChevronUp,
   CircleDollarSign,
   ClipboardCheck,
   FileChartColumn,
   GraduationCap,
   HandCoins,
-  KeyRound,
   Landmark,
-  LogOut,
   Medal,
   QrCode,
   Scale,
@@ -28,19 +22,9 @@ import {
   Users,
 } from "lucide-react";
 
-import { LinkPendingIndicator, NavigationOverlay } from "@/components/layout/navigation-overlay";
-import { signOut } from "@/features/auth/actions";
+import { AccountMenu } from "@/components/layout/account-menu";
+import { LinkPendingIndicator } from "@/components/layout/navigation-overlay";
 import type { AccessContext } from "@/server/auth/access-context";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -67,17 +51,6 @@ const icons = [QrCode, CalendarDays, CircleDollarSign, Medal, ClipboardCheck, Be
 
 type ReadyAccess = Extract<AccessContext, { status: "ready" }>;
 
-function roleLabel(access: ReadyAccess, workspace: Workspace) {
-  if (workspace === "student") return "Student";
-  if (workspace === "council" && access.councilRole) {
-    return `Council ${access.councilRole[0].toUpperCase()}${access.councilRole.slice(1)}`;
-  }
-  if (workspace === "admin") return "Platform Admin";
-  if (access.roles.includes("RLE Coordinator")) return "RLE Coordinator";
-  if (access.roles.includes("Academic Coordinator")) return "Academic Coordinator";
-  return access.roles[0] ?? "Faculty";
-}
-
 export function AppSidebar({ workspace, navigation, currentSlug, access, unreadNotifications = 0 }: {
   workspace: Workspace;
   navigation: NavigationItem[];
@@ -85,25 +58,8 @@ export function AppSidebar({ workspace, navigation, currentSlug, access, unreadN
   access: ReadyAccess;
   unreadNotifications?: number;
 }) {
-  const router = useRouter();
-  const [isWorkspacePending, startWorkspaceTransition] = useTransition();
-  const fullName = [access.profile.first_name, access.profile.middle_name, access.profile.last_name, access.profile.suffix]
-    .filter(Boolean).join(" ");
-  const initials = `${access.profile.first_name[0] ?? ""}${access.profile.last_name[0] ?? ""}`.toUpperCase();
-
-  function switchWorkspace(event: React.MouseEvent<HTMLAnchorElement>, nextWorkspace: Workspace) {
-    if (nextWorkspace === workspace || isWorkspacePending) {
-      event.preventDefault();
-      return;
-    }
-    event.preventDefault();
-    startWorkspaceTransition(() => router.push(`/${nextWorkspace}`));
-  }
-
   return (
-    <>
-      <NavigationOverlay visible={isWorkspacePending} label="Switching workspace…" />
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="pl-[env(safe-area-inset-left)]">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -176,52 +132,11 @@ export function AppSidebar({ workspace, navigation, currentSlug, access, unreadN
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<SidebarMenuButton size="lg" tooltip={fullName} />}>
-                <Avatar className="size-8 rounded-lg">
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate font-medium">{fullName}</span>
-                  <span className="truncate text-xs">{roleLabel(access, workspace)}</span>
-                </div>
-                <ChevronUp className="ml-auto" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="min-w-64">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel className="p-2 font-normal">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="size-9 rounded-lg"><AvatarFallback className="rounded-lg">{initials}</AvatarFallback></Avatar>
-                      <div className="grid leading-tight">
-                        <span className="font-medium">{fullName}</span>
-                        <span className="text-xs text-muted-foreground">{roleLabel(access, workspace)}</span>
-                      </div>
-                    </div>
-                  </DropdownMenuLabel>
-                </DropdownMenuGroup>
-                {access.workspaces.length > 1 && <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-                    {access.workspaces.map((item) => (
-                      <DropdownMenuItem key={item} render={<Link href={`/${item}`} onClick={(event) => switchWorkspace(event, item)} aria-disabled={item === workspace || isWorkspacePending} />}>
-                        {item === workspace ? <Check /> : <span className="size-4" />}
-                        {workspaceLabels[item]}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuGroup>
-                </>}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem render={<Link href="/account" />}><UserRoundCog />Account</DropdownMenuItem>
-                <DropdownMenuItem render={<Link href="/account#password" />}><KeyRound />Change password</DropdownMenuItem>
-                <DropdownMenuItem render={<form action={signOut}><button type="submit" className="flex w-full items-center gap-1.5"><LogOut />Sign out</button></form>} />
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <AccountMenu workspace={workspace} access={access} />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-    </>
   );
 }

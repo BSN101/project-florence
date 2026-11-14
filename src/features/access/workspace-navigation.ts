@@ -6,6 +6,8 @@ export type NavigationItem = {
   semesterScoped?: boolean;
   /** Renders under a collapsible sidebar group; the list itself stays flat. */
   group?: string;
+  /** Phone tab-bar label. Items with one become bottom tabs; the rest go under "More". */
+  shortLabel?: string;
 };
 
 export const workspaceLabels: Record<Workspace, string> = {
@@ -16,21 +18,21 @@ export const workspaceLabels: Record<Workspace, string> = {
 };
 
 const studentItems: NavigationItem[] = [
-  { label: "Home and attendance QR", slug: "" },
-  { label: "Events", slug: "events", semesterScoped: true },
-  { label: "Fees and fines", slug: "fees-and-fines", semesterScoped: true },
-  { label: "Merits, demerits and services", slug: "merits-demerits-and-services", semesterScoped: true },
-  { label: "Clearance", slug: "clearance", semesterScoped: true },
+  { label: "Home and attendance QR", slug: "", shortLabel: "Home" },
+  { label: "Events", slug: "events", semesterScoped: true, shortLabel: "Events" },
+  { label: "Fees and fines", slug: "fees-and-fines", semesterScoped: true, shortLabel: "Fees" },
+  { label: "Merits, demerits and services", slug: "merits-demerits-and-services", semesterScoped: true, shortLabel: "Merits" },
+  { label: "Clearance", slug: "clearance", semesterScoped: true, shortLabel: "Clearance" },
   { label: "Notifications", slug: "notifications" },
 ];
 
 const councilItems: (NavigationItem & { executiveOnly?: boolean })[] = [
-  { label: "Students", slug: "", semesterScoped: true },
-  { label: "Events", slug: "events", semesterScoped: true },
+  { label: "Students", slug: "", semesterScoped: true, shortLabel: "Students" },
+  { label: "Events", slug: "events", semesterScoped: true, shortLabel: "Events" },
   { label: "Fees and fines", slug: "fees-and-fines", semesterScoped: true },
-  { label: "Payments", slug: "payments", semesterScoped: true },
+  { label: "Payments", slug: "payments", semesterScoped: true, shortLabel: "Payments" },
   { label: "Merit endorsements and Council demerits", slug: "merit-endorsements-and-council-demerits", semesterScoped: true },
-  { label: "Clearance", slug: "clearance", semesterScoped: true },
+  { label: "Clearance", slug: "clearance", semesterScoped: true, shortLabel: "Clearance" },
   { label: "Reports", slug: "reports", semesterScoped: true },
   { label: "Semesters", slug: "semesters" },
   { label: "Council members", slug: "council-members", executiveOnly: true },
@@ -69,6 +71,11 @@ export function getWorkspaceNavigation(workspace: Workspace, access: AccessGrant
     );
   }
   return items;
+}
+
+/** Phone tab bar only when there is more than one tab; Representatives (Events only) get none. */
+export function hasMobileTabBar(navigation: NavigationItem[]) {
+  return navigation.filter((item) => item.shortLabel).length > 1;
 }
 
 export function destinationHref(workspace: Workspace, slug: string) {
