@@ -43,7 +43,7 @@ export function SemesterFilter({ semesters, selectedId, enrollmentLimited = fals
       <NavigationOverlay visible={isPending} label="Switching semester…" />
       <label className="font-medium" htmlFor="semester-filter">View semester</label>
       <Select items={items} value={selectedId} onValueChange={selectSemester} disabled={isPending}>
-        <SelectTrigger id="semester-filter" className="min-w-64">
+        <SelectTrigger id="semester-filter" className="w-full sm:w-auto sm:min-w-64">
           <SelectValue />
         </SelectTrigger>
         <SelectContent align="start">

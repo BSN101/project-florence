@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { Workspace } from "@/features/access/access-policy";
-import { destinationHref, getWorkspaceNavigation, workspaceLabels } from "@/features/access/workspace-navigation";
+import { destinationHref, getWorkspaceNavigation, hasMobileTabBar, workspaceLabels } from "@/features/access/workspace-navigation";
 import { SemesterContext } from "@/features/semesters/components/semester-context";
 import { SemesterFilter } from "@/features/semesters/components/semester-filter";
 import { getUnreadNotificationCount } from "@/features/notifications/queries";
@@ -30,6 +30,7 @@ export async function WorkspaceShell({ workspace, destination = "", semester, ch
   if (!navigation.some((item) => item.slug === destination)) notFound();
 
   const currentItem = navigation.find((item) => item.slug === destination)!;
+  const tabBar = hasMobileTabBar(navigation);
   const visibleSemesters = workspace === "student"
     ? access.semesters.filter((item) => access.enrollments.some((enrollment) => enrollment.semester_id === item.id))
     : access.semesters;
@@ -53,18 +54,20 @@ export async function WorkspaceShell({ workspace, destination = "", semester, ch
         access={access}
         unreadNotifications={unreadNotifications}
       />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <WorkspaceHeader
           title={currentItem.label}
           workspace={workspace}
           unreadNotifications={unreadNotifications}
+          access={access}
+          tabBar={tabBar}
         />
-        <div className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-10">
-          <div className="mx-auto flex max-w-5xl flex-col gap-8">
-            <section className="flex flex-col gap-5">
+        <div className={`min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-8 lg:px-10 ${tabBar ? "max-md:pb-[calc(5rem+env(safe-area-inset-bottom))]" : ""}`}>
+          <div className="mx-auto flex max-w-5xl flex-col gap-6 sm:gap-8">
+            <section className="flex flex-col gap-3 sm:gap-5">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">{workspaceLabels[workspace]} workspace</p>
-                <h1 className="page-title">{currentItem.label}</h1>
+                <p className="hidden text-sm font-medium text-muted-foreground md:block">{workspaceLabels[workspace]} workspace</p>
+                <h1 id="page-title" className="page-title">{currentItem.label}</h1>
               </div>
               <SemesterContext semester={access.currentSemester} profile={access.profile} enrollments={access.enrollments} />
             </section>
