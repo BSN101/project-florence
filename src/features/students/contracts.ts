@@ -35,7 +35,7 @@ export type RosterImportRowInput = {
   middle_name: string | null;
   suffix: string | null;
   email: string | null;
-  year_level: number;
+  year_level: number | null;
   academic_status: string;
 };
 

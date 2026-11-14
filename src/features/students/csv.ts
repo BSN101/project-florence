@@ -23,12 +23,21 @@ export const CSV_TEMPLATE_CONTENT = `university_id,last_name,first_name,middle_n
 
 export const MAX_ROSTER_IMPORT_ROWS = 10000;
 
-/** RFC 4180-style CSV parsing: handles quotes, escaped quotes, CRLF/LF, optional BOM. */
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
+/** Optional last column written by the fix-up download; ignored on import. */
+const ISSUE_COLUMN = "issue";
+
+/**
+ * RFC 4180-style CSV parsing: handles quotes, escaped quotes, CRLF/LF, optional BOM.
+ * Each row keeps the file line it starts on, so skipped blank lines don't shift row numbers.
+ * Throws on an unclosed quote instead of swallowing the rest of the file.
+ */
+export function parseCsv(text: string): { cells: string[]; line: number }[] {
+  const rows: { cells: string[]; line: number }[] = [];
   let row: string[] = [];
   let field = "";
   let quoted = false;
+  let line = 1;
+  let start = 1;
   const input = text.replace(/^\uFEFF/, "");
   for (let i = 0; i < input.length; i++) {
     const char = input[i];
@@ -39,6 +48,7 @@ export function parseCsv(text: string): string[][] {
       } else if (char === '"') {
         quoted = false;
       } else {
+        if (char === "\n" || (char === "\r" && input[i + 1] !== "\n")) line++;
         field += char;
       }
     } else if (char === '"') {
@@ -49,18 +59,20 @@ export function parseCsv(text: string): string[][] {
     } else if (char === "\n" || char === "\r") {
       if (char === "\r" && input[i + 1] === "\n") i++;
       row.push(field);
-      rows.push(row);
+      rows.push({ cells: row, line: start });
       row = [];
       field = "";
+      start = ++line;
     } else {
       field += char;
     }
   }
+  if (quoted) throw new Error(`Unclosed quote in the row starting on line ${start}.`);
   if (field !== "" || row.length) {
     row.push(field);
-    rows.push(row);
+    rows.push({ cells: row, line: start });
   }
-  return rows.filter((cells) => cells.some((cell) => cell.trim() !== ""));
+  return rows.filter(({ cells }) => cells.some((cell) => cell.trim() !== ""));
 }
 
 /**
@@ -70,12 +82,18 @@ export function parseCsv(text: string): string[][] {
 export function parseRosterCsv(text: string):
   | { error: string }
   | { rows: RosterImportRowInput[]; invalid: RosterImportRowResult[] } {
-  const [header, ...body] = parseCsv(text);
+  let parsed: ReturnType<typeof parseCsv>;
+  try {
+    parsed = parseCsv(text);
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+  const [header, ...body] = parsed;
   if (!header) return { error: "The file is empty." };
 
-  const columns = header.map((cell) => cell.trim().toLowerCase());
+  const columns = header.cells.map((cell) => cell.trim().toLowerCase());
   const unknown = columns.filter(
-    (column) => !(FIXED_CSV_ROSTER_HEADERS as readonly string[]).includes(column),
+    (column) => column !== ISSUE_COLUMN && !(FIXED_CSV_ROSTER_HEADERS as readonly string[]).includes(column),
   );
   const missing = FIXED_CSV_ROSTER_HEADERS.filter((column) => !columns.includes(column));
 
@@ -92,8 +110,7 @@ export function parseRosterCsv(text: string):
   const rows: RosterImportRowInput[] = [];
   const invalid: RosterImportRowResult[] = [];
 
-  body.forEach((cells, index) => {
-    const row = index + 2; // spreadsheet 1-based line number (header is row 1)
+  body.forEach(({ cells, line: row }) => {
     const universityId = at(cells, "university_id");
     const lastName = at(cells, "last_name");
     const firstName = at(cells, "first_name");
@@ -106,11 +123,12 @@ export function parseRosterCsv(text: string):
     const middleName = middleNameRaw.length > 0 ? middleNameRaw : null;
     const suffix = suffixRaw.length > 0 ? suffixRaw : null;
     const email = emailRaw.length > 0 ? emailRaw.toLowerCase() : null;
-    const yearLevelNum = Number(yearLevelRaw);
-    const yearLevel = Number.isInteger(yearLevelNum) ? yearLevelNum : 0;
+    // Blank stays null so validation can say "required"; only well-formed rows reach the database.
+    const yearLevel = yearLevelRaw === "" ? null : Number(yearLevelRaw);
 
     const issues: string[] = [];
-    if (cells.length > columns.length) {
+    // Empty trailing cells (spreadsheet exports, a deleted issue header) are harmless.
+    if (cells.slice(columns.length).some((cell) => cell.trim() !== "")) {
       issues.push("Too many columns");
     }
 
@@ -170,15 +188,41 @@ export function mergeRosterImportFindings(
 
   mergedRows.sort((a, b) => a.row - b.row);
 
-  const ready = mergedRows.filter((r) => r.status === "ready").length;
-  const conflicts = mergedRows.filter((r) => r.status === "conflict").length;
-  const invalid = mergedRows.filter((r) => r.status === "invalid").length;
+  const count = (match: (r: RosterImportRowResult) => boolean) => mergedRows.filter(match).length;
+  const ready = (action: string) => count((r) => r.status === "ready" && r.action === action);
 
   return {
     ...dbPreview,
-    ready,
-    conflicts,
-    invalid,
+    ready: count((r) => r.status === "ready"),
+    conflicts: count((r) => r.status === "conflict"),
+    invalid: count((r) => r.status === "invalid"),
+    // A parser finding can turn a ready row invalid, so the action counts must follow.
+    created: ready("create"),
+    re_enrolled: ready("re_enroll"),
+    updated: ready("update"),
     rows: mergedRows,
   };
+}
+
+/**
+ * The uploaded file rewritten for fixing and re-uploading: ready rows first, then rows that
+ * need fixing, each with its problems in a trailing `issue` column the import ignores.
+ * Cells keep what the officer typed; cells past the 8 columns stay at the end so
+ * "Too many columns" is still visible.
+ */
+export function rosterFixCsv(csvText: string, results: RosterImportRowResult[]): string {
+  const [header, ...body] = parseCsv(csvText); // this file already passed parsing on the server
+  const columns = header.cells.map((cell) => cell.trim().toLowerCase());
+  const byLine = new Map(results.map((r) => [r.row, r]));
+  const needsFix = (line: number) => byLine.get(line)?.status !== "ready";
+  const quote = (text: string) => (/[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
+
+  const rows = body
+    .sort((a, b) => Number(needsFix(a.line)) - Number(needsFix(b.line)) || a.line - b.line)
+    .map(({ cells, line }) => [
+      ...FIXED_CSV_ROSTER_HEADERS.map((column) => cells[columns.indexOf(column)] ?? ""),
+      needsFix(line) ? byLine.get(line)?.message ?? "" : "",
+      ...cells.slice(columns.length),
+    ]);
+  return [[...FIXED_CSV_ROSTER_HEADERS, ISSUE_COLUMN], ...rows].map((r) => r.map(quote).join(",")).join("\r\n") + "\r\n";
 }

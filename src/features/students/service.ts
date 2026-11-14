@@ -30,8 +30,18 @@ import {
   createStudentSchema,
   inviteStudentSchema,
   previewRosterImportSchema,
+  rosterFormatFindings,
   updateStudentSchema,
 } from "./schemas";
+
+/** Parses the file and finds every format problem per row; only well-formed rows go to the database. */
+function checkRosterFile(csvText: string) {
+  const parsed = parseRosterCsv(csvText);
+  if ("error" in parsed) return parsed;
+  const invalid = rosterFormatFindings(parsed.rows, parsed.invalid);
+  const bad = new Set(invalid.map((r) => r.row));
+  return { rows: parsed.rows.filter((r) => !bad.has(r.row)), invalid };
+}
 
 /** The Council workspace alone is not authority; only Executive and Operations manage the roster. */
 export async function requireRosterManager() {
@@ -94,26 +104,28 @@ export async function previewRosterImport(raw: unknown): Promise<RosterImportPre
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid preview payload" };
   }
-  const csvResult = parseRosterCsv(parsed.data.csvText);
+  const csvResult = checkRosterFile(parsed.data.csvText);
   if ("error" in csvResult) {
     return { success: false, error: csvResult.error };
   }
 
-  const client = createCommandClient();
-  const { data, error } = await client.rpc("roster_import_csv", {
-    p_key: crypto.randomUUID(),
-    p_actor: actor.profile.id,
-    p_rows: csvResult.rows as unknown as Json,
-    p_apply: false,
-  });
-
-  if (error) {
-    return { success: false, error: error.message };
+  // The database needs at least one row; a file with only malformed rows has nothing to ask it.
+  let preview: RosterImportPreview = {
+    semester_id: "", ready: 0, conflicts: 0, invalid: 0, created: 0, re_enrolled: 0, updated: 0, rows: [],
+  };
+  if (csvResult.rows.length > 0) {
+    const client = createCommandClient();
+    const { data, error } = await client.rpc("roster_import_csv", {
+      p_key: crypto.randomUUID(),
+      p_actor: actor.profile.id,
+      p_rows: csvResult.rows as unknown as Json,
+      p_apply: false,
+    });
+    if (error) return { success: false, error: (commandError(error) as { error: string }).error };
+    preview = data as RosterImportPreview;
   }
 
-  const preview = data as RosterImportPreview;
-  const merged = mergeRosterImportFindings(preview, csvResult.invalid);
-  return { success: true, preview: merged };
+  return { success: true, preview: mergeRosterImportFindings(preview, csvResult.invalid) };
 }
 
 export async function applyRosterImport(raw: unknown): Promise<RosterImportResult> {
@@ -122,7 +134,7 @@ export async function applyRosterImport(raw: unknown): Promise<RosterImportResul
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid import payload" };
   }
-  const csvResult = parseRosterCsv(parsed.data.csvText);
+  const csvResult = checkRosterFile(parsed.data.csvText);
   if ("error" in csvResult) {
     return { success: false, error: csvResult.error };
   }
