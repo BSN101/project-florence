@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signIn } from "@/features/auth/actions";
-import { AuthShell, buttonClass, fieldClass } from "@/features/auth/components/auth-shell";
+import { AuthShell, fieldClass } from "@/features/auth/components/auth-shell";
+import { SubmitButton } from "@/features/auth/components/submit-button";
 import { safeDestination } from "@/features/auth/destinations";
 import { redirectAuthenticatedUser } from "@/features/auth/redirects";
 
@@ -30,7 +31,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         <label className="flex flex-col gap-2 font-medium">Password
           <input className={fieldClass} type="password" name="password" autoComplete="current-password" required />
         </label>
-        <button className={buttonClass} type="submit">Sign in</button>
+        <SubmitButton pendingLabel="Signing in…">Sign in</SubmitButton>
       </form>
       <p className="mt-6 text-muted-foreground">Forgot your password? <Link className="font-medium text-primary underline" href="/forgot-password">Reset it by email</Link>.</p>
     </AuthShell>

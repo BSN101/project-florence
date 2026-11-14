@@ -33,6 +33,39 @@ export const archiveDefinitionSchema = z.object({
   id: definitionId,
 });
 
+export const YEAR_LEVELS = [1, 2, 3, 4] as const;
+export type YearLevel = (typeof YEAR_LEVELS)[number];
+
+export const ACADEMIC_STATUSES = ["regular", "irregular"] as const;
+export type AcademicStatus = (typeof ACADEMIC_STATUSES)[number];
+
+export const feeAudienceYearLevelsSchema = z
+  .array(z.number().int().min(1).max(4))
+  .min(1, "Select at least one year level")
+  .refine((arr) => new Set(arr).size === arr.length, {
+    message: "Duplicate year levels are not permitted",
+  });
+
+export const feeAudienceAcademicStatusesSchema = z
+  .array(z.enum(ACADEMIC_STATUSES))
+  .min(1, "Select at least one academic status")
+  .refine((arr) => new Set(arr).size === arr.length, {
+    message: "Duplicate academic statuses are not permitted",
+  });
+
+export const previewFeeObligationsSchema = z.object({
+  feeDefinitionId: definitionId,
+  semesterId: z.string().uuid("Invalid semester identifier"),
+  yearLevels: feeAudienceYearLevelsSchema,
+  academicStatuses: feeAudienceAcademicStatusesSchema,
+});
+
+export const publishFeeObligationsSchema = previewFeeObligationsSchema.extend({
+  requestKey: z.string().uuid("Invalid request key").optional(),
+});
+
 export type CreateDefinitionInput = z.infer<typeof createDefinitionSchema>;
 export type UpdateDefinitionInput = z.infer<typeof updateDefinitionSchema>;
 export type ArchiveDefinitionInput = z.infer<typeof archiveDefinitionSchema>;
+export type PreviewFeeObligationsInput = z.infer<typeof previewFeeObligationsSchema>;
+export type PublishFeeObligationsInput = z.infer<typeof publishFeeObligationsSchema>;

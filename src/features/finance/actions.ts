@@ -1,31 +1,24 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
-import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
+import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 
-import type { DefinitionActionResult } from "./contracts";
+import type { DefinitionActionResult, FeePublicationPreview, PublishFeeResult } from "./contracts";
+import { assertAuthorizedCouncilManager, previewFeeObligations } from "./queries";
 import {
   archiveDefinitionSchema,
   createDefinitionSchema,
+  publishFeeObligationsSchema,
   updateDefinitionSchema,
   type ArchiveDefinitionInput,
   type CreateDefinitionInput,
+  type PreviewFeeObligationsInput,
+  type PublishFeeObligationsInput,
   type UpdateDefinitionInput,
 } from "./schemas";
-
-/**
- * Enforce that the caller is an authenticated Council member with Executive or Operations authority.
- * Council Representatives, Students, and Faculty are strictly forbidden.
- */
-async function assertAuthorizedCouncilManager() {
-  const context = await requireWorkspace("council");
-  if (context.councilRole !== "executive" && context.councilRole !== "operations") {
-    throw new AccessDeniedError("forbidden");
-  }
-  return context;
-}
 
 /**
  * Create a new reusable fine definition for event consequences.
@@ -405,6 +398,102 @@ export async function archiveFeeDefinition(
     return {
       success: false,
       error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Publish fee obligations to enrolled students based on audience criteria (FL-021 / T-031).
+ * Deduplication, snapshot creation, and notification triggers are atomically performed by the database RPC.
+ * Authorized for Council Executive and Operations only.
+ */
+export async function publishFeeObligations(
+  input: PublishFeeObligationsInput
+): Promise<PublishFeeResult> {
+  try {
+    const context = await assertAuthorizedCouncilManager();
+    const parsed = publishFeeObligationsSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid fee publication input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const requestKey = parsed.data.requestKey ?? randomUUID();
+    const commandClient = createCommandClient();
+
+    const { data, error } = await commandClient.rpc("publish_fee_obligations", {
+      p_key: requestKey,
+      p_actor: context.profile.id,
+      p_fee: parsed.data.feeDefinitionId,
+      p_semester: parsed.data.semesterId,
+      p_year_levels: parsed.data.yearLevels,
+      p_academic_statuses: parsed.data.academicStatuses,
+    });
+
+    if (error) {
+      if (error.code === "42501") {
+        return { success: false, error: "You are not permitted to publish fee obligations." };
+      }
+      if (error.message === "Active fee definition required") {
+        return { success: false, error: "This fee definition is no longer active. Refresh and choose another." };
+      }
+      return { success: false, error: "Fee obligations could not be published. Please try again." };
+    }
+
+    const result = data as { publication_id: string; obligation_count: number } | null;
+    if (!result?.publication_id) {
+      return { success: false, error: "Fee publication returned no result. Check the publication history before retrying." };
+    }
+    const count = result.obligation_count;
+    const publicationId = result.publication_id;
+
+    revalidatePath("/council/fees-and-fines");
+    return {
+      success: true,
+      publicationId,
+      count,
+      message: `Fee obligations published successfully to ${count} student${count === 1 ? "" : "s"}.`,
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may publish fee obligations",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Server action to preview audience obligation metrics before publishing.
+ * Authorized for Council Executive and Operations only.
+ */
+export async function previewFeeAudience(
+  input: PreviewFeeObligationsInput
+): Promise<
+  | { success: true; preview: FeePublicationPreview }
+  | { success: false; error: string }
+> {
+  try {
+    const preview = await previewFeeObligations(input);
+    return { success: true, preview };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may preview fee obligations",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load preview",
     };
   }
 }

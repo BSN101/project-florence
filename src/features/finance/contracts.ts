@@ -29,3 +29,42 @@ export type FeeDefinitionCatalogItem = FeeDefinitionDTO & { creator_name: string
 export type DefinitionActionResult =
   | { success: true; id: string; message?: string }
   | { success: false; error: string; issues?: Record<string, string[]> };
+
+/**
+ * Client-safe projection for historical fee publications.
+ * Directly derived from the fee_publications table.
+ */
+export type FeePublicationDTO = Pick<
+  Tables["fee_publications"]["Row"],
+  | "id"
+  | "fee_definition_id"
+  | "semester_id"
+  | "year_levels"
+  | "academic_statuses"
+  | "description"
+  | "amount"
+  | "published_by"
+  | "published_at"
+>;
+
+export type FeePublicationHistoryItem = FeePublicationDTO & {
+  publisher_name?: string;
+};
+
+/**
+ * Summary DTO when previewing audience fee obligations prior to explicit generation.
+ */
+export type FeePublicationPreview = {
+  totalMatchingStudents: number;
+  alreadyObligatedCount: number;
+  newObligationsCount: number;
+  unitAmount: number;
+  totalNewAmount: number;
+};
+
+/**
+ * Standardized action result for fee publication generation.
+ */
+export type PublishFeeResult =
+  | { success: true; publicationId: string; count: number; message: string }
+  | { success: false; error: string; issues?: Record<string, string[]> };
