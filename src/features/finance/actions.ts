@@ -5,19 +5,37 @@ import { revalidatePath } from "next/cache";
 
 import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
+import { getDownloadUrl, uploadFile, UploadRejectedError } from "@/server/storage/files";
 
-import type { DefinitionActionResult, FeePublicationPreview, PublishFeeResult } from "./contracts";
-import { assertAuthorizedCouncilManager, previewFeeObligations } from "./queries";
+import {
+  type DefinitionActionResult,
+  type FeePublicationPreview,
+  type PaymentAccountActionResult,
+  type PublishFeeResult,
+  sanitizePaymentAccountError,
+} from "./contracts";
+import {
+  assertAuthorizedCouncilExecutive,
+  assertAuthorizedCouncilManager,
+  previewFeeObligations,
+} from "./queries";
 import {
   archiveDefinitionSchema,
+  archivePaymentAccountSchema,
   createDefinitionSchema,
+  createPaymentAccountSchema,
+  paymentAccountQrFileIdSchema,
   publishFeeObligationsSchema,
   updateDefinitionSchema,
+  updatePaymentAccountSchema,
   type ArchiveDefinitionInput,
+  type ArchivePaymentAccountInput,
   type CreateDefinitionInput,
+  type CreatePaymentAccountInput,
   type PreviewFeeObligationsInput,
   type PublishFeeObligationsInput,
   type UpdateDefinitionInput,
+  type UpdatePaymentAccountInput,
 } from "./schemas";
 
 /**
@@ -494,6 +512,264 @@ export async function previewFeeAudience(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to load preview",
+    };
+  }
+}
+
+/**
+ * Create a new transfer destination account.
+ * Authorized for Council Executives only; Operations and Representatives are forbidden.
+ */
+export async function createPaymentAccount(
+  input: CreatePaymentAccountInput
+): Promise<PaymentAccountActionResult> {
+  try {
+    const context = await assertAuthorizedCouncilExecutive();
+    const parsed = createPaymentAccountSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid payment account input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const commandClient = createCommandClient();
+    const { data, error } = await commandClient
+      .from("payment_accounts")
+      .insert({
+        label: parsed.data.label,
+        account_name: parsed.data.accountName,
+        account_reference: parsed.data.accountReference,
+        qr_file_id: parsed.data.qrFileId ?? null,
+        created_by: context.profile.id,
+        updated_at: now,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      return {
+        success: false,
+        error: sanitizePaymentAccountError(error, "Failed to create payment account. Please try again."),
+      };
+    }
+
+    revalidatePath("/council/payment-accounts");
+    return {
+      success: true,
+      id: data.id,
+      message: "Payment account created successfully",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may manage payment accounts",
+      };
+    }
+    return {
+      success: false,
+      error: "An unexpected error occurred while saving the payment account. Please try again.",
+    };
+  }
+}
+
+/**
+ * Edit an active transfer destination account.
+ * Existing student submissions retain their point-in-time snapshot and are not rewritten.
+ * Authorized for Council Executives only; Operations and Representatives are forbidden.
+ */
+export async function updatePaymentAccount(
+  input: UpdatePaymentAccountInput
+): Promise<PaymentAccountActionResult> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const parsed = updatePaymentAccountSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid payment account input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const { expected } = parsed.data;
+    const commandClient = createCommandClient();
+
+    let update = commandClient
+      .from("payment_accounts")
+      .update({
+        label: parsed.data.label,
+        account_name: parsed.data.accountName,
+        account_reference: parsed.data.accountReference,
+        ...(parsed.data.qrFileId !== undefined && { qr_file_id: parsed.data.qrFileId }),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.data.id)
+      .is("archived_at", null)
+      .eq("label", expected.label)
+      .eq("account_name", expected.accountName)
+      .eq("account_reference", expected.accountReference);
+    update = expected.qrFileId === null ? update.is("qr_file_id", null) : update.eq("qr_file_id", expected.qrFileId);
+    const { data: updated, error: updateError } = await update.select("id").maybeSingle();
+
+    if (updateError) {
+      return {
+        success: false,
+        error: sanitizePaymentAccountError(updateError, "Failed to update payment account. Please try again."),
+      };
+    }
+    if (!updated) {
+      return {
+        success: false,
+        error: "This account was changed or archived by someone else. Refresh and try again.",
+      };
+    }
+
+    revalidatePath("/council/payment-accounts");
+    return {
+      success: true,
+      id: parsed.data.id,
+      message: "Payment account updated successfully",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may manage payment accounts",
+      };
+    }
+    return {
+      success: false,
+      error: "An unexpected error occurred while updating the payment account. Please try again.",
+    };
+  }
+}
+
+/**
+ * Archive a payment account to retire it from new student submissions.
+ * Existing submissions retain their destination details and remain valid.
+ * Authorized for Council Executives only; Operations and Representatives are forbidden.
+ */
+export async function archivePaymentAccount(
+  input: ArchivePaymentAccountInput
+): Promise<PaymentAccountActionResult> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const parsed = archivePaymentAccountSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: "Invalid payment account identifier" };
+    }
+
+    const commandClient = createCommandClient();
+
+    const now = new Date().toISOString();
+    const { data: archived, error: archiveError } = await commandClient
+      .from("payment_accounts")
+      .update({
+        archived_at: now,
+        updated_at: now,
+      })
+      .eq("id", parsed.data.id)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (archiveError) {
+      return {
+        success: false,
+        error: sanitizePaymentAccountError(archiveError, "Failed to archive payment account. Please try again."),
+      };
+    }
+    if (!archived) {
+      return {
+        success: false,
+        error: "This payment account was already archived or no longer exists. Please refresh.",
+      };
+    }
+
+    revalidatePath("/council/payment-accounts");
+    return {
+      success: true,
+      id: parsed.data.id,
+      message: "Payment account archived successfully",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may manage payment accounts",
+      };
+    }
+    return {
+      success: false,
+      error: "An unexpected error occurred while archiving the payment account. Please try again.",
+    };
+  }
+}
+
+/**
+ * Upload an optional payment destination QR code image (PNG/WebP, max 2MB).
+ * Registered under purpose 'payment_account_qr' with strict Executive authorization.
+ */
+export async function uploadPaymentAccountQr(
+  formData: FormData
+): Promise<{ success: true; fileId: string } | { success: false; error: string }> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const file = formData.get("file");
+    if (!file || !(file instanceof File)) {
+      return { success: false, error: "Please select an image file to upload." };
+    }
+    // uploadFile enforces the empty-file and size limits with user-safe messages.
+    const requestKey = randomUUID();
+    const fileId = await uploadFile("payment_account_qr", file, requestKey);
+    return { success: true, fileId };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may upload payment destination QR codes",
+      };
+    }
+    if (err instanceof UploadRejectedError) {
+      return { success: false, error: err.message };
+    }
+    return {
+      success: false,
+      error: "Failed to save QR code to storage. Please try again.",
+    };
+  }
+}
+
+/**
+ * Get a short-lived signed URL to preview a payment destination QR code image.
+ * Authorized for Council Executives.
+ */
+export async function getPaymentAccountQrUrl(
+  fileId: string
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const parsedFileId = paymentAccountQrFileIdSchema.safeParse(fileId);
+    if (!parsedFileId.success) {
+      return { success: false, error: "Invalid QR code file identifier." };
+    }
+
+    const url = await getDownloadUrl(parsedFileId.data, "council");
+    if (!url) {
+      return { success: false, error: "QR code image not found or access expired." };
+    }
+    return { success: true, url };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return { success: false, error: "Unauthorized" };
+    }
+    return {
+      success: false,
+      error: "Failed to load QR code image. Please try again.",
     };
   }
 }

@@ -31,6 +31,63 @@ export type DefinitionActionResult =
   | { success: false; error: string; issues?: Record<string, string[]> };
 
 /**
+ * Standardized action result for payment account mutations (FL-047 / T-032).
+ * Reuses the DefinitionActionResult shape to avoid over-duplication.
+ */
+export type PaymentAccountActionResult = DefinitionActionResult;
+
+/**
+ * Client-safe projection for payment accounts (FL-047 / T-032).
+ * Picked directly from the database schema to avoid over-duplication.
+ * Respects column-level grants: management metadata (created_by) is not exposed to client queries.
+ */
+export type PaymentAccountDTO = Pick<
+  Tables["payment_accounts"]["Row"],
+  | "id"
+  | "label"
+  | "account_name"
+  | "account_reference"
+  | "qr_file_id"
+  | "archived_at"
+>;
+
+/**
+ * Pure authorization check for payment account management (FL-047 / T-032).
+ * Only Council Executives have access; Operations and Representatives do not manage destinations.
+ */
+export function isAuthorizedPaymentAccountManager(
+  councilRole: string | null | undefined
+): boolean {
+  return councilRole === "executive";
+}
+
+/**
+ * Defensive error message sanitizer for payment accounts.
+ * Eliminates database leakage (SQLSTATEs, table names, schema details) while returning user-safe guidance.
+ */
+export function sanitizePaymentAccountError(
+  error: unknown,
+  fallbackMessage = "An unexpected error occurred while saving the payment account. Please try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    if (err.code === "42501") {
+      return "You do not have permission to modify payment accounts.";
+    }
+    if (err.code === "23503") {
+      return "This operation is restricted because the account is referenced by existing payment records.";
+    }
+    if (err.message) {
+      if (err.message.includes("Invalid payment destination QR purpose")) {
+        return "The attached QR code is invalid or not registered for payment accounts.";
+      }
+    }
+  }
+  return fallbackMessage;
+}
+
+/**
  * Client-safe projection for historical fee publications.
  * Directly derived from the fee_publications table.
  */

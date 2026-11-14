@@ -7,6 +7,9 @@ import {
   archiveDefinitionSchema,
   previewFeeObligationsSchema,
   publishFeeObligationsSchema,
+  createPaymentAccountSchema,
+  updatePaymentAccountSchema,
+  archivePaymentAccountSchema,
 } from "./schemas.ts";
 
 const validUuid = "11111111-1111-4111-8111-111111111111";
@@ -266,3 +269,118 @@ test("publish fee obligations schema accepts optional valid requestKey and rejec
   assert.equal(withBadKey.success, false);
 });
 
+test("payment account creation schema accepts valid attributes and trims inputs", () => {
+  const result = createPaymentAccountSchema.safeParse({
+    label: "  GCash - Council Treasury  ",
+    accountName: "  Florence Nightingale  ",
+    accountReference: "  0917-123-4567  ",
+    qrFileId: validUuid,
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.label, "GCash - Council Treasury");
+    assert.equal(result.data.accountName, "Florence Nightingale");
+    assert.equal(result.data.accountReference, "0917-123-4567");
+    assert.equal(result.data.qrFileId, validUuid);
+  }
+});
+
+test("payment account creation schema treats an empty qrFileId as null", () => {
+  const result = createPaymentAccountSchema.safeParse({
+    label: "Landbank",
+    accountName: "Nursing Student Council",
+    accountReference: "1234-5678-90",
+    qrFileId: "",
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.qrFileId, null);
+  }
+});
+
+test("payment account creation schema rejects empty or whitespace-only required fields", () => {
+  assert.equal(
+    createPaymentAccountSchema.safeParse({
+      label: "",
+      accountName: "Florence",
+      accountReference: "09171234567",
+    }).success,
+    false
+  );
+  assert.equal(
+    createPaymentAccountSchema.safeParse({
+      label: "GCash",
+      accountName: "   ",
+      accountReference: "09171234567",
+    }).success,
+    false
+  );
+  assert.equal(
+    createPaymentAccountSchema.safeParse({
+      label: "GCash",
+      accountName: "Florence",
+      accountReference: "   ",
+    }).success,
+    false
+  );
+});
+
+test("payment account update schema requires valid UUID and attributes", () => {
+  const valid = updatePaymentAccountSchema.safeParse({
+    id: validUuid,
+    label: "BPI",
+    accountName: "Treasury",
+    accountReference: "9876-5432-10",
+    expected: { label: "BPI", accountName: "Treasury", accountReference: "9876-5432-10", qrFileId: null },
+  });
+  assert.equal(valid.success, true);
+
+  const invalidId = updatePaymentAccountSchema.safeParse({
+    id: "not-a-uuid",
+    label: "BPI",
+    accountName: "Treasury",
+    accountReference: "9876-5432-10",
+  });
+  assert.equal(invalidId.success, false);
+});
+
+test("payment account archival schema requires valid UUID", () => {
+  assert.equal(archivePaymentAccountSchema.safeParse({ id: validUuid }).success, true);
+  assert.equal(archivePaymentAccountSchema.safeParse({ id: "invalid" }).success, false);
+});
+
+
+test("payment account number needs at least 10 digits, ignoring separators", () => {
+  const parse = (accountReference) =>
+    createPaymentAccountSchema.safeParse({ label: "GCash", accountName: "Treasury", accountReference }).success;
+  assert.equal(parse("09171234567"), true);
+  assert.equal(parse("0917-123-4567"), true);
+  assert.equal(parse("1234567890"), true);
+  assert.equal(parse("123456789"), false);
+  assert.equal(parse("0917-123-45"), false);
+  assert.equal(parse("ABCDEFGHIJK"), false);
+});
+
+test("payment account update keeps an absent qrFileId undefined so the QR is left unchanged", () => {
+  const base = {
+    id: validUuid, label: "GCash", accountName: "Treasury", accountReference: "09171234567",
+    expected: { label: "GCash", accountName: "Treasury", accountReference: "09171234567", qrFileId: null },
+  };
+  const absent = updatePaymentAccountSchema.safeParse(base);
+  assert.equal(absent.success, true);
+  assert.equal(absent.data.qrFileId, undefined);
+  assert.equal(updatePaymentAccountSchema.safeParse({ ...base, qrFileId: null }).data.qrFileId, null);
+  assert.equal(updatePaymentAccountSchema.safeParse({ ...base, qrFileId: "" }).data.qrFileId, null);
+});
+
+test("payment account update requires the values the editor loaded", () => {
+  const edit = { id: validUuid, label: "GCash", accountName: "Treasury", accountReference: "09171234567" };
+  assert.equal(updatePaymentAccountSchema.safeParse(edit).success, false);
+  assert.equal(
+    updatePaymentAccountSchema.safeParse({
+      ...edit,
+      expected: { label: "GCash", accountName: "Treasury", accountReference: "09171234567", qrFileId: "not-a-uuid" },
+    }).success,
+    false
+  );
+});

@@ -69,3 +69,63 @@ export type UpdateDefinitionInput = z.infer<typeof updateDefinitionSchema>;
 export type ArchiveDefinitionInput = z.infer<typeof archiveDefinitionSchema>;
 export type PreviewFeeObligationsInput = z.infer<typeof previewFeeObligationsSchema>;
 export type PublishFeeObligationsInput = z.infer<typeof publishFeeObligationsSchema>;
+
+export const PAYMENT_ACCOUNT_QR_MAX_BYTES = 2 * 1024 * 1024;
+
+export const paymentAccountQrFileIdSchema = z
+  .string()
+  .uuid("Invalid QR code file identifier.");
+
+const accountLabel = z
+  .string()
+  .trim()
+  .min(1, "Destination label cannot be empty")
+  .max(100, "Destination label cannot exceed 100 characters");
+
+const accountName = z
+  .string()
+  .trim()
+  .min(1, "Account name cannot be empty")
+  .max(100, "Account name cannot exceed 100 characters");
+
+const accountReference = z
+  .string()
+  .trim()
+  .min(1, "Account number cannot be empty")
+  .max(100, "Account number cannot exceed 100 characters")
+  // GCash numbers are 11 digits and institutional bank accounts at least 10; separators don't count.
+  .refine((value) => value.replace(/\D/g, "").length >= 10, "Account number must have at least 10 digits");
+
+// Absent means "leave unchanged" on update; null or "" removes the QR.
+const accountQrFileId = z.preprocess(
+  (val) => (val === "" ? null : val),
+  paymentAccountQrFileIdSchema.nullable().optional()
+);
+
+const accountId = z.string().uuid("Invalid payment account identifier");
+
+export const createPaymentAccountSchema = z.object({
+  label: accountLabel,
+  accountName: accountName,
+  accountReference,
+  qrFileId: accountQrFileId.optional(),
+});
+
+export const updatePaymentAccountSchema = createPaymentAccountSchema.extend({
+  id: accountId,
+  // The values the editor loaded; the update applies only if the row still has them.
+  expected: z.object({
+    label: z.string(),
+    accountName: z.string(),
+    accountReference: z.string(),
+    qrFileId: paymentAccountQrFileIdSchema.nullable(),
+  }),
+});
+
+export const archivePaymentAccountSchema = z.object({
+  id: accountId,
+});
+
+export type CreatePaymentAccountInput = z.infer<typeof createPaymentAccountSchema>;
+export type UpdatePaymentAccountInput = z.infer<typeof updatePaymentAccountSchema>;
+export type ArchivePaymentAccountInput = z.infer<typeof archivePaymentAccountSchema>;

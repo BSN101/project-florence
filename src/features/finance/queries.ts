@@ -2,13 +2,15 @@ import "server-only";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
-import type {
-  FeeDefinitionCatalogItem,
-  FeeDefinitionDTO,
-  FeePublicationDTO,
-  FeePublicationPreview,
-  FineDefinitionCatalogItem,
-  FineDefinitionDTO,
+import {
+  type FeeDefinitionCatalogItem,
+  type FeeDefinitionDTO,
+  type FeePublicationDTO,
+  type FeePublicationPreview,
+  type FineDefinitionCatalogItem,
+  type FineDefinitionDTO,
+  type PaymentAccountDTO,
+  isAuthorizedPaymentAccountManager,
 } from "./contracts";
 import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./schemas";
 
@@ -19,6 +21,19 @@ import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./
 export async function assertAuthorizedCouncilManager() {
   const context = await requireWorkspace("council");
   if (context.councilRole !== "executive" && context.councilRole !== "operations") {
+    throw new AccessDeniedError("forbidden");
+  }
+  return context;
+}
+
+/**
+ * Enforce that the caller is an authenticated Council Executive (FL-047 / T-032).
+ * Council Operations, Representatives, Students, and Faculty are strictly forbidden.
+ * Operations may read historical snapshots through payments, but cannot manage payment accounts.
+ */
+export async function assertAuthorizedCouncilExecutive() {
+  const context = await requireWorkspace("council");
+  if (!isAuthorizedPaymentAccountManager(context.councilRole)) {
     throw new AccessDeniedError("forbidden");
   }
   return context;
@@ -218,3 +233,30 @@ export async function getFeePublications(
   return data ?? [];
 }
 
+/**
+ * Fetch payment accounts for Council Executive administration (FL-047 / T-032).
+ * Strictly restricted to Council Executives.
+ * Uses the request-scoped user client and explicit permitted projection.
+ */
+export async function getPaymentAccounts(options?: {
+  includeArchived?: boolean;
+}): Promise<PaymentAccountDTO[]> {
+  await assertAuthorizedCouncilExecutive();
+  const client = await createUserClient();
+
+  let query = client
+    .from("payment_accounts")
+    .select("id, label, account_name, account_reference, qr_file_id, archived_at")
+    .order("label", { ascending: true });
+
+  if (!options?.includeArchived) {
+    query = query.is("archived_at", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to fetch payment accounts: ${error.message}`);
+  }
+
+  return data ?? [];
+}
