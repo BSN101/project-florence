@@ -70,6 +70,12 @@ export type ArchiveDefinitionInput = z.infer<typeof archiveDefinitionSchema>;
 export type PreviewFeeObligationsInput = z.infer<typeof previewFeeObligationsSchema>;
 export type PublishFeeObligationsInput = z.infer<typeof publishFeeObligationsSchema>;
 
+export const PAYMENT_ACCOUNT_QR_MAX_BYTES = 2 * 1024 * 1024;
+
+export const paymentAccountQrFileIdSchema = z
+  .string()
+  .uuid("Invalid QR code file identifier.");
+
 const accountLabel = z
   .string()
   .trim()
@@ -95,7 +101,7 @@ const accountInstructions = z.preprocess(
 
 const accountQrFileId = z.preprocess(
   (val) => (val === "" || val === undefined ? null : val),
-  z.string().uuid("Invalid QR file identifier").nullable().optional()
+  paymentAccountQrFileIdSchema.nullable().optional()
 );
 
 const accountId = z.string().uuid("Invalid payment account identifier");
@@ -108,13 +114,8 @@ export const createPaymentAccountSchema = z.object({
   qrFileId: accountQrFileId.optional(),
 });
 
-export const updatePaymentAccountSchema = z.object({
+export const updatePaymentAccountSchema = createPaymentAccountSchema.extend({
   id: accountId,
-  label: accountLabel,
-  accountName: accountName,
-  accountReference: accountReference,
-  instructions: accountInstructions.optional(),
-  qrFileId: accountQrFileId.optional(),
 });
 
 export const archivePaymentAccountSchema = z.object({

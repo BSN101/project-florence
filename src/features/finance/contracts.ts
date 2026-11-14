@@ -52,8 +52,6 @@ export type PaymentAccountDTO = Pick<
   | "archived_at"
 >;
 
-export type PaymentAccountCatalogItem = PaymentAccountDTO;
-
 /**
  * Pure authorization check for payment account management (FL-047 / T-032).
  * Only Council Executives have access; Operations and Representatives do not manage destinations.
@@ -80,9 +78,6 @@ export function sanitizePaymentAccountError(
     }
     if (err.code === "23503") {
       return "This operation is restricted because the account is referenced by existing payment records.";
-    }
-    if (err.code === "23505") {
-      return "A payment destination with identical reference details already exists.";
     }
     if (err.message) {
       if (err.message.includes("Invalid payment destination QR purpose")) {

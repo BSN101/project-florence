@@ -24,6 +24,8 @@ import {
   archivePaymentAccountSchema,
   createDefinitionSchema,
   createPaymentAccountSchema,
+  PAYMENT_ACCOUNT_QR_MAX_BYTES,
+  paymentAccountQrFileIdSchema,
   publishFeeObligationsSchema,
   updateDefinitionSchema,
   updatePaymentAccountSchema,
@@ -597,25 +599,6 @@ export async function updatePaymentAccount(
 
     const commandClient = createCommandClient();
 
-    const { data: existing, error: fetchError } = await commandClient
-      .from("payment_accounts")
-      .select("id, archived_at")
-      .eq("id", parsed.data.id)
-      .maybeSingle();
-
-    if (fetchError || !existing) {
-      return {
-        success: false,
-        error: sanitizePaymentAccountError(fetchError, "Payment account not found or unavailable."),
-      };
-    }
-    if (existing.archived_at !== null) {
-      return {
-        success: false,
-        error: "Archived payment accounts cannot be modified.",
-      };
-    }
-
     const { data: updated, error: updateError } = await commandClient
       .from("payment_accounts")
       .update({
@@ -640,7 +623,7 @@ export async function updatePaymentAccount(
     if (!updated) {
       return {
         success: false,
-        error: "This payment account is no longer active or was modified by another administrator. Please refresh.",
+        error: "This payment account is archived or no longer exists. Please refresh.",
       };
     }
 
@@ -681,22 +664,6 @@ export async function archivePaymentAccount(
 
     const commandClient = createCommandClient();
 
-    const { data: existing, error: fetchError } = await commandClient
-      .from("payment_accounts")
-      .select("id, archived_at")
-      .eq("id", parsed.data.id)
-      .maybeSingle();
-
-    if (fetchError || !existing) {
-      return {
-        success: false,
-        error: sanitizePaymentAccountError(fetchError, "Payment account not found or unavailable."),
-      };
-    }
-    if (existing.archived_at !== null) {
-      return { success: false, error: "Payment account is already archived." };
-    }
-
     const now = new Date().toISOString();
     const { data: archived, error: archiveError } = await commandClient
       .from("payment_accounts")
@@ -718,7 +685,7 @@ export async function archivePaymentAccount(
     if (!archived) {
       return {
         success: false,
-        error: "This payment account was already archived or removed. Please refresh.",
+        error: "This payment account was already archived or no longer exists. Please refresh.",
       };
     }
 
@@ -758,7 +725,7 @@ export async function uploadPaymentAccountQr(
     if (file.size === 0) {
       return { success: false, error: "The selected file is empty." };
     }
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > PAYMENT_ACCOUNT_QR_MAX_BYTES) {
       return { success: false, error: "The QR code file must be smaller than 2 MB." };
     }
 
@@ -791,11 +758,12 @@ export async function getPaymentAccountQrUrl(
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
   try {
     await assertAuthorizedCouncilExecutive();
-    if (!fileId || typeof fileId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fileId)) {
+    const parsedFileId = paymentAccountQrFileIdSchema.safeParse(fileId);
+    if (!parsedFileId.success) {
       return { success: false, error: "Invalid QR code file identifier." };
     }
 
-    const url = await getDownloadUrl(fileId, "council");
+    const url = await getDownloadUrl(parsedFileId.data, "council");
     if (!url) {
       return { success: false, error: "QR code image not found or access expired." };
     }

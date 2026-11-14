@@ -9,6 +9,8 @@ import {
   createPaymentAccountSchema,
   updatePaymentAccountSchema,
   archivePaymentAccountSchema,
+  paymentAccountQrFileIdSchema,
+  PAYMENT_ACCOUNT_QR_MAX_BYTES,
 } from "./schemas.ts";
 
 const validUuid = "a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d";
@@ -145,6 +147,13 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
         false
       );
     });
+
+    test("QR file ID schema and size constant enforce expected boundaries", () => {
+      assert.equal(PAYMENT_ACCOUNT_QR_MAX_BYTES, 2 * 1024 * 1024);
+      assert.equal(paymentAccountQrFileIdSchema.safeParse(validUuid).success, true);
+      assert.equal(paymentAccountQrFileIdSchema.safeParse("not-a-uuid").success, false);
+      assert.equal(paymentAccountQrFileIdSchema.safeParse("").success, false);
+    });
   });
 
   describe("Defensive error sanitization", () => {
@@ -164,17 +173,6 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
         "This operation is restricted because the account is referenced by existing payment records."
       );
       assert.equal(sanitized.includes("payments_payment_account_id_fkey"), false);
-    });
-
-    test("sanitizes 23505 duplicate key violations", () => {
-      const sanitized = sanitizePaymentAccountError({
-        code: "23505",
-        message: 'duplicate key value violates unique constraint "payment_accounts_reference_key"',
-      });
-      assert.equal(
-        sanitized,
-        "A payment destination with identical reference details already exists."
-      );
     });
 
     test("sanitizes database trigger guard messages safely", () => {
