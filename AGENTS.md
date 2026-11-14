@@ -53,6 +53,10 @@
 
 - Use new, versioned SQL migrations. Never rewrite applied migrations,
   reset shared databases or discard retained history.
+- In RLS policies, call row-independent helpers as
+  `(select f_access_private.me())` so they run once per statement, not per
+  row. Helpers that take a row column, such as `event_visible(id)`, cannot be
+  wrapped this way.
 - Generated migration files start empty; populate and review them.
 - Confirm the linked target and inspect pending migrations before applying
   changes. Do not push remote changes without explicit authorization.
