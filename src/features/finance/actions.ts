@@ -744,7 +744,7 @@ export async function uploadPaymentAccountQr(
     }
     return {
       success: false,
-      error: "Failed to upload QR code. Please try again with a valid PNG, JPEG, or WebP image.",
+      error: "Failed to save QR code to storage. Please try again.",
     };
   }
 }
