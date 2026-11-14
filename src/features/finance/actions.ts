@@ -434,7 +434,13 @@ export async function publishFeeObligations(
     });
 
     if (error) {
-      return { success: false, error: error.message };
+      if (error.code === "42501") {
+        return { success: false, error: "You are not permitted to publish fee obligations." };
+      }
+      if (error.message === "Active fee definition required") {
+        return { success: false, error: "This fee definition is no longer active. Refresh and choose another." };
+      }
+      return { success: false, error: "Fee obligations could not be published. Please try again." };
     }
 
     const result = data as { publication_id: string; obligation_count: number } | null;
