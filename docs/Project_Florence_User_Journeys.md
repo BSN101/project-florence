@@ -4,7 +4,7 @@
 
 Record how users complete goals across the application. The [function list](Project_Florence_Function_List.md) defines scope and permissions, the [navigation map](Project_Florence_Navigation_Map.md) identifies destinations, and the [schema](Project_Florence_Schema.md) defines data and transaction rules. Journeys connect these references without replacing them.
 
-This document currently provides writing guidance; no journeys are finalized here yet. It is not a prerequisite for scaffolding.
+This document provides writing guidance and finalized journeys. It is not a prerequisite for scaffolding.
 
 ## When and how to write
 
@@ -55,10 +55,12 @@ What changed and what each relevant user can see or do next.
 
 ## Finalized journeys
 
+Add completed entries below as features are finalized. Do not prepopulate speculative flows or claim application verification from documentation alone.
+
 ## Manage payment transfer destination accounts
 
 - **Author:** Reipoh Gabriel Arradaza
-- **Actors:** Council Executive (primary), Students (indirect consumers of active destinations).
+- **Actors:** Council Executive.
 - **Starts at:** Council workspace > Payment accounts (`/council/payment-accounts`); user must hold an active Council Executive role.
 - **References:** FL-047, FL-023; Schema section 7.4 (`payment_accounts`), Schema section 5 (`files`).
 
@@ -66,21 +68,22 @@ What changed and what each relevant user can see or do next.
 
 1. The Council Executive navigates to Payment accounts in the Council workspace.
 2. The system loads active and archived payment accounts using permitted projections, respecting column grants.
-3. The Executive clicks "Add Payment Account", specifies the destination label (e.g., GCash, Landbank), account holder name, reference number, optional instructions, and optionally uploads a QR code image (PNG/WebP, max 2 MB).
+3. The Executive clicks "Add Payment Account", specifies the destination label (e.g., GCash, Landbank), account holder name, reference number, optional instructions, and optionally uploads a QR code image (PNG, JPEG or WebP, max 2 MB).
 4. The system validates inputs, stores the private QR image in R2 under purpose `payment_account_qr`, records the account with the Executive's profile attribution, and displays the new destination in the active list.
-5. The Executive may edit an active destination's details or replace its QR image. The system saves updates to the master record for future student submissions without rewriting historical payment snapshots.
-6. The Executive may archive an active account through a confirmation dialog. The system sets `archived_at` timestamp, retiring the account from the active student transfer options while preserving historical records.
+5. The Executive may edit an active destination's details or replace its QR image. The system updates the account record without rewriting historical payment snapshots.
+6. The Executive may archive an active account through a confirmation dialog. The system sets `archived_at`, moves the account to the archived list and keeps the record.
 
 ### System involvement
 
-- Table `payment_accounts`: rows inserted, updated, or archived (`archived_at = now()`). Hard deletion is prevented.
+- Table `payment_accounts`: rows inserted, updated, or archived (`archived_at = now()`). The workflow provides no delete action.
+- New transfer payments (not corrections) must reference an active account; the database rejects archived ones.
 - Table `files`: private QR image stored in R2 and registered via `register_file` under purpose `payment_account_qr`.
 - Server actions enforce Council Executive authority via `assertAuthorizedCouncilExecutive()`. Operations and Representatives are denied.
 - Existing submissions retain their captured snapshot (`destination_label`, `destination_account_name`, `destination_account_reference`) on table `payments`.
 
 ### Outcome
 
-Active payment accounts and instructions become available to students during transfer submission wizard flows. Archived accounts are retired from new selection but retained for audit integrity.
+Active accounts appear in the active list; archived accounts move to the archived list and stay retained. Student transfer submission is not part of this journey.
 
 ### Important alternatives
 
@@ -92,6 +95,6 @@ Active payment accounts and instructions become available to students during tra
 
 - A Council Executive can create, edit, archive, and view active/archived payment accounts and optional QR codes.
 - Council Operations and Representatives are denied access at both the page and server action layers.
-- Archived accounts immediately disappear from active student payment submission choices.
+- Archived accounts move to the archived list and can no longer be edited.
 - Edits to an active account do not rewrite destination snapshots on existing payments.
-- Accounts cannot be hard-deleted.
+- The workflow offers no way to delete an account.
