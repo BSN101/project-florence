@@ -1,18 +1,20 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useId, useState } from "react";
 import {
   AlertCircle,
-  AlertTriangle,
+  Check,
   CheckCircle2,
+  Download,
   FileSpreadsheet,
   FileUp,
-  Loader2,
   RefreshCw,
+  Send,
   Upload,
   UserCheck,
   UserPlus,
   X,
+  XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,11 +25,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { applyRosterImportAction, previewRosterImportAction } from "../actions";
 import type { RosterImportPreview, RosterImportRowResult } from "../contracts";
+import { rosterFixCsv } from "../csv";
+import { downloadCsv } from "./download-csv";
+import { ProgressBar } from "./progress-bar";
+
+type Stage = "upload" | "checking" | "review" | "importing" | "done" | "failed";
+type Filter = "all" | "ready" | "conflict" | "invalid";
+type Summary = { total: number; created: number; re_enrolled: number; updated: number };
+
+const STEPS = ["Upload", "Review", "Import", "Done"] as const;
+const stepOf: Record<Stage, number> = { upload: 0, checking: 0, review: 1, importing: 2, failed: 2, done: 3 };
 
 const statusStyles: Record<string, string> = {
   ready: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
@@ -36,652 +47,528 @@ const statusStyles: Record<string, string> = {
 };
 
 const actionConfig: Record<string, { label: string; icon: typeof UserPlus }> = {
-  create: { label: "New Student", icon: UserPlus },
+  create: { label: "New student", icon: UserPlus },
   re_enroll: { label: "Re-enroll", icon: UserCheck },
   update: { label: "Update", icon: RefreshCw },
   none: { label: "—", icon: UserPlus },
 };
 
-type FilterType = "all" | "ready" | "conflicts" | "invalid";
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const manilaTime = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
+
+/** Stepper; on phones it collapses to one "Step 2 of 4" line. */
+function StepTracker({ current }: { current: number }) {
+  return (
+    <>
+      <p className="text-xs font-medium text-muted-foreground sm:hidden">
+        Step {current + 1} of {STEPS.length} · <span className="text-foreground">{STEPS[current]}</span>
+      </p>
+      <ol aria-label="Import steps" className="hidden items-center gap-2 text-xs sm:flex">
+        {STEPS.map((step, i) => (
+          <li key={step} aria-current={i === current ? "step" : undefined} className="flex flex-1 items-center gap-2 last:flex-none">
+            <span
+              className={cn(
+                "flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
+                i < current && "border-primary bg-primary text-primary-foreground",
+                i === current && "border-primary text-primary",
+                i > current && "border-border text-muted-foreground",
+              )}
+            >
+              {i < current ? <Check className="size-3.5" /> : i + 1}
+            </span>
+            <span className={cn("font-medium", i <= current ? "text-foreground" : "text-muted-foreground")}>{step}</span>
+            {i < STEPS.length - 1 && <span className={cn("h-px flex-1", i < current ? "bg-primary" : "bg-border")} />}
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+}
+
+/** One bar split by outcome, with a legend that carries the numbers for screen readers. */
+function SummaryBar({ preview }: { preview: RosterImportPreview }) {
+  const total = preview.rows.length;
+  const segments = [
+    { label: "New", count: preview.created, color: "bg-emerald-600" },
+    { label: "Re-enrolled", count: preview.re_enrolled, color: "bg-emerald-400" },
+    { label: "Updated", count: preview.updated, color: "bg-sky-500" },
+    { label: "Conflicts", count: preview.conflicts, color: "bg-amber-500" },
+    { label: "Invalid", count: preview.invalid, color: "bg-destructive" },
+  ].filter((s) => s.count > 0);
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div aria-hidden className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-muted">
+        {segments.map((s) => (
+          <div key={s.label} className={s.color} style={{ width: `${(s.count / total) * 100}%` }} />
+        ))}
+      </div>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        {segments.map((s) => (
+          <li key={s.label} className="flex items-center gap-1.5">
+            <span className={cn("size-2 rounded-full", s.color)} />
+            {s.label}
+            <strong className="font-semibold tabular-nums text-foreground">{s.count}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function ImportRosterDialog({
-  open: controlledOpen,
-  onOpenChange: controlledOnOpenChange,
-  trigger,
-  className,
+  open,
+  onOpenChange,
+  semesterLabel,
+  inviteCount,
+  onInvite,
 }: {
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  trigger?: React.ReactNode;
-  className?: string;
-} = {}) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const isControlled = controlledOpen !== undefined;
-  const open = isControlled ? controlledOpen : internalOpen;
-
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  semesterLabel: string;
+  /** Uninvited, eligible students in the semester after the import (fresh from the server). */
+  inviteCount: number;
+  onInvite: () => void;
+}) {
+  const [stage, setStage] = useState<Stage>("upload");
   const [csvText, setCsvText] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, setPreview] = useState<RosterImportPreview | null>(null);
   const [requestKey, setRequestKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [successResult, setSuccessResult] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [result, setResult] = useState<{ message: string; summary: Summary; at: Date } | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
   const [isDragging, setIsDragging] = useState(false);
-  const [isPending, startTransition] = useTransition();
-
   const fileInputId = useId();
+  const busy = stage === "checking" || stage === "importing";
 
-  const resetState = () => {
+  const reset = () => {
+    setStage("upload");
     setCsvText(null);
     setFileName(null);
     setPreview(null);
     setRequestKey(null);
     setError(null);
-    setSuccessResult(null);
+    setResult(null);
     setFilter("all");
     setIsDragging(false);
   };
 
   const handleOpenChange = (next: boolean) => {
-    if (!next && isPending) return;
-    if (isControlled) {
-      controlledOnOpenChange?.(next);
-    } else {
-      setInternalOpen(next);
-    }
-    if (!next) resetState();
+    if (!next && busy) return; // closing mid-request would hide the outcome
+    onOpenChange(next);
+    if (!next) reset();
   };
 
-  const setOpen = (next: boolean) => handleOpenChange(next);
+  // Each check gets a fresh request key; retrying the same import reuses it, so it never applies twice.
+  const check = async (text: string) => {
+    setError(null);
+    setPreview(null);
+    setFilter("all");
+    setRequestKey(crypto.randomUUID());
+    setStage("checking");
+    try {
+      const res = await previewRosterImportAction(text);
+      if (res.success) {
+        setPreview(res.preview);
+        setStage("review");
+      } else {
+        setError(res.error);
+        setStage("upload");
+      }
+    } catch {
+      setError("The connection was interrupted. Please try again.");
+      setStage("upload");
+    }
+  };
 
   const handleFile = async (file: File | undefined) => {
     setError(null);
-    setSuccessResult(null);
-    setPreview(null);
     if (!file) return;
-
-    if (!file.name.endsWith(".csv")) {
-      setError("Please select a valid CSV (.csv) file.");
-      return;
-    }
-
-    if (file.size > 1024 * 1024) {
-      setError("CSV file size exceeds the 1 MB limit.");
-      return;
-    }
-
+    if (!file.name.toLowerCase().endsWith(".csv")) return setError("Please select a valid CSV (.csv) file.");
+    if (file.size > 1024 * 1024) return setError("CSV file size exceeds the 1 MB limit.");
+    let text: string;
     try {
-      const text = await file.text();
-      setCsvText(text);
-      setFileName(file.name);
-      const key = crypto.randomUUID();
-      setRequestKey(key);
-
-      startTransition(async () => {
-        const result = await previewRosterImportAction(text);
-        if (!result.success) {
-          setError(result.error);
-        } else {
-          setPreview(result.preview);
-        }
-      });
+      text = await file.text();
     } catch {
-      setError("Failed to read the file. Please try again.");
+      return setError("Failed to read the file. Please try again.");
     }
+    setCsvText(text);
+    setFileName(file.name);
+    await check(text);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isPending) {
-      setIsDragging(true);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    if (isPending) return;
-
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFile(files[0]);
-    }
-  };
-
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!csvText || !requestKey) return;
     setError(null);
-
-    startTransition(async () => {
-      const result = await applyRosterImportAction(requestKey, csvText);
-      if (!result.success) {
-        setError(result.error);
+    setStage("importing");
+    try {
+      const res = await applyRosterImportAction(requestKey, csvText);
+      if (res.success) {
+        setResult({ message: res.message, summary: res.summary, at: new Date() });
+        setStage("done");
       } else {
-        setSuccessResult(result.message);
+        setError(res.error);
+        setStage("failed");
       }
-    });
+    } catch {
+      setError("The connection was interrupted before the server answered.");
+      setStage("failed");
+    }
   };
 
-  const canImport =
-    preview !== null &&
-    preview.invalid === 0 &&
-    preview.conflicts === 0 &&
-    preview.ready > 0 &&
-    !successResult;
+  const drag = (e: React.DragEvent, dragging?: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragging !== undefined && !busy) setIsDragging(dragging);
+  };
 
-  const filteredRows: RosterImportRowResult[] = preview
-    ? preview.rows.filter((r) => {
-        if (filter === "ready") return r.status === "ready";
-        if (filter === "conflicts") return r.status === "conflict";
-        if (filter === "invalid") return r.status === "invalid";
-        return true;
-      })
+  const issues = preview ? preview.invalid + preview.conflicts : 0;
+  const rows: RosterImportRowResult[] = preview
+    ? preview.rows
+        .filter((r) => filter === "all" || r.status === filter)
+        // Rows that need fixing come first.
+        .sort((a, b) => Number(a.status === "ready") - Number(b.status === "ready") || a.row - b.row)
     : [];
-
-  const issuesCount = preview ? preview.invalid + preview.conflicts : 0;
+  const filters: { key: Filter; label: string; count: number }[] = preview
+    ? ([
+        { key: "all", label: "All", count: preview.rows.length },
+        { key: "ready", label: "Ready", count: preview.ready },
+        { key: "conflict", label: "Conflicts", count: preview.conflicts },
+        { key: "invalid", label: "Invalid", count: preview.invalid },
+      ] as const).filter((f) => f.key === "all" || f.count > 0)
+    : [];
+  const fixFileName = `${(fileName ?? "roster").replace(/\.csv$/i, "")}-to-fix.csv`;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      {!isControlled && (
-        <DialogTrigger
-          render={
-            trigger ? (
-              <>{trigger}</>
-            ) : (
-              <Button
-                variant="outline"
-                className={cn("gap-2 font-medium whitespace-nowrap", className)}
-                title="Import students via CSV file"
-              >
-                <Upload className="size-4 shrink-0" />
-                <span>Import Roster CSV</span>
-              </Button>
-            )
-          }
-        />
-      )}
-
-      <DialogContent className="max-h-[92vh] w-[calc(100%-2rem)] sm:max-w-4xl lg:max-w-5xl overflow-y-auto overflow-x-hidden min-w-0 p-5 sm:p-6 gap-6">
-        <DialogHeader className="gap-1.5 pb-1 border-b border-border/60">
+      <DialogContent
+        showCloseButton={!busy}
+        className="max-h-[92vh] w-[calc(100%-2rem)] min-w-0 gap-5 overflow-y-auto overflow-x-hidden p-5 sm:max-w-4xl sm:p-6 lg:max-w-5xl"
+      >
+        <DialogHeader className="gap-4 border-b border-border/60 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <FileSpreadsheet className="size-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">
-                Import Student Roster CSV
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Validate and enroll students in the current semester. Existing student identities are preserved.
+              <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">Import student roster</DialogTitle>
+              <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
+                Into {semesterLabel}. Nothing is saved until every row is ready, and then all rows are saved together.
               </DialogDescription>
             </div>
           </div>
+          <StepTracker current={stepOf[stage]} />
         </DialogHeader>
 
-        {successResult ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-12 text-center w-full min-w-0">
-            <div className="flex size-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="size-9" />
-            </div>
-            <div className="space-y-1.5">
-              <h3 className="font-heading text-xl font-semibold text-foreground">
-                Import Completed Successfully
-              </h3>
-              <p className="max-w-md text-sm text-muted-foreground">{successResult}</p>
-            </div>
-            <Button onClick={() => setOpen(false)} className="mt-4 font-medium px-6">
-              Done
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-6 w-full min-w-0">
-            {/* Step 1: File Upload Box with Drag-and-Drop */}
+        {(stage === "upload" || stage === "checking") && (
+          <div className="flex w-full min-w-0 flex-col gap-4">
             <div
-              onDragOver={handleDragOver}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => {
-                if (!isPending) {
-                  document.getElementById(fileInputId)?.click();
-                }
+              onDragOver={(e) => drag(e)}
+              onDragEnter={(e) => drag(e, true)}
+              onDragLeave={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                drag(e, false);
               }}
+              onDrop={(e) => {
+                drag(e, false);
+                if (!busy) handleFile(e.dataTransfer.files?.[0]);
+              }}
+              onClick={() => !busy && document.getElementById(fileInputId)?.click()}
               className={cn(
-                "group relative rounded-xl border-2 border-dashed p-5 transition-all cursor-pointer w-full min-w-0 select-none",
+                "group relative w-full min-w-0 cursor-pointer select-none rounded-xl border-2 border-dashed p-6 transition-all",
                 isDragging
-                  ? "border-primary bg-primary/10 ring-4 ring-primary/15 shadow-sm"
-                  : fileName
-                    ? "border-border/80 bg-muted/20 hover:border-primary/50"
-                    : "border-border/80 bg-muted/15 hover:border-primary/50 hover:bg-muted/25"
+                  ? "border-primary bg-primary/10 shadow-sm ring-4 ring-primary/15"
+                  : "border-border/80 bg-muted/15 hover:border-primary/50 hover:bg-muted/25",
               )}
             >
               <input
                 id={fileInputId}
                 type="file"
                 accept=".csv,text/csv"
-                disabled={isPending}
-                onChange={(e) => handleFile(e.target.files?.[0])}
+                disabled={busy}
+                onChange={(e) => {
+                  handleFile(e.target.files?.[0]);
+                  e.target.value = ""; // picking the same file again should re-check it
+                }}
                 className="sr-only"
               />
-
-              <div className="flex flex-col items-center text-center gap-4 sm:flex-row sm:items-center sm:text-left sm:justify-between w-full min-w-0">
-                <div className="flex flex-col items-center gap-3 min-w-0 w-full sm:flex-row sm:items-center sm:gap-3.5 sm:flex-1">
-                  <div
-                    className={cn(
-                      "flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors",
-                      isDragging
-                        ? "border-primary bg-primary/20 text-primary scale-110 shadow-sm"
-                        : "bg-card border-border shadow-2xs text-muted-foreground group-hover:border-primary/40 group-hover:text-primary"
-                    )}
-                  >
-                    <FileUp className="size-5 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1 w-full overflow-hidden">
-                    <p
-                      className="text-sm font-semibold text-foreground truncate max-w-full"
-                      title={fileName ?? undefined}
-                    >
-                      {isDragging
-                        ? "Drop your CSV file here..."
-                        : fileName ?? "Drag & drop a student roster CSV, or browse"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full sm:break-words">
-                      {isDragging
-                        ? "Release file to begin preview and identity validation"
-                        : "Supports the canonical 8-column format up to 1 MB"}
-                    </p>
-                  </div>
-                </div>
-
+              <div className="flex w-full min-w-0 flex-col items-center gap-3 text-center">
                 <div
-                  className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto shrink-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {fileName && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        resetState();
-                      }}
-                      disabled={isPending}
-                      className="text-xs text-muted-foreground hover:text-destructive h-9 px-3 shrink-0"
-                    >
-                      <X className="size-3.5 mr-1" />
-                      Remove
-                    </Button>
+                  className={cn(
+                    "flex size-11 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                    isDragging ? "scale-110 border-primary bg-primary/20" : "border-border bg-card shadow-2xs",
                   )}
-                  <Button
-                    type="button"
-                    variant={fileName ? "outline" : "default"}
-                    size="sm"
-                    disabled={isPending}
-                    className={cn(
-                      "cursor-pointer gap-2 h-9 px-4 font-medium shrink-0 justify-center",
-                      fileName ? "w-auto" : "w-full sm:w-auto max-w-xs"
-                    )}
-                    onClick={() => document.getElementById(fileInputId)?.click()}
-                  >
-                    {isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Upload className="size-4" />
-                    )}
-                    <span>{fileName ? "Change CSV" : "Browse File"}</span>
-                  </Button>
+                >
+                  <FileUp className="size-5 text-primary" />
                 </div>
-              </div>
-            </div>
-
-            {/* Error Message Alert */}
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive"
-              >
-                <AlertCircle className="size-4 shrink-0 mt-0.5" />
-                <div className="flex-1 text-xs sm:text-sm font-medium leading-relaxed">{error}</div>
-              </div>
-            )}
-
-            {/* Loading Indicator */}
-            {isPending && !preview && (
-              <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-muted-foreground">
-                <Loader2 className="size-6 animate-spin text-primary" />
-                <p className="text-sm font-medium">Validating CSV rows against student records…</p>
-                <p className="text-xs text-muted-foreground">Checking duplicates, enrollment statuses, and identity continuity.</p>
-              </div>
-            )}
-
-            {/* Step 2: Preview Summary & Conflict Table */}
-            {preview && (
-              <div className="flex flex-col gap-5">
-                {/* Metrics Breakdown Cards - Spacious & Clean */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 w-full min-w-0">
-                  {/* Ready Card */}
-                  <div className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs font-medium">Ready to Apply</span>
-                      <span className="flex size-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 className="size-3.5" />
-                      </span>
-                    </div>
-                    <div className="mt-2.5">
-                      <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                        {preview.ready}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 font-medium">
-                          {preview.created} new
-                        </span>
-                        <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 font-medium">
-                          {preview.re_enrolled} re-enrolled
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Updates Card */}
-                  <div className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs font-medium">Enrollment Updates</span>
-                      <span className="flex size-5 items-center justify-center rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400">
-                        <RefreshCw className="size-3.5" />
-                      </span>
-                    </div>
-                    <div className="mt-2.5">
-                      <p className="text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400">
-                        {preview.updated}
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted-foreground truncate">
-                        Already enrolled in semester
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Conflicts Card */}
-                  <div
-                    className={cn(
-                      "flex flex-col justify-between rounded-xl border p-4 shadow-2xs transition-colors",
-                      preview.conflicts > 0
-                        ? "border-amber-500/30 bg-amber-500/5"
-                        : "border-border/80 bg-card",
-                    )}
-                  >
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs font-medium">Identity Conflicts</span>
-                      <span
-                        className={cn(
-                          "flex size-5 items-center justify-center rounded-full",
-                          preview.conflicts > 0
-                            ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        <AlertTriangle className="size-3.5" />
-                      </span>
-                    </div>
-                    <div className="mt-2.5">
-                      <p
-                        className={cn(
-                          "text-2xl font-bold tracking-tight",
-                          preview.conflicts > 0
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {preview.conflicts}
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted-foreground truncate">
-                        {preview.conflicts > 0 ? "Name / email mismatch" : "No conflicts detected"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Invalid Rows Card */}
-                  <div
-                    className={cn(
-                      "flex flex-col justify-between rounded-xl border p-4 shadow-2xs transition-colors",
-                      preview.invalid > 0
-                        ? "border-destructive/30 bg-destructive/5"
-                        : "border-border/80 bg-card",
-                    )}
-                  >
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs font-medium">Invalid Rows</span>
-                      <span
-                        className={cn(
-                          "flex size-5 items-center justify-center rounded-full",
-                          preview.invalid > 0
-                            ? "bg-destructive/20 text-destructive"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        <AlertCircle className="size-3.5" />
-                      </span>
-                    </div>
-                    <div className="mt-2.5">
-                      <p
-                        className={cn(
-                          "text-2xl font-bold tracking-tight",
-                          preview.invalid > 0 ? "text-destructive" : "text-muted-foreground",
-                        )}
-                      >
-                        {preview.invalid}
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted-foreground truncate">
-                        {preview.invalid > 0 ? "Format or missing data" : "All rows well-formed"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Validation Advice Banner */}
-                {issuesCount > 0 ? (
-                  <div
-                    role="alert"
-                    className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs sm:text-sm text-amber-900 dark:text-amber-300"
-                  >
-                    <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                    <div>
-                      Found <strong>{issuesCount} issue(s)</strong> in the file ({preview.conflicts} conflicts, {preview.invalid} invalid). Atomic import requires all rows to be valid before applying. Please fix the flagged rows in your CSV and re-upload.
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3.5 text-xs sm:text-sm text-emerald-900 dark:text-emerald-300">
-                    <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                    <div>
-                      All <strong>{preview.ready} rows</strong> are valid and ready to apply atomically to the active semester roster.
-                    </div>
-                  </div>
-                )}
-
-                {/* Table Filter Tabs */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
-                  <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setFilter("all")}
-                      className={cn(
-                        "rounded-md px-3 py-1 font-medium transition-colors",
-                        filter === "all"
-                          ? "bg-background text-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      All ({preview.rows.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFilter("ready")}
-                      className={cn(
-                        "rounded-md px-3 py-1 font-medium transition-colors",
-                        filter === "ready"
-                          ? "bg-background text-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      Ready ({preview.ready})
-                    </button>
-                    {preview.conflicts > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setFilter("conflicts")}
-                        className={cn(
-                          "rounded-md px-3 py-1 font-medium transition-colors",
-                          filter === "conflicts"
-                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 shadow-xs"
-                            : "text-amber-600 hover:text-amber-700",
-                        )}
-                      >
-                        Conflicts ({preview.conflicts})
-                      </button>
-                    )}
-                    {preview.invalid > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setFilter("invalid")}
-                        className={cn(
-                          "rounded-md px-3 py-1 font-medium transition-colors",
-                          filter === "invalid"
-                            ? "bg-destructive/20 text-destructive shadow-xs"
-                            : "text-destructive/80 hover:text-destructive",
-                        )}
-                      >
-                        Invalid ({preview.invalid})
-                      </button>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    Showing {filteredRows.length} of {preview.rows.length} rows
+                <div className="w-full min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground" title={fileName ?? undefined}>
+                    {stage === "checking"
+                      ? `Checking ${fileName}…`
+                      : isDragging
+                        ? "Drop your CSV file here"
+                        : "Drag & drop a roster CSV, or browse"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {stage === "checking"
+                      ? "Comparing every row with existing student records."
+                      : "The 8-column template format, up to 1 MB."}
                   </p>
                 </div>
-
-                {/* Scrollable Preview Table with Responsive Column Sizing */}
-                <div className="w-full min-w-0 max-h-80 overflow-x-auto overflow-y-auto rounded-xl border border-border bg-card/40">
-                  <table className="w-full min-w-[680px] text-left text-xs">
-                    <thead className="sticky top-0 border-b border-border bg-muted/90 backdrop-blur-xs text-[11px] font-semibold uppercase tracking-wider text-muted-foreground z-10">
-                      <tr>
-                        <th scope="col" className="px-3.5 py-2.5 w-14 text-center">
-                          Line
-                        </th>
-                        <th scope="col" className="px-3.5 py-2.5 w-32">
-                          Student Number
-                        </th>
-                        <th scope="col" className="px-3.5 py-2.5 min-w-[140px]">
-                          Name
-                        </th>
-                        <th scope="col" className="px-3.5 py-2.5 w-32">
-                          Action
-                        </th>
-                        <th scope="col" className="px-3.5 py-2.5 w-28">
-                          Status
-                        </th>
-                        <th scope="col" className="px-3.5 py-2.5 min-w-[200px]">
-                          Details / Findings
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredRows.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                            No rows found matching the selected filter.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredRows.map((r) => {
-                          const action = actionConfig[r.action] ?? actionConfig.none;
-                          const ActionIcon = action.icon;
-                          return (
-                            <tr
-                              key={r.row}
-                              className={cn(
-                                "transition-colors hover:bg-muted/40",
-                                r.status === "invalid" && "bg-destructive/5 hover:bg-destructive/10",
-                                r.status === "conflict" && "bg-amber-500/5 hover:bg-amber-500/10",
-                              )}
-                            >
-                              <td className="px-3.5 py-2.5 font-mono text-center text-muted-foreground w-14">
-                                {r.row}
-                              </td>
-                              <td className="px-3.5 py-2.5 font-mono font-medium text-foreground w-32">
-                                {r.university_id}
-                              </td>
-                              <td className="px-3.5 py-2.5 font-medium text-foreground min-w-[140px] truncate">
-                                {r.name}
-                              </td>
-                              <td className="px-3.5 py-2.5 w-32">
-                                <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                  <ActionIcon className="size-3.5 shrink-0 text-primary" />
-                                  <span>{action.label}</span>
-                                </span>
-                              </td>
-                              <td className="px-3.5 py-2.5 w-28">
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                                    statusStyles[r.status],
-                                  )}
-                                >
-                                  {r.status}
-                                </span>
-                              </td>
-                              <td className="px-3.5 py-2.5 text-muted-foreground leading-relaxed min-w-[200px]">
-                                {r.message}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                {stage === "checking" ? (
+                  <div className="w-full max-w-sm">
+                    <ProgressBar value={0} max={1} pending={1} label="Checking file" />
+                  </div>
+                ) : (
+                  <Button type="button" size="sm" className="h-9 gap-2 px-4 font-medium" onClick={(e) => {
+                    e.stopPropagation();
+                    document.getElementById(fileInputId)?.click();
+                  }}>
+                    <Upload className="size-4" />
+                    Browse file
+                  </Button>
+                )}
               </div>
-            )}
+            </div>
+            {error && <ErrorAlert message={error} />}
           </div>
         )}
 
-        {!successResult && (
-          <DialogFooter className="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6 mt-4 flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center sm:justify-end sm:gap-3 rounded-b-xl border-t border-border bg-muted/30 px-5 py-3.5 sm:px-6 sm:py-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-              className="w-full sm:w-auto sm:min-w-28 h-9 font-medium"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleApply}
-              disabled={isPending || !canImport}
-              className="w-full sm:w-auto sm:min-w-32 h-9 gap-2 font-medium px-4"
-            >
-              {isPending && <Loader2 className="size-4 animate-spin" />}
-              <span>Import Roster</span>
-            </Button>
-          </DialogFooter>
+        {stage === "review" && preview && (
+          <div className="flex w-full min-w-0 flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="min-w-0 text-sm font-medium text-foreground">
+                {issues === 0
+                  ? `All ${plural(preview.rows.length, "row")} ready to import`
+                  : `${plural(preview.rows.length, "row")} · ${preview.ready} ready · ${issues} need fixing`}
+                <span className="block truncate text-xs font-normal text-muted-foreground" title={fileName ?? undefined}>{fileName}</span>
+              </p>
+              <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={reset}>
+                <X className="size-3.5" />
+                Choose another file
+              </Button>
+            </div>
+
+            <SummaryBar preview={preview} />
+
+            {issues > 0 && (
+              <div role="alert" className="flex flex-col gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:text-amber-300">
+                <span>
+                  Nothing is imported until every row is ready. Download the file to fix: ready rows come first, then the
+                  rows to fix with an <strong className="font-semibold">issue</strong> column. Fix them and upload the same file.
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1.5 text-xs"
+                  onClick={() => csvText && downloadCsv(fixFileName, rosterFixCsv(csvText, preview.rows))}
+                >
+                  <Download className="size-3.5" />
+                  Download file to fix
+                </Button>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div role="group" aria-label="Filter rows" className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/40 p-1 text-xs">
+                {filters.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    aria-pressed={filter === f.key}
+                    onClick={() => setFilter(f.key)}
+                    className={cn(
+                      "rounded-md px-3 py-1 font-medium transition-colors",
+                      filter === f.key ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {f.label} ({f.count})
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Showing {rows.length} of {preview.rows.length}
+              </p>
+            </div>
+
+            <div className="max-h-80 w-full min-w-0 overflow-auto rounded-xl border border-border bg-card/40">
+              <table className="w-full min-w-[680px] text-left text-xs">
+                <thead className="sticky top-0 z-10 border-b border-border bg-muted/90 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-xs">
+                  <tr>
+                    <th scope="col" className="w-14 px-3.5 py-2.5 text-center">Line</th>
+                    <th scope="col" className="w-32 px-3.5 py-2.5">Student number</th>
+                    <th scope="col" className="min-w-[140px] px-3.5 py-2.5">Name</th>
+                    <th scope="col" className="w-32 px-3.5 py-2.5">Action</th>
+                    <th scope="col" className="w-28 px-3.5 py-2.5">Status</th>
+                    <th scope="col" className="min-w-[200px] px-3.5 py-2.5">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {rows.map((r) => {
+                    const action = actionConfig[r.action] ?? actionConfig.none;
+                    const ActionIcon = action.icon;
+                    return (
+                      <tr
+                        key={r.row}
+                        className={cn(
+                          "transition-colors hover:bg-muted/40",
+                          r.status === "invalid" && "bg-destructive/5 hover:bg-destructive/10",
+                          r.status === "conflict" && "bg-amber-500/5 hover:bg-amber-500/10",
+                        )}
+                      >
+                        <td className="w-14 px-3.5 py-2.5 text-center font-mono text-muted-foreground">{r.row}</td>
+                        <td className="w-32 px-3.5 py-2.5 font-mono font-medium text-foreground">{r.university_id}</td>
+                        <td className="min-w-[140px] truncate px-3.5 py-2.5 font-medium text-foreground">{r.name}</td>
+                        <td className="w-32 px-3.5 py-2.5">
+                          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <ActionIcon className="size-3.5 shrink-0 text-primary" />
+                            {action.label}
+                          </span>
+                        </td>
+                        <td className="w-28 px-3.5 py-2.5">
+                          <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider", statusStyles[r.status])}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="min-w-[200px] px-3.5 py-2.5 leading-relaxed text-muted-foreground">
+                          <Findings message={r.message} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
+
+        {stage === "importing" && preview && (
+          <div className="flex flex-col gap-3 py-8">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-medium text-foreground">Importing {plural(preview.ready, "student")}…</span>
+              <span className="text-xs text-muted-foreground">All or nothing</span>
+            </div>
+            <ProgressBar value={0} max={preview.ready} pending={preview.ready} label="Importing students" />
+            <p className="text-xs text-muted-foreground">Keep this window open. Every row is saved in one step, so a failure leaves the roster unchanged.</p>
+          </div>
+        )}
+
+        {stage === "failed" && (
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <XCircle className="size-10 text-destructive" />
+            <h3 className="font-heading text-lg font-semibold text-foreground">Nothing was imported</h3>
+            <p className="max-w-md text-sm text-muted-foreground">{error}</p>
+            <p className="max-w-md text-xs text-muted-foreground">
+              The roster may have changed since your check. Check the file again to see its current state.
+            </p>
+          </div>
+        )}
+
+        {stage === "done" && result && (
+          <div className="flex flex-col gap-5 py-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="size-9 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div className="min-w-0">
+                <h3 className="font-heading text-lg font-semibold text-foreground">{plural(result.summary.total, "student")} imported</h3>
+                <p className="text-xs text-muted-foreground">{result.message}</p>
+              </div>
+            </div>
+            <ProgressBar value={1} max={1} label="Import complete" tone="success" />
+            <dl className="grid grid-cols-3 gap-3 text-center">
+              {[
+                ["New", result.summary.created],
+                ["Re-enrolled", result.summary.re_enrolled],
+                ["Updated", result.summary.updated],
+              ].map(([label, n]) => (
+                <div key={label} className="rounded-xl border border-border bg-card/60 p-3">
+                  <dt className="text-[11px] text-muted-foreground">{label}</dt>
+                  <dd className="font-heading text-xl font-semibold tabular-nums text-foreground">{n}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="text-xs text-muted-foreground">
+              {semesterLabel} · {manilaTime.format(result.at)} · {fileName}
+            </p>
+          </div>
+        )}
+
+        <DialogFooter className="-mx-5 -mb-5 mt-2 flex flex-col-reverse gap-2.5 rounded-b-xl border-t border-border bg-muted/30 px-5 py-3.5 sm:-mx-6 sm:-mb-6 sm:flex-row sm:items-center sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
+          {stage === "done" ? (
+            <>
+              <Button type="button" variant="outline" className="h-9 w-full font-medium sm:w-auto" onClick={reset}>
+                Import another file
+              </Button>
+              {inviteCount > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full gap-2 font-medium sm:w-auto"
+                  onClick={() => {
+                    handleOpenChange(false);
+                    onInvite();
+                  }}
+                >
+                  <Send className="size-4 text-primary" />
+                  Invite {plural(inviteCount, "uninvited student")}
+                </Button>
+              )}
+              <Button type="button" className="h-9 w-full font-medium sm:w-auto sm:min-w-28" onClick={() => handleOpenChange(false)}>
+                Done
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button type="button" variant="outline" disabled={busy} className="h-9 w-full font-medium sm:w-auto sm:min-w-28" onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
+              {stage === "failed" ? (
+                <Button type="button" className="h-9 w-full gap-2 font-medium sm:w-auto" onClick={() => csvText && check(csvText)}>
+                  <RefreshCw className="size-4" />
+                  Check file again
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  disabled={stage !== "review" || issues > 0}
+                  className="h-9 w-full font-medium sm:w-auto sm:min-w-32"
+                  onClick={handleApply}
+                >
+                  {stage === "importing"
+                    ? "Importing…"
+                    : stage === "review" && issues > 0
+                      ? `Fix ${plural(issues, "row")} to continue`
+                      : stage === "review" && preview
+                        ? `Import ${plural(preview.ready, "student")}`
+                        : "Import"}
+                </Button>
+              )}
+            </>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Findings are stored "; "-joined (the download's issue column keeps that); several show as a list. */
+function Findings({ message }: { message: string }) {
+  const items = message.split("; ").filter(Boolean);
+  if (items.length < 2) return <>{message}</>;
+  return (
+    <ul className="list-disc space-y-0.5 pl-4">
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function ErrorAlert({ message }: { message: string }) {
+  return (
+    <div role="alert" className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+      <AlertCircle className="mt-0.5 size-4 shrink-0" />
+      <div className="flex-1 text-xs font-medium leading-relaxed sm:text-sm">{message}</div>
+    </div>
   );
 }

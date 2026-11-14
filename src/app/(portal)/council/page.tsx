@@ -84,7 +84,14 @@ export default async function CouncilPage({
               </div>
 
               <div className="flex w-full flex-wrap items-center gap-2 sm:gap-2.5 sm:w-auto sm:justify-end shrink-0">
-                {canManage && <RosterCsvMenu canEdit={canEdit} />}
+                {canManage && (
+                  <RosterCsvMenu
+                    canEdit={canEdit}
+                    semesterId={selected.id}
+                    semesterLabel={`${selected.term} (AY ${selected.academic_year_start}–${selected.academic_year_start + 1})`}
+                    students={students}
+                  />
+                )}
                 {canEdit && (
                   <>
                     <BulkInviteDialog semesterId={selected.id} students={students} />

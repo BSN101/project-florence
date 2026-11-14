@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, Download, FileSpreadsheet, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,17 +12,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-import { downloadRosterTemplate } from "./download-template-button";
+import { getInvitationEligibilitySummary, type StudentRosterItem } from "../contracts";
+import { BulkInviteDialog } from "./bulk-invite-dialog";
+import { downloadRosterTemplate } from "./download-csv";
 import { ImportRosterDialog } from "./import-roster-dialog";
 
 export function RosterCsvMenu({
   canEdit = true,
   className,
+  semesterId,
+  semesterLabel,
+  students,
 }: {
   canEdit?: boolean;
   className?: string;
+  semesterId: string;
+  semesterLabel: string;
+  students: StudentRosterItem[];
 }) {
   const [importOpen, setImportOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  // The import revalidates /council, so this reflects the roster after the import.
+  const inviteCount = useMemo(() => getInvitationEligibilitySummary(students).eligibleCount, [students]);
 
   return (
     <>
@@ -68,7 +79,11 @@ export function RosterCsvMenu({
       <ImportRosterDialog
         open={importOpen}
         onOpenChange={setImportOpen}
+        semesterLabel={semesterLabel}
+        inviteCount={inviteCount}
+        onInvite={() => setInviteOpen(true)}
       />
+      <BulkInviteDialog semesterId={semesterId} students={students} open={inviteOpen} onOpenChange={setInviteOpen} />
     </>
   );
 }
