@@ -93,6 +93,23 @@ export async function getFineDefinitions(options?: {
   return options?.includeArchived ? definitions : definitions.filter((fine) => fine.archived_at === null);
 }
 
+/** Reads every page so the API row cap cannot silently truncate preview counts. */
+async function allStudentIds(
+  page: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: { student_id: string }[] | null; error: { message: string } | null }>
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (let from = 0; ; ) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw new Error(`Failed to load fee audience: ${error.message}`);
+    if (!data?.length) return ids;
+    ids.push(...data.map((row) => row.student_id));
+    from += data.length;
+  }
+}
+
 /**
  * Preview audience size, existing obligations, and projected totals before publishing fee obligations.
  * Restricted to Council Executive and Operations.
@@ -119,18 +136,17 @@ export async function previewFeeObligations(
     throw new Error("Active fee definition required");
   }
 
-  const { data: enrollments, error: enrollError } = await client
-    .from("enrollments")
-    .select("student_id")
-    .eq("semester_id", parsed.data.semesterId)
-    .in("year_level", parsed.data.yearLevels)
-    .in("academic_status", parsed.data.academicStatuses);
-
-  if (enrollError) {
-    throw new Error(`Failed to query enrollments: ${enrollError.message}`);
-  }
-
-  const matchingStudentIds = (enrollments ?? []).map((e) => e.student_id);
+  const { semesterId, feeDefinitionId, yearLevels, academicStatuses } = parsed.data;
+  const matchingStudentIds = await allStudentIds((from, to) =>
+    client
+      .from("enrollments")
+      .select("student_id")
+      .eq("semester_id", semesterId)
+      .in("year_level", yearLevels)
+      .in("academic_status", academicStatuses)
+      .order("student_id")
+      .range(from, to)
+  );
   if (matchingStudentIds.length === 0) {
     return {
       totalMatchingStudents: 0,
@@ -141,21 +157,21 @@ export async function previewFeeObligations(
     };
   }
 
-  const { data: existingObligations, error: obligError } = await client
-    .from("obligations")
-    .select("student_id")
-    .eq("kind", "fee")
-    .eq("fee_definition_id", parsed.data.feeDefinitionId)
-    .eq("semester_id", parsed.data.semesterId)
-    .in("student_id", matchingStudentIds);
-
-  if (obligError) {
-    throw new Error(`Failed to query existing obligations: ${obligError.message}`);
-  }
-
-  const alreadyObligatedSet = new Set((existingObligations ?? []).map((o) => o.student_id));
+  // Filter by fee and semester only; listing every student ID in the URL breaks on large audiences.
+  const chargedStudentIds = new Set(
+    await allStudentIds((from, to) =>
+      client
+        .from("obligations")
+        .select("student_id")
+        .eq("kind", "fee")
+        .eq("fee_definition_id", feeDefinitionId)
+        .eq("semester_id", semesterId)
+        .order("student_id")
+        .range(from, to)
+    )
+  );
+  const alreadyObligatedCount = matchingStudentIds.filter((id) => chargedStudentIds.has(id)).length;
   const totalMatchingStudents = matchingStudentIds.length;
-  const alreadyObligatedCount = alreadyObligatedSet.size;
   const newObligationsCount = Math.max(0, totalMatchingStudents - alreadyObligatedCount);
   const unitAmount = Number(feeDef.amount);
   const totalNewAmount = Number((newObligationsCount * unitAmount).toFixed(2));
