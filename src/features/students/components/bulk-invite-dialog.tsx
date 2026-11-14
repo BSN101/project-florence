@@ -32,6 +32,7 @@ import {
   type BulkInviteOutcome,
   type StudentRosterItem,
 } from "../contracts";
+import { ProgressBar } from "./progress-bar";
 import { StudentRowActions } from "./student-invitation-dialogs";
 
 
@@ -57,12 +58,19 @@ export function BulkInviteDialog({
   semesterId,
   students,
   className,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   semesterId: string;
   students: StudentRosterItem[];
   className?: string;
+  /** Pass to open it from elsewhere (the import dialog); the trigger button is then not rendered. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [stage, setStage] = useState<Stage>("review");
   const [run, setRun] = useState<Run>(emptyRun);
   const stopRequested = useRef(false); // read inside the running loop
@@ -81,7 +89,6 @@ export function BulkInviteDialog({
   const percent = total === 0 ? 0 : Math.round((processed / total) * 100);
   // Students in the request that hasn't returned yet; drawn as a pulsing segment so the bar never looks frozen.
   const inFlight = stage === "sending" ? Math.min(BULK_INVITE_BATCH_SIZE, run.remaining) : 0;
-  const inFlightPercent = total === 0 ? 0 : Math.round(((processed + inFlight) / total) * 100);
   const needsAttention = run.outcomes.filter((o) => o.status === "failed" || o.status === "email_failed");
   const estimateMs = run.batches === 0 ? null : (run.elapsedMs / run.batches) * Math.ceil(run.remaining / BULK_INVITE_BATCH_SIZE);
 
@@ -140,7 +147,7 @@ export function BulkInviteDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
+      {controlledOpen === undefined && <DialogTrigger
         render={
           <Button
             variant="outline"
@@ -157,7 +164,7 @@ export function BulkInviteDialog({
             )}
           </Button>
         }
-      />
+      />}
       <DialogContent
         className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md"
         showCloseButton={stage !== "sending"}
@@ -262,28 +269,13 @@ export function BulkInviteDialog({
                 </span>
                 <span className="text-muted-foreground">{percent}%</span>
               </div>
-              <div
-                role="progressbar"
-                aria-label="Invitations processed"
-                aria-valuemin={0}
-                aria-valuemax={total}
-                aria-valuenow={processed}
-                className="relative h-2 w-full overflow-hidden rounded-full bg-muted"
-              >
-                {inFlight > 0 && (
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-primary/30 transition-[width] duration-500 motion-safe:animate-pulse"
-                    style={{ width: `${inFlightPercent}%` }}
-                  />
-                )}
-                <div
-                  className={cn(
-                    "relative h-full rounded-full transition-[width] duration-500",
-                    stage === "done" && !run.error ? "bg-emerald-600" : "bg-primary",
-                  )}
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
+              <ProgressBar
+                value={processed}
+                max={total}
+                pending={inFlight}
+                label="Invitations processed"
+                tone={stage === "done" && !run.error ? "success" : "primary"}
+              />
               {stage === "sending" && (
                 <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Loader2 className="size-3 animate-spin" />
