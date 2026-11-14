@@ -94,6 +94,8 @@ function PublishFeeForm({
     | { status: "error"; error: string }
   >({ status: "loading" });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // One key per audience selection: a retry replays the same publication, a changed selection is a new one.
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const [isPending, startTransition] = useTransition();
 
   const hasAudience = selectedYears.length > 0 && selectedStatuses.length > 0;
@@ -145,6 +147,7 @@ function PublishFeeForm({
         semesterId,
         yearLevels: selectedYears,
         academicStatuses: selectedStatuses,
+        requestKey,
       });
 
       if (!res.success) {
@@ -178,6 +181,7 @@ function PublishFeeForm({
           onChange={(e) => {
             setSelectedFeeId(e.target.value);
             setPreviewState({ status: "loading" });
+            setRequestKey(crypto.randomUUID());
           }}
           disabled={isPending}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -203,6 +207,7 @@ function PublishFeeForm({
                 onChange={() => {
                   setSelectedYears(toggle(selectedYears, year));
                   setPreviewState({ status: "loading" });
+                  setRequestKey(crypto.randomUUID());
                 }}
               />
               Year {year}
@@ -224,6 +229,7 @@ function PublishFeeForm({
                 onChange={() => {
                   setSelectedStatuses(toggle(selectedStatuses, status));
                   setPreviewState({ status: "loading" });
+                  setRequestKey(crypto.randomUUID());
                 }}
               />
               {status}
