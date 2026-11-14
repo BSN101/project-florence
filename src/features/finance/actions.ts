@@ -444,8 +444,11 @@ export async function publishFeeObligations(
     }
 
     const result = data as { publication_id: string; obligation_count: number } | null;
-    const count = result?.obligation_count ?? 0;
-    const publicationId = result?.publication_id ?? "";
+    if (!result?.publication_id) {
+      return { success: false, error: "Fee publication returned no result. Check the publication history before retrying." };
+    }
+    const count = result.obligation_count;
+    const publicationId = result.publication_id;
 
     revalidatePath("/council/fees-and-fines");
     return {
