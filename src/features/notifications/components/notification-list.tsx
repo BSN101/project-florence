@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { BellOff, CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { markAllNotificationsAsReadAction, markNotificationAsReadAction } from "../actions";
 import type { NotificationDTO } from "../contracts";
 import { MarkAllReadButton } from "./mark-all-read-button";
 import { NotificationCard } from "./notification-card";
@@ -11,9 +12,11 @@ import { NotificationCard } from "./notification-card";
 export function NotificationList({
   initialNotifications,
   initialUnreadCount,
+  truncated = false,
 }: {
   initialNotifications: NotificationDTO[];
   initialUnreadCount: number;
+  truncated?: boolean;
 }) {
   const [notifications, setNotifications] = useState<NotificationDTO[]>(initialNotifications);
   const [unreadCount, setUnreadCount] = useState<number>(initialUnreadCount);
@@ -26,19 +29,32 @@ export function NotificationList({
     return notifications;
   }, [notifications, filter]);
 
-  const handleMarkAsRead = (id: string) => {
+  // Optimistic: apply locally, then restore the previous state if the server refuses.
+  const handleMarkAsRead = async (id: string) => {
+    const previous = { notifications, unreadCount };
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read_at: n.read_at ?? new Date().toISOString() } : n)),
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
+    const result = await markNotificationAsReadAction(id);
+    if (!result.success) {
+      setNotifications(previous.notifications);
+      setUnreadCount(previous.unreadCount);
+    }
   };
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
+    const previous = { notifications, unreadCount };
     const now = new Date().toISOString();
     setNotifications((prev) =>
       prev.map((n) => (n.read_at === null ? { ...n, read_at: now } : n)),
     );
     setUnreadCount(0);
+    const result = await markAllNotificationsAsReadAction();
+    if (!result.success) {
+      setNotifications(previous.notifications);
+      setUnreadCount(previous.unreadCount);
+    }
   };
 
   return (
@@ -92,7 +108,9 @@ export function NotificationList({
 
         <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
           <span className="text-xs text-muted-foreground">
-            Showing {filteredNotifications.length} of {notifications.length}
+            {truncated
+              ? `Showing the latest ${notifications.length}`
+              : `Showing ${filteredNotifications.length} of ${notifications.length}`}
           </span>
           <MarkAllReadButton unreadCount={unreadCount} onMarkAllRead={handleMarkAllRead} />
         </div>

@@ -4,24 +4,19 @@ import { useTransition } from "react";
 import { CheckCheck, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { markAllNotificationsAsReadAction } from "../actions";
 
 export function MarkAllReadButton({
   unreadCount,
   onMarkAllRead,
 }: {
   unreadCount: number;
-  onMarkAllRead?: () => void;
+  onMarkAllRead: () => Promise<void>;
 }) {
   const [isPending, startTransition] = useTransition();
 
   const handleMarkAll = () => {
     if (unreadCount === 0 || isPending) return;
-
-    onMarkAllRead?.();
-    startTransition(async () => {
-      await markAllNotificationsAsReadAction();
-    });
+    startTransition(onMarkAllRead);
   };
 
   return (
