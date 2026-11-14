@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { isAuthorizedPaymentAccountManager } from "./contracts.ts";
+import {
+  isAuthorizedPaymentAccountManager,
+  sanitizePaymentAccountError,
+} from "./contracts.ts";
 import {
   createPaymentAccountSchema,
   updatePaymentAccountSchema,
@@ -141,6 +144,68 @@ describe("Task T-032 / FL-047: Payment Account Management Rules", () => {
         archivePaymentAccountSchema.safeParse({ id: "" }).success,
         false
       );
+    });
+  });
+
+  describe("Defensive error sanitization", () => {
+    test("sanitizes 42501 permission denied without leaking internal role details", () => {
+      const sanitized = sanitizePaymentAccountError({ code: "42501", message: "permission denied for table payment_accounts" });
+      assert.equal(sanitized, "You do not have permission to modify payment accounts.");
+      assert.equal(sanitized.includes("payment_accounts"), false);
+    });
+
+    test("sanitizes 23503 foreign key constraint errors", () => {
+      const sanitized = sanitizePaymentAccountError({
+        code: "23503",
+        message: 'update or delete on table "payment_accounts" violates foreign key constraint "payments_payment_account_id_fkey"',
+      });
+      assert.equal(
+        sanitized,
+        "This operation is restricted because the account is referenced by existing payment records."
+      );
+      assert.equal(sanitized.includes("payments_payment_account_id_fkey"), false);
+    });
+
+    test("sanitizes 23505 duplicate key violations", () => {
+      const sanitized = sanitizePaymentAccountError({
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "payment_accounts_reference_key"',
+      });
+      assert.equal(
+        sanitized,
+        "A payment destination with identical reference details already exists."
+      );
+    });
+
+    test("sanitizes database trigger guard messages safely", () => {
+      const qrGuard = sanitizePaymentAccountError({
+        code: "P0001",
+        message: "Invalid payment destination QR purpose",
+      });
+      assert.equal(
+        qrGuard,
+        "The attached QR code is invalid or not registered for payment accounts."
+      );
+
+      const snapshotGuard = sanitizePaymentAccountError({
+        code: "P0001",
+        message: "Active destination snapshot required",
+      });
+      assert.equal(
+        snapshotGuard,
+        "An active payment account snapshot is required for this operation."
+      );
+    });
+
+    test("falls back to user-safe message on unexpected errors without exposing stack trace", () => {
+      const fallback = "Failed to update payment account.";
+      const sanitized = sanitizePaymentAccountError(
+        new Error("Fatal connection timeout to pgpool on port 5432"),
+        fallback
+      );
+      assert.equal(sanitized, fallback);
+      assert.equal(sanitized.includes("pgpool"), false);
+      assert.equal(sanitized.includes("5432"), false);
     });
   });
 });
