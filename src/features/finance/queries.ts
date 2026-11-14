@@ -9,6 +9,7 @@ import type {
   FeePublicationPreview,
   FineDefinitionCatalogItem,
   FineDefinitionDTO,
+  PaymentAccountDTO,
 } from "./contracts";
 import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./schemas";
 
@@ -226,6 +227,53 @@ export async function getFeePublications(
   const { data, error } = await query;
   if (error) {
     throw new Error(`Failed to fetch fee publications: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Fetch payment accounts for Council Executive administration (FL-047 / T-032).
+ * Strictly restricted to Council Executives.
+ * Uses the request-scoped user client and explicit permitted projection.
+ */
+export async function getPaymentAccounts(options?: {
+  includeArchived?: boolean;
+}): Promise<PaymentAccountDTO[]> {
+  await assertAuthorizedCouncilExecutive();
+  const client = await createUserClient();
+
+  let query = client
+    .from("payment_accounts")
+    .select("id, label, account_name, account_reference, instructions, qr_file_id, archived_at")
+    .order("label", { ascending: true });
+
+  if (!options?.includeArchived) {
+    query = query.is("archived_at", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to fetch payment accounts: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Fetch active payment accounts for student transfer submission.
+ * Enforces database RLS: students see active destinations only (archived_at is null).
+ */
+export async function getActivePaymentAccounts(): Promise<PaymentAccountDTO[]> {
+  const client = await createUserClient();
+  const { data, error } = await client
+    .from("payment_accounts")
+    .select("id, label, account_name, account_reference, instructions, qr_file_id, archived_at")
+    .is("archived_at", null)
+    .order("label", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch active payment accounts: ${error.message}`);
   }
 
   return data ?? [];

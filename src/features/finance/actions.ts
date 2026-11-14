@@ -6,18 +6,33 @@ import { revalidatePath } from "next/cache";
 import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 
-import type { DefinitionActionResult, FeePublicationPreview, PublishFeeResult } from "./contracts";
-import { assertAuthorizedCouncilManager, previewFeeObligations } from "./queries";
+import type {
+  DefinitionActionResult,
+  FeePublicationPreview,
+  PaymentAccountActionResult,
+  PublishFeeResult,
+} from "./contracts";
+import {
+  assertAuthorizedCouncilExecutive,
+  assertAuthorizedCouncilManager,
+  previewFeeObligations,
+} from "./queries";
 import {
   archiveDefinitionSchema,
+  archivePaymentAccountSchema,
   createDefinitionSchema,
+  createPaymentAccountSchema,
   publishFeeObligationsSchema,
   updateDefinitionSchema,
+  updatePaymentAccountSchema,
   type ArchiveDefinitionInput,
+  type ArchivePaymentAccountInput,
   type CreateDefinitionInput,
+  type CreatePaymentAccountInput,
   type PreviewFeeObligationsInput,
   type PublishFeeObligationsInput,
   type UpdateDefinitionInput,
+  type UpdatePaymentAccountInput,
 } from "./schemas";
 
 /**
@@ -494,6 +509,218 @@ export async function previewFeeAudience(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to load preview",
+    };
+  }
+}
+
+/**
+ * Create a new transfer destination account.
+ * Authorized for Council Executives only; Operations and Representatives are forbidden.
+ */
+export async function createPaymentAccount(
+  input: CreatePaymentAccountInput
+): Promise<PaymentAccountActionResult> {
+  try {
+    const context = await assertAuthorizedCouncilExecutive();
+    const parsed = createPaymentAccountSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid payment account input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const commandClient = createCommandClient();
+    const { data, error } = await commandClient
+      .from("payment_accounts")
+      .insert({
+        label: parsed.data.label,
+        account_name: parsed.data.accountName,
+        account_reference: parsed.data.accountReference,
+        instructions: parsed.data.instructions ?? null,
+        qr_file_id: parsed.data.qrFileId ?? null,
+        created_by: context.profile.id,
+        updated_at: now,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      return {
+        success: false,
+        error: error?.message ?? "Failed to create payment account",
+      };
+    }
+
+    revalidatePath("/council/payment-accounts");
+    return {
+      success: true,
+      id: data.id,
+      message: "Payment account created successfully",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may manage payment accounts",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Edit an active transfer destination account.
+ * Existing student submissions retain their point-in-time snapshot and are not rewritten.
+ * Authorized for Council Executives only; Operations and Representatives are forbidden.
+ */
+export async function updatePaymentAccount(
+  input: UpdatePaymentAccountInput
+): Promise<PaymentAccountActionResult> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const parsed = updatePaymentAccountSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid payment account input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const commandClient = createCommandClient();
+
+    const { data: existing, error: fetchError } = await commandClient
+      .from("payment_accounts")
+      .select("id, archived_at")
+      .eq("id", parsed.data.id)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return { success: false, error: "Payment account not found" };
+    }
+    if (existing.archived_at !== null) {
+      return { success: false, error: "Archived payment accounts cannot be modified" };
+    }
+
+    const { data: updated, error: updateError } = await commandClient
+      .from("payment_accounts")
+      .update({
+        label: parsed.data.label,
+        account_name: parsed.data.accountName,
+        account_reference: parsed.data.accountReference,
+        instructions: parsed.data.instructions ?? null,
+        qr_file_id: parsed.data.qrFileId ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.data.id)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+    if (!updated) {
+      return {
+        success: false,
+        error: "Payment account is no longer active. Refresh and try again.",
+      };
+    }
+
+    revalidatePath("/council/payment-accounts");
+    return {
+      success: true,
+      id: parsed.data.id,
+      message: "Payment account updated successfully",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may manage payment accounts",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Archive a payment account to retire it from new student submissions.
+ * Existing submissions retain their destination details and remain valid.
+ * Authorized for Council Executives only; Operations and Representatives are forbidden.
+ */
+export async function archivePaymentAccount(
+  input: ArchivePaymentAccountInput
+): Promise<PaymentAccountActionResult> {
+  try {
+    await assertAuthorizedCouncilExecutive();
+    const parsed = archivePaymentAccountSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: "Invalid payment account identifier" };
+    }
+
+    const commandClient = createCommandClient();
+
+    const { data: existing, error: fetchError } = await commandClient
+      .from("payment_accounts")
+      .select("id, archived_at")
+      .eq("id", parsed.data.id)
+      .maybeSingle();
+
+    if (fetchError || !existing) {
+      return { success: false, error: "Payment account not found" };
+    }
+    if (existing.archived_at !== null) {
+      return { success: false, error: "Payment account is already archived" };
+    }
+
+    const now = new Date().toISOString();
+    const { data: archived, error: archiveError } = await commandClient
+      .from("payment_accounts")
+      .update({
+        archived_at: now,
+        updated_at: now,
+      })
+      .eq("id", parsed.data.id)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (archiveError) {
+      return { success: false, error: archiveError.message };
+    }
+    if (!archived) {
+      return {
+        success: false,
+        error: "Payment account was already archived or removed.",
+      };
+    }
+
+    revalidatePath("/council/payment-accounts");
+    return {
+      success: true,
+      id: parsed.data.id,
+      message: "Payment account archived successfully",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives may manage payment accounts",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
     };
   }
 }

@@ -39,6 +39,7 @@ export type PaymentAccountActionResult = DefinitionActionResult;
 /**
  * Client-safe projection for payment accounts (FL-047 / T-032).
  * Picked directly from the database schema to avoid over-duplication.
+ * Respects column-level grants: management metadata (created_by) is not exposed to client queries.
  */
 export type PaymentAccountDTO = Pick<
   Tables["payment_accounts"]["Row"],
@@ -49,14 +50,9 @@ export type PaymentAccountDTO = Pick<
   | "instructions"
   | "qr_file_id"
   | "archived_at"
-  | "created_by"
-  | "created_at"
-  | "updated_at"
 >;
 
-export type PaymentAccountCatalogItem = PaymentAccountDTO & {
-  creator_name?: string;
-};
+export type PaymentAccountCatalogItem = PaymentAccountDTO;
 
 /**
  * Client-safe projection for historical fee publications.
