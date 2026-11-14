@@ -12,8 +12,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { createPaymentAccount, uploadPaymentAccountQr } from "../actions";
+import { createPaymentAccount } from "../actions";
+import {
+  PaymentAccountFormFields,
+  prepareAndUploadPaymentAccountQr,
+  validatePaymentAccountFields,
+  type PaymentAccountFormValues,
+} from "./payment-account-form-fields";
+
+const emptyFormValues: PaymentAccountFormValues = {
+  label: "",
+  accountName: "",
+  accountReference: "",
+  instructions: "",
+  qrFile: null,
+  removeExistingQr: false,
+};
 
 export function CreatePaymentAccountDialog({
   isOpen,
@@ -22,70 +36,31 @@ export function CreatePaymentAccountDialog({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [label, setLabel] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [accountReference, setAccountReference] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [qrFile, setQrFile] = useState<File | null>(null);
+  const [values, setValues] = useState<PaymentAccountFormValues>(emptyFormValues);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleClose() {
     if (isPending) return;
     setError(null);
-    setLabel("");
-    setAccountName("");
-    setAccountReference("");
-    setInstructions("");
-    setQrFile(null);
+    setValues(emptyFormValues);
     onClose();
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setError(null);
-    const selected = e.target.files?.[0] ?? null;
-    if (!selected) {
-      setQrFile(null);
-      return;
-    }
-    if (!selected.type.startsWith("image/")) {
-      setError("Please select a valid image file (PNG, JPEG, or WebP).");
-      setQrFile(null);
-      e.target.value = "";
-      return;
-    }
-    if (selected.size > 2 * 1024 * 1024) {
-      setError("The QR code file must be smaller than 2 MB.");
-      setQrFile(null);
-      e.target.value = "";
-      return;
-    }
-    setQrFile(selected);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!label.trim()) {
-      setError("Please provide a destination label (e.g. GCash, Landbank).");
-      return;
-    }
-    if (!accountName.trim()) {
-      setError("Please provide the account holder name.");
-      return;
-    }
-    if (!accountReference.trim()) {
-      setError("Please provide the account or reference number.");
+    const validationError = validatePaymentAccountFields(values);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     startTransition(async () => {
       let qrFileId: string | undefined = undefined;
-      if (qrFile) {
-        const formData = new FormData();
-        formData.append("file", qrFile);
-        const uploadRes = await uploadPaymentAccountQr(formData);
+      if (values.qrFile) {
+        const uploadRes = await prepareAndUploadPaymentAccountQr(values.qrFile);
         if (!uploadRes.success) {
           setError(uploadRes.error);
           return;
@@ -94,10 +69,10 @@ export function CreatePaymentAccountDialog({
       }
 
       const result = await createPaymentAccount({
-        label: label.trim(),
-        accountName: accountName.trim(),
-        accountReference: accountReference.trim(),
-        instructions: instructions.trim() || undefined,
+        label: values.label.trim(),
+        accountName: values.accountName.trim(),
+        accountReference: values.accountReference.trim(),
+        instructions: values.instructions.trim() || undefined,
         qrFileId,
       });
 
@@ -126,110 +101,14 @@ export function CreatePaymentAccountDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label
-              htmlFor="account-label"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Destination Label
-            </label>
-            <Input
-              id="account-label"
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. GCash - Council Treasury"
-              disabled={isPending}
-              required
-              maxLength={100}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="account-name"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Account Holder Name
-            </label>
-            <Input
-              id="account-name"
-              type="text"
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              placeholder="e.g. Nursing Student Council"
-              disabled={isPending}
-              required
-              maxLength={100}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="account-reference"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Account / Reference Number
-            </label>
-            <Input
-              id="account-reference"
-              type="text"
-              value={accountReference}
-              onChange={(e) => setAccountReference(e.target.value)}
-              placeholder="e.g. 0917-123-4567 or 1234-5678-90"
-              disabled={isPending}
-              required
-              maxLength={100}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="account-instructions"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Transfer Instructions (Optional)
-            </label>
-            <textarea
-              id="account-instructions"
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder="e.g. Please put your Student Number in the message or remarks."
-              disabled={isPending}
-              maxLength={1000}
-              rows={3}
-              className="w-full rounded-lg border border-input bg-background p-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <p className="text-right text-[11px] text-muted-foreground mt-0.5">
-              {instructions.length}/1000
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="account-qr"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              QR Code Image (Optional)
-            </label>
-            <Input
-              id="account-qr"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleFileChange}
-              disabled={isPending}
-              className="cursor-pointer file:cursor-pointer"
-            />
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              PNG, JPEG, or WebP up to 2 MB.
-            </p>
-          </div>
+          <PaymentAccountFormFields
+            idPrefix="create-account"
+            values={values}
+            disabled={isPending}
+            error={error}
+            onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
+            onError={setError}
+          />
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button

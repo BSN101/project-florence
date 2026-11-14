@@ -12,9 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { updatePaymentAccount, uploadPaymentAccountQr } from "../actions";
+import { updatePaymentAccount } from "../actions";
 import type { PaymentAccountDTO } from "../contracts";
+import {
+  PaymentAccountFormFields,
+  prepareAndUploadPaymentAccountQr,
+  validatePaymentAccountFields,
+  type PaymentAccountFormValues,
+} from "./payment-account-form-fields";
 
 export function EditPaymentAccountDialog({
   account,
@@ -25,42 +30,21 @@ export function EditPaymentAccountDialog({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [label, setLabel] = useState(account?.label ?? "");
-  const [accountName, setAccountName] = useState(account?.account_name ?? "");
-  const [accountReference, setAccountReference] = useState(account?.account_reference ?? "");
-  const [instructions, setInstructions] = useState(account?.instructions ?? "");
-  const [qrFileId] = useState<string | null>(account?.qr_file_id ?? null);
-  const [qrFile, setQrFile] = useState<File | null>(null);
+  const [values, setValues] = useState<PaymentAccountFormValues>(() => ({
+    label: account?.label ?? "",
+    accountName: account?.account_name ?? "",
+    accountReference: account?.account_reference ?? "",
+    instructions: account?.instructions ?? "",
+    qrFile: null,
+    removeExistingQr: false,
+  }));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleClose() {
     if (isPending) return;
     setError(null);
-    setQrFile(null);
     onClose();
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setError(null);
-    const selected = e.target.files?.[0] ?? null;
-    if (!selected) {
-      setQrFile(null);
-      return;
-    }
-    if (!selected.type.startsWith("image/")) {
-      setError("Please select a valid image file (PNG, JPEG, or WebP).");
-      setQrFile(null);
-      e.target.value = "";
-      return;
-    }
-    if (selected.size > 2 * 1024 * 1024) {
-      setError("The QR code file must be smaller than 2 MB.");
-      setQrFile(null);
-      e.target.value = "";
-      return;
-    }
-    setQrFile(selected);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -68,25 +52,19 @@ export function EditPaymentAccountDialog({
     if (!account) return;
     setError(null);
 
-    if (!label.trim()) {
-      setError("Please provide a destination label.");
-      return;
-    }
-    if (!accountName.trim()) {
-      setError("Please provide the account holder name.");
-      return;
-    }
-    if (!accountReference.trim()) {
-      setError("Please provide the account or reference number.");
+    const validationError = validatePaymentAccountFields(values);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     startTransition(async () => {
-      let finalQrFileId: string | null | undefined = qrFileId;
-      if (qrFile) {
-        const formData = new FormData();
-        formData.append("file", qrFile);
-        const uploadRes = await uploadPaymentAccountQr(formData);
+      let finalQrFileId: string | null | undefined = values.removeExistingQr
+        ? null
+        : account.qr_file_id;
+
+      if (values.qrFile) {
+        const uploadRes = await prepareAndUploadPaymentAccountQr(values.qrFile);
         if (!uploadRes.success) {
           setError(uploadRes.error);
           return;
@@ -96,10 +74,10 @@ export function EditPaymentAccountDialog({
 
       const result = await updatePaymentAccount({
         id: account.id,
-        label: label.trim(),
-        accountName: accountName.trim(),
-        accountReference: accountReference.trim(),
-        instructions: instructions.trim() || undefined,
+        label: values.label.trim(),
+        accountName: values.accountName.trim(),
+        accountReference: values.accountReference.trim(),
+        instructions: values.instructions.trim() || undefined,
         qrFileId: finalQrFileId,
       });
 
@@ -136,108 +114,15 @@ export function EditPaymentAccountDialog({
             </p>
           </div>
 
-          {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label
-              htmlFor="edit-account-label"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Destination Label
-            </label>
-            <Input
-              id="edit-account-label"
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              disabled={isPending}
-              required
-              maxLength={100}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="edit-account-name"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Account Holder Name
-            </label>
-            <Input
-              id="edit-account-name"
-              type="text"
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              disabled={isPending}
-              required
-              maxLength={100}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="edit-account-reference"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Account / Reference Number
-            </label>
-            <Input
-              id="edit-account-reference"
-              type="text"
-              value={accountReference}
-              onChange={(e) => setAccountReference(e.target.value)}
-              disabled={isPending}
-              required
-              maxLength={100}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="edit-account-instructions"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              Transfer Instructions (Optional)
-            </label>
-            <textarea
-              id="edit-account-instructions"
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              disabled={isPending}
-              maxLength={1000}
-              rows={3}
-              className="w-full rounded-lg border border-input bg-background p-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <p className="text-right text-[11px] text-muted-foreground mt-0.5">
-              {instructions.length}/1000
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="edit-account-qr"
-              className="block text-sm font-medium text-foreground mb-1"
-            >
-              QR Code Image (Optional)
-            </label>
-            <Input
-              id="edit-account-qr"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleFileChange}
-              disabled={isPending}
-              className="cursor-pointer file:cursor-pointer"
-            />
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {qrFileId
-                ? "A QR code is currently attached. Select a new file to replace it."
-                : "Attach a QR code image (PNG, JPEG, or WebP up to 2 MB)."}
-            </p>
-          </div>
+          <PaymentAccountFormFields
+            idPrefix="edit-account"
+            values={values}
+            existingQrFileId={account?.qr_file_id}
+            disabled={isPending}
+            error={error}
+            onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
+            onError={setError}
+          />
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
