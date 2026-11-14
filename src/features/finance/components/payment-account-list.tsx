@@ -210,6 +210,7 @@ export function PaymentAccountList({
       />
 
       <EditPaymentAccountDialog
+        key={editingAccount?.id ?? "closed"}
         account={editingAccount}
         isOpen={editingAccount !== null}
         onClose={() => setEditingAccount(null)}

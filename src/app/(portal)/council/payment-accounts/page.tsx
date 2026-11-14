@@ -3,7 +3,10 @@ import { ShieldAlert } from "lucide-react";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { PaymentAccountList } from "@/features/finance/components/payment-account-list";
-import { isAuthorizedPaymentAccountManager } from "@/features/finance/contracts";
+import {
+  isAuthorizedPaymentAccountManager,
+  type PaymentAccountDTO,
+} from "@/features/finance/contracts";
 import { getPaymentAccounts } from "@/features/finance/queries";
 import { getAccessContext } from "@/server/auth/access-context";
 

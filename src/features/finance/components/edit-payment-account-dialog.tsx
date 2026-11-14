@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Loader2, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,11 +25,11 @@ export function EditPaymentAccountDialog({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [label, setLabel] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [accountReference, setAccountReference] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [qrFileId, setQrFileId] = useState<string | null>(null);
+  const [label, setLabel] = useState(account?.label ?? "");
+  const [accountName, setAccountName] = useState(account?.account_name ?? "");
+  const [accountReference, setAccountReference] = useState(account?.account_reference ?? "");
+  const [instructions, setInstructions] = useState(account?.instructions ?? "");
+  const [qrFileId] = useState<string | null>(account?.qr_file_id ?? null);
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -62,18 +62,6 @@ export function EditPaymentAccountDialog({
     }
     setQrFile(selected);
   }
-
-  useEffect(() => {
-    if (account) {
-      setLabel(account.label);
-      setAccountName(account.account_name);
-      setAccountReference(account.account_reference);
-      setInstructions(account.instructions ?? "");
-      setQrFileId(account.qr_file_id);
-      setQrFile(null);
-      setError(null);
-    }
-  }, [account]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
