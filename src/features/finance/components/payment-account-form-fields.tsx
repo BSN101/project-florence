@@ -42,6 +42,7 @@ export async function prepareAndUploadPaymentAccountQr(
 ): Promise<{ success: true; fileId: string } | { success: false; error: string }> {
   try {
     const compressed = await compressImage(file, "payment_account_qr");
+    // Kept on the client: an undecodable original passes through uncompressed and could exceed the action body limit.
     if (compressed.size > PAYMENT_ACCOUNT_QR_MAX_BYTES) {
       return {
         success: false,

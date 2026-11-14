@@ -24,7 +24,6 @@ import {
   archivePaymentAccountSchema,
   createDefinitionSchema,
   createPaymentAccountSchema,
-  PAYMENT_ACCOUNT_QR_MAX_BYTES,
   paymentAccountQrFileIdSchema,
   publishFeeObligationsSchema,
   updateDefinitionSchema,
@@ -724,13 +723,7 @@ export async function uploadPaymentAccountQr(
     if (!file || !(file instanceof File)) {
       return { success: false, error: "Please select an image file to upload." };
     }
-    if (file.size === 0) {
-      return { success: false, error: "The selected file is empty." };
-    }
-    if (file.size > PAYMENT_ACCOUNT_QR_MAX_BYTES) {
-      return { success: false, error: "The QR code file must be smaller than 2 MB." };
-    }
-
+    // uploadFile enforces the empty-file and size limits with user-safe messages.
     const requestKey = randomUUID();
     const fileId = await uploadFile("payment_account_qr", file, requestKey);
     return { success: true, fileId };
