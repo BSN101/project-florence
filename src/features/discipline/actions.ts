@@ -8,8 +8,7 @@ import { getStudentDisciplinaryLedger } from "./queries";
  * Keeps all database queries strictly server-side.
  */
 export async function getStudentDisciplinaryLedgerAction(
-  studentId: string,
-  semesterId?: string
+  studentId: string
 ): Promise<FacultyDisciplinaryViewData> {
-  return getStudentDisciplinaryLedger(studentId, semesterId);
+  return getStudentDisciplinaryLedger(studentId);
 }

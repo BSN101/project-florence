@@ -20,6 +20,95 @@ import type {
   StudentDisciplinarySummary,
 } from "./contracts";
 
+type RawProfileName = {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  suffix?: string | null;
+};
+
+type RawStudentProfile = {
+  university_id: string;
+  first_name: string;
+  last_name: string;
+};
+
+type RawDemeritRow = {
+  id: string;
+  incident_group_id: string;
+  incident_unit_index: number;
+  student_id: string;
+  student?: RawStudentProfile | null;
+  semester_id: string;
+  bucket: "office" | "rle";
+  source: string;
+  misconduct_id: string | null;
+  misconduct?: { label: string } | null;
+  description: string;
+  incident_on: string;
+  event_attendance_id: string | null;
+  consequence_outcome: string | null;
+  source_unit_index: number | null;
+  issued_by: string;
+  issuer?: RawProfileName | null;
+  external_source_name: string | null;
+  waived_at: string | null;
+  waived_by: string | null;
+  waived_by_profile?: RawProfileName | null;
+  waiver_reason: string | null;
+  created_at: string;
+};
+
+type RawMeritRow = {
+  id: string;
+  student_id: string;
+  student?: RawStudentProfile | null;
+  semester_id: string;
+  source: string;
+  endorsement_id: string | null;
+  endorsement_unit_index: number | null;
+  description: string;
+  awarded_on: string;
+  expires_on: string;
+  awarded_by: string;
+  awarder?: RawProfileName | null;
+  external_source_name: string | null;
+  created_at: string;
+};
+
+type RawServiceCreditRow = {
+  id: string;
+  student_id: string;
+  student?: RawStudentProfile | null;
+  semester_id: string;
+  bucket: "office" | "rle";
+  service_participant_id: string;
+  issued_by: string;
+  issuer?: RawProfileName | null;
+  issued_at: string;
+  revoked_by: string | null;
+  revoked_at: string | null;
+  revocation_reason: string | null;
+};
+
+type RawEndorsementRow = {
+  id: string;
+  student_id: string;
+  student?: RawStudentProfile | null;
+  semester_id: string;
+  assigned_instructor_id: string;
+  assigned_instructor?: RawProfileName | null;
+  description: string;
+  requested_days: number;
+  status: "pending" | "approved" | "rejected";
+  submitted_by: string;
+  submitter?: RawProfileName | null;
+  submitted_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_reason: string | null;
+};
+
 /**
  * Access guard for Council disciplinary routes (FL-029).
  * Restricts access to Council Executive and Operations. Representatives are strictly denied.
@@ -128,10 +217,10 @@ export async function getMyDisciplinaryRecords(semesterId?: string): Promise<{
   if (applicationsRes.error) throw new Error("Unable to load merit applications");
   if (creditsRes.error) throw new Error("Unable to load service credits");
 
-  const rawDemerits = (demeritsRes.data ?? []) as any[];
-  const rawMerits = (meritsRes.data ?? []) as any[];
-  const rawApplications = (applicationsRes.data ?? []) as MeritApplicationRecord[];
-  const rawCredits = (creditsRes.data ?? []) as any[];
+  const rawDemerits = (demeritsRes.data ?? []) as unknown as RawDemeritRow[];
+  const rawMerits = (meritsRes.data ?? []) as unknown as RawMeritRow[];
+  const rawApplications = (applicationsRes.data ?? []) as unknown as MeritApplicationRecord[];
+  const rawCredits = (creditsRes.data ?? []) as unknown as RawServiceCreditRow[];
 
   const appliedMeritIds = new Set(rawApplications.map((a) => a.merit_id));
 
@@ -290,7 +379,9 @@ export async function getCouncilDisciplinaryRecords(
   if (demeritsRes.error) throw new Error("Unable to load Council demerits");
   if (endorsementsRes.error) throw new Error("Unable to load merit endorsements");
 
-  const demerits: DemeritRecord[] = (demeritsRes.data ?? []).map((d: any) => ({
+  const demerits: DemeritRecord[] = (
+    (demeritsRes.data ?? []) as unknown as RawDemeritRow[]
+  ).map((d) => ({
     id: d.id,
     incident_group_id: d.incident_group_id,
     incident_unit_index: d.incident_unit_index,
@@ -316,7 +407,9 @@ export async function getCouncilDisciplinaryRecords(
     created_at: d.created_at,
   }));
 
-  const endorsements: MeritEndorsementRecord[] = (endorsementsRes.data ?? []).map((e: any) => ({
+  const endorsements: MeritEndorsementRecord[] = (
+    (endorsementsRes.data ?? []) as unknown as RawEndorsementRow[]
+  ).map((e) => ({
     id: e.id,
     student_id: e.student_id,
     student_university_id: e.student?.university_id ?? null,
@@ -345,8 +438,7 @@ export async function getCouncilDisciplinaryRecords(
  * Ordinary instructors receive ONLY their own issued entries and no overall ledger/balance.
  */
 export async function getStudentDisciplinaryLedger(
-  studentId: string,
-  _semesterId?: string
+  studentId: string
 ): Promise<FacultyDisciplinaryViewData> {
   const access = await requireWorkspace("faculty");
   const isCoordinator =
@@ -440,10 +532,10 @@ export async function getStudentDisciplinaryLedger(
     if (applicationsRes.error) throw new Error("Unable to load merit applications");
     if (creditsRes.error) throw new Error("Unable to load service credits");
 
-    const rawDemerits = (demeritsRes.data ?? []) as any[];
-    const rawMerits = (meritsRes.data ?? []) as any[];
-    const rawApplications = (applicationsRes.data ?? []) as MeritApplicationRecord[];
-    const rawCredits = (creditsRes.data ?? []) as any[];
+    const rawDemerits = (demeritsRes.data ?? []) as unknown as RawDemeritRow[];
+    const rawMerits = (meritsRes.data ?? []) as unknown as RawMeritRow[];
+    const rawApplications = (applicationsRes.data ?? []) as unknown as MeritApplicationRecord[];
+    const rawCredits = (creditsRes.data ?? []) as unknown as RawServiceCreditRow[];
 
     const appliedMeritIds = new Set(rawApplications.map((a) => a.merit_id));
 
@@ -602,7 +694,9 @@ export async function getStudentDisciplinaryLedger(
   if (meritsRes.error) throw new Error("Unable to load instructor merits");
   if (creditsRes.error) throw new Error("Unable to load instructor service credits");
 
-  const demerits: DemeritRecord[] = (demeritsRes.data ?? []).map((d: any) => ({
+  const demerits: DemeritRecord[] = (
+    (demeritsRes.data ?? []) as unknown as RawDemeritRow[]
+  ).map((d) => ({
     id: d.id,
     incident_group_id: d.incident_group_id,
     incident_unit_index: d.incident_unit_index,
@@ -627,7 +721,9 @@ export async function getStudentDisciplinaryLedger(
     created_at: d.created_at,
   }));
 
-  const merits: MeritRecord[] = (meritsRes.data ?? []).map((m: any) => ({
+  const merits: MeritRecord[] = (
+    (meritsRes.data ?? []) as unknown as RawMeritRow[]
+  ).map((m) => ({
     id: m.id,
     student_id: m.student_id,
     semester_id: m.semester_id,
@@ -643,7 +739,9 @@ export async function getStudentDisciplinaryLedger(
     created_at: m.created_at,
   }));
 
-  const serviceCredits: ServiceCreditRecord[] = (creditsRes.data ?? []).map((c: any) => ({
+  const serviceCredits: ServiceCreditRecord[] = (
+    (creditsRes.data ?? []) as unknown as RawServiceCreditRow[]
+  ).map((c) => ({
     id: c.id,
     student_id: c.student_id,
     semester_id: c.semester_id,

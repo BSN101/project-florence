@@ -5,6 +5,7 @@ import { AlertCircle } from "lucide-react";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Card } from "@/components/ui/card";
 import { CouncilDisciplinaryView } from "@/features/discipline/components/council-disciplinary-view";
+import type { CouncilDisciplinaryViewData } from "@/features/discipline/contracts";
 import { getCouncilDisciplinaryRecords } from "@/features/discipline/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -47,10 +48,15 @@ export default async function CouncilMeritEndorsementsAndDemeritsPage({
 
   let content: React.ReactNode = null;
   if (semesterId) {
+    let data: CouncilDisciplinaryViewData | null = null;
+    let loadFailed = false;
     try {
-      const data = await getCouncilDisciplinaryRecords(semesterId);
-      content = <CouncilDisciplinaryView data={data} />;
+      data = await getCouncilDisciplinaryRecords(semesterId);
     } catch {
+      loadFailed = true;
+    }
+
+    if (loadFailed || !data) {
       content = (
         <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center">
           <AlertCircle className="size-8 text-destructive" />
@@ -59,6 +65,8 @@ export default async function CouncilMeritEndorsementsAndDemeritsPage({
           </p>
         </Card>
       );
+    } else {
+      content = <CouncilDisciplinaryView data={data} />;
     }
   } else {
     content = (

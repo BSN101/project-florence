@@ -241,6 +241,7 @@ export function StudentDetailDialog({
             {workspace === "faculty" && open && (
               <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/60 p-3.5">
                 <FacultyStudentDisciplinaryPanel
+                  key={student.student_id}
                   studentId={student.student_id}
                   semesterId={student.semester_id}
                 />

@@ -1,4 +1,4 @@
-import { AlertTriangle, Award, CheckCircle2, Clock, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Award, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudentDisciplinarySummary } from "../contracts";
 import { BucketBadge } from "./disciplinary-badges";

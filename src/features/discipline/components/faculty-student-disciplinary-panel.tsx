@@ -12,7 +12,6 @@ import { ServiceCreditsTable } from "./service-credits-table";
 
 export function FacultyStudentDisciplinaryPanel({
   studentId,
-  semesterId,
 }: {
   studentId: string;
   semesterId?: string;
@@ -24,10 +23,8 @@ export function FacultyStudentDisciplinaryPanel({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
-    getStudentDisciplinaryLedgerAction(studentId, semesterId)
+    getStudentDisciplinaryLedgerAction(studentId)
       .then((res) => {
         if (!cancelled) {
           setData(res);
@@ -44,7 +41,7 @@ export function FacultyStudentDisciplinaryPanel({
     return () => {
       cancelled = true;
     };
-  }, [studentId, semesterId]);
+  }, [studentId]);
 
   if (loading) {
     return (

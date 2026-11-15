@@ -41,10 +41,23 @@ export default async function StudentMeritsDemeritsAndServicesPage({
 
   preloadWorkspaceShell("student");
 
-  let content: React.ReactNode = null;
+  let data: Awaited<ReturnType<typeof getMyDisciplinaryRecords>> | null = null;
+  let loadFailed = false;
   try {
-    const data = await getMyDisciplinaryRecords(semesterId);
-    content = (
+    data = await getMyDisciplinaryRecords(semesterId);
+  } catch {
+    loadFailed = true;
+  }
+
+  const content =
+    loadFailed || !data ? (
+      <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+        <AlertCircle className="size-8 text-destructive" />
+        <p className="text-xs text-muted-foreground">
+          Unable to load disciplinary records and balances. Refresh the page to try again.
+        </p>
+      </Card>
+    ) : (
       <StudentDisciplinaryView
         summary={data.summary}
         demerits={data.demerits}
@@ -52,16 +65,6 @@ export default async function StudentMeritsDemeritsAndServicesPage({
         serviceCredits={data.serviceCredits}
       />
     );
-  } catch {
-    content = (
-      <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-        <AlertCircle className="size-8 text-destructive" />
-        <p className="text-xs text-muted-foreground">
-          Unable to load disciplinary records and balances. Refresh the page to try again.
-        </p>
-      </Card>
-    );
-  }
 
   return (
     <WorkspaceShell
