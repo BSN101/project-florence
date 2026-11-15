@@ -20,6 +20,33 @@ export function formatPhp(amount: number): string {
   return currencyFormatter.format(amount);
 }
 
+export const phDateFormatter = new Intl.DateTimeFormat("en-PH", {
+  dateStyle: "medium",
+  timeZone: "Asia/Manila",
+});
+
+export const phDateTimeFormatter = new Intl.DateTimeFormat("en-PH", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Manila",
+});
+
+export function formatPhDate(isoString: string): string {
+  try {
+    return phDateFormatter.format(new Date(isoString));
+  } catch {
+    return isoString;
+  }
+}
+
+export function formatPhDateTime(isoString: string): string {
+  try {
+    return phDateTimeFormatter.format(new Date(isoString));
+  } catch {
+    return isoString;
+  }
+}
+
 /** Convert float amount to integer cents to prevent binary floating-point drift. */
 export function toCents(amount: number): number {
   return Math.round((Number.isFinite(amount) ? amount : 0) * 100);
