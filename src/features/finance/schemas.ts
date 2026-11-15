@@ -129,3 +129,21 @@ export const archivePaymentAccountSchema = z.object({
 export type CreatePaymentAccountInput = z.infer<typeof createPaymentAccountSchema>;
 export type UpdatePaymentAccountInput = z.infer<typeof updatePaymentAccountSchema>;
 export type ArchivePaymentAccountInput = z.infer<typeof archivePaymentAccountSchema>;
+
+/**
+ * Filter schema for student financial obligations and payment history (FL-022 / T-033).
+ * Accepts a valid semester UUID, "all", or nullish (defaults to active semester).
+ */
+export const financialSemesterFilterSchema = z.preprocess(
+  (val) => (val === "" || val === "all" || val === undefined ? null : val),
+  z.string().uuid("Invalid semester identifier").nullable().optional()
+);
+
+export const councilStudentFinancialQuerySchema = z.object({
+  studentId: z.string().uuid("Invalid student identifier"),
+  semesterId: financialSemesterFilterSchema,
+});
+
+export type CouncilStudentFinancialQueryInput = z.infer<
+  typeof councilStudentFinancialQuerySchema
+>;

@@ -10,6 +10,8 @@ import {
   createPaymentAccountSchema,
   updatePaymentAccountSchema,
   archivePaymentAccountSchema,
+  financialSemesterFilterSchema,
+  councilStudentFinancialQuerySchema,
 } from "./schemas.ts";
 
 const validUuid = "11111111-1111-4111-8111-111111111111";
@@ -380,6 +382,43 @@ test("payment account update requires the values the editor loaded", () => {
     updatePaymentAccountSchema.safeParse({
       ...edit,
       expected: { label: "GCash", accountName: "Treasury", accountReference: "09171234567", qrFileId: "not-a-uuid" },
+    }).success,
+    false
+  );
+});
+
+test("financial semester filter schema accepts valid UUIDs, 'all', empty string, and nullish", () => {
+  assert.equal(financialSemesterFilterSchema.safeParse(validUuid).data, validUuid);
+  assert.equal(financialSemesterFilterSchema.safeParse("all").data, null);
+  assert.equal(financialSemesterFilterSchema.safeParse("").data, null);
+  assert.equal(financialSemesterFilterSchema.safeParse(undefined).data, null);
+  assert.equal(financialSemesterFilterSchema.safeParse(null).data, null);
+  assert.equal(financialSemesterFilterSchema.safeParse("not-a-uuid").success, false);
+});
+
+test("council student financial query schema validates student UUID and optional semester", () => {
+  const valid = councilStudentFinancialQuerySchema.safeParse({
+    studentId: validUuid,
+    semesterId: validUuid,
+  });
+  assert.equal(valid.success, true);
+  if (valid.success) {
+    assert.equal(valid.data.studentId, validUuid);
+    assert.equal(valid.data.semesterId, validUuid);
+  }
+
+  const validAll = councilStudentFinancialQuerySchema.safeParse({
+    studentId: validUuid,
+    semesterId: "all",
+  });
+  assert.equal(validAll.success, true);
+  if (validAll.success) {
+    assert.equal(validAll.data.semesterId, null);
+  }
+
+  assert.equal(
+    councilStudentFinancialQuerySchema.safeParse({
+      studentId: "invalid-uuid",
     }).success,
     false
   );

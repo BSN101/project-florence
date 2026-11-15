@@ -162,6 +162,28 @@ export type StudentFinancialSummaryDTO = {
 };
 
 /**
+ * Complete financial account payload for a student (FL-022 / T-033).
+ * Shared across Student fees-and-fines view and Council payments inspection.
+ */
+export type StudentFinancialAccountData = {
+  student: {
+    id: string;
+    universityId: string | null;
+    fullName: string;
+  };
+  obligations: ObligationWithStandingDTO[];
+  summary: StudentFinancialSummaryDTO;
+  payments: PaymentHistoryDTO[];
+  targetSemesterId: string | null;
+  targetSemesterCode: string | null;
+  availableSemesters: Array<{
+    id: string;
+    code: string;
+    is_current: boolean;
+  }>;
+};
+
+/**
  * Defensive error message sanitizer for payment accounts.
  * Eliminates database leakage (SQLSTATEs, table names, schema details) while returning user-safe guidance.
  */
