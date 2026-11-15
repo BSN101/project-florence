@@ -18,7 +18,6 @@ import {
   assertAuthorizedCouncilExecutive,
   assertAuthorizedCouncilManager,
   previewFeeObligations,
-  searchCouncilStudentsForFinance,
 } from "./queries";
 import {
   archiveDefinitionSchema,
@@ -772,35 +771,5 @@ export async function getPaymentAccountQrUrl(
       success: false,
       error: "Failed to load QR code image. Please try again.",
     };
-  }
-}
-
-/**
- * Search students for financial ledger lookup (FL-022 / T-033).
- * Authorized for Council Executive and Operations only.
- */
-export async function searchStudentsForLedgerAction(
-  query: string
-): Promise<
-  | {
-      success: true;
-      results: Array<{
-        id: string;
-        university_id: string | null;
-        fullName: string;
-        email: string | null;
-      }>;
-    }
-  | { success: false; error: string }
-> {
-  try {
-    await assertAuthorizedCouncilManager();
-    const results = await searchCouncilStudentsForFinance(query);
-    return { success: true, results };
-  } catch (err) {
-    if (err instanceof AccessDeniedError) {
-      return { success: false, error: "Unauthorized" };
-    }
-    return { success: false, error: "Failed to search students." };
   }
 }
