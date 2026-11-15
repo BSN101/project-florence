@@ -90,19 +90,13 @@ export type ObligationStandingStatus =
 export type ObligationDTO = Pick<
   Tables["obligations"]["Row"],
   | "id"
-  | "student_id"
   | "semester_id"
   | "kind"
-  | "fee_definition_id"
-  | "fee_publication_id"
   | "consequence_outcome"
-  | "event_attendance_id"
   | "description"
   | "amount"
   | "waived_at"
-  | "waived_by"
   | "waiver_reason"
-  | "created_at"
 >;
 
 export type ObligationWithStandingDTO = ObligationDTO & {

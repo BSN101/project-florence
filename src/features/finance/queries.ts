@@ -310,7 +310,7 @@ async function fetchStudentFinancialAccountData({
     client
       .from("obligations")
       .select(
-        "id, student_id, semester_id, kind, fee_definition_id, fee_publication_id, consequence_outcome, event_attendance_id, description, amount, waived_at, waived_by, waiver_reason, created_at"
+        "id, semester_id, kind, consequence_outcome, description, amount, waived_at, waiver_reason"
       )
       .eq("student_id", studentId)
       .order("created_at", { ascending: false }),
