@@ -1,28 +1,66 @@
+"use client";
+
+import { useState } from "react";
 import { AlertCircle, FileText, User } from "lucide-react";
 import type { DemeritRecord } from "../contracts";
 import { BucketBadge, DemeritStatusBadge } from "./disciplinary-badges";
+import { BUCKET_OPTIONS, FilterSelect, matches, TableEmpty, TableFrame, THEAD_CLASS, usePagedRows } from "./table-controls";
+
+export const DEMERIT_STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "waived", label: "Waived" },
+];
+
+const SOURCE_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "faculty", label: "Faculty" },
+  { value: "council", label: "Council" },
+  { value: "external_ci", label: "External CI" },
+];
 
 export function DemeritsTable({
   demerits,
 }: {
   demerits: DemeritRecord[];
 }) {
-  if (demerits.length === 0) {
+  const [bucket, setBucket] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [source, setSource] = useState("all");
+  const rows = demerits.filter(
+    (d) =>
+      matches(bucket, d.bucket) &&
+      matches(status, d.waived_at ? "waived" : "active") &&
+      matches(source, d.source)
+  );
+
+  const filters = (
+    <>
+      <FilterSelect label="Bucket" value={bucket} options={BUCKET_OPTIONS} onChange={setBucket} />
+      <FilterSelect label="Status" value={status} options={DEMERIT_STATUS_OPTIONS} onChange={setStatus} />
+      <FilterSelect label="Source" value={source} options={SOURCE_OPTIONS} onChange={setSource} />
+    </>
+  );
+
+  const { pageRows, pager } = usePagedRows(rows, `${bucket}|${status}|${source}`);
+
+  if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 p-8 text-center">
-        <FileText className="size-8 text-muted-foreground/60" />
-        <p className="text-sm font-medium text-foreground">No demerit records found</p>
-        <p className="text-xs text-muted-foreground">
-          There are no disciplinary infractions logged for this period.
-        </p>
-      </div>
+      <TableFrame filters={filters} pager={pager}>
+        <TableEmpty
+          icon={FileText}
+          title="No demerit records found"
+          text="There are no disciplinary infractions logged for this period."
+          filtered={demerits.length > 0}
+        />
+      </TableFrame>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <TableFrame filters={filters} pager={pager}>
       <table className="w-full text-left text-xs">
-        <thead className="border-b border-border bg-muted/50 font-medium text-muted-foreground">
+        <thead className={THEAD_CLASS}>
           <tr>
             <th className="px-4 py-3">Incident Date</th>
             <th className="px-4 py-3">Bucket</th>
@@ -32,7 +70,7 @@ export function DemeritsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
-          {demerits.map((d) => {
+          {pageRows.map((d) => {
             const isWaived = d.waived_at !== null;
             return (
               <tr key={d.id} className="hover:bg-muted/30">
@@ -85,6 +123,6 @@ export function DemeritsTable({
           })}
         </tbody>
       </table>
-    </div>
+    </TableFrame>
   );
 }

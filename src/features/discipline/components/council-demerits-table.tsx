@@ -1,28 +1,49 @@
+"use client";
+
+import { useState } from "react";
 import { AlertCircle, FileWarning, User } from "lucide-react";
 import type { DemeritRecord } from "../contracts";
+import { DEMERIT_STATUS_OPTIONS } from "./demerits-table";
 import { BucketBadge, DemeritStatusBadge } from "./disciplinary-badges";
+import { BUCKET_OPTIONS, FilterSelect, matches, TableEmpty, TableFrame, THEAD_CLASS, usePagedRows } from "./table-controls";
 
 export function CouncilDemeritsTable({
   demerits,
 }: {
   demerits: DemeritRecord[];
 }) {
-  if (demerits.length === 0) {
+  const [bucket, setBucket] = useState("all");
+  const [status, setStatus] = useState("all");
+  const rows = demerits.filter(
+    (d) => matches(bucket, d.bucket) && matches(status, d.waived_at ? "waived" : "active")
+  );
+
+  const filters = (
+    <>
+      <FilterSelect label="Bucket" value={bucket} options={BUCKET_OPTIONS} onChange={setBucket} />
+      <FilterSelect label="Status" value={status} options={DEMERIT_STATUS_OPTIONS} onChange={setStatus} />
+    </>
+  );
+
+  const { pageRows, pager } = usePagedRows(rows, `${bucket}|${status}`);
+
+  if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 p-8 text-center">
-        <FileWarning className="size-8 text-muted-foreground/60" />
-        <p className="text-sm font-medium text-foreground">No Council-generated demerits</p>
-        <p className="text-xs text-muted-foreground">
-          Event absence or late sanctions generated for this semester will appear here.
-        </p>
-      </div>
+      <TableFrame filters={filters} pager={pager}>
+        <TableEmpty
+          icon={FileWarning}
+          title="No Council-generated demerits"
+          text="Event absence or late sanctions generated for this semester will appear here."
+          filtered={demerits.length > 0}
+        />
+      </TableFrame>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <TableFrame filters={filters} pager={pager}>
       <table className="w-full text-left text-xs">
-        <thead className="border-b border-border bg-muted/50 font-medium text-muted-foreground">
+        <thead className={THEAD_CLASS}>
           <tr>
             <th className="px-4 py-3">Student</th>
             <th className="px-4 py-3">Incident Date</th>
@@ -33,7 +54,7 @@ export function CouncilDemeritsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
-          {demerits.map((d) => {
+          {pageRows.map((d) => {
             const isWaived = d.waived_at !== null;
             return (
               <tr key={d.id} className="hover:bg-muted/30">
@@ -90,6 +111,6 @@ export function CouncilDemeritsTable({
           })}
         </tbody>
       </table>
-    </div>
+    </TableFrame>
   );
 }
