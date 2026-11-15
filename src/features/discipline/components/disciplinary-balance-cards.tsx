@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudentDisciplinarySummary } from "../contracts";
 import { BucketBadge } from "./disciplinary-badges";
 
+const formatDays = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
+
 export function DisciplinaryBalanceCards({
   summary,
 }: {
@@ -21,7 +23,7 @@ export function DisciplinaryBalanceCards({
         <CardContent>
           <div className="flex items-baseline justify-between">
             <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
-              {summary.office.balance > 0 ? `${summary.office.balance} days` : "0 days"}
+              {summary.office.balance > 0 ? formatDays(summary.office.balance) : "0 days"}
             </div>
             {summary.office.balance === 0 ? (
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -53,7 +55,7 @@ export function DisciplinaryBalanceCards({
         <CardContent>
           <div className="flex items-baseline justify-between">
             <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
-              {summary.rle.balance > 0 ? `${summary.rle.balance} days` : "0 days"}
+              {summary.rle.balance > 0 ? formatDays(summary.rle.balance) : "0 days"}
             </div>
             {summary.rle.balance === 0 ? (
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -85,7 +87,7 @@ export function DisciplinaryBalanceCards({
         <CardContent>
           <div className="flex items-baseline justify-between">
             <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
-              {summary.merits.available} days
+              {formatDays(summary.merits.available)}
             </div>
             <span className="text-xs text-muted-foreground">
               {summary.merits.totalApplied} applied
@@ -112,7 +114,7 @@ export function DisciplinaryBalanceCards({
         <CardContent>
           <div className="flex items-baseline justify-between">
             <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
-              {summary.totalActiveBalance > 0 ? `${summary.totalActiveBalance} days pending` : "In Good Standing"}
+              {summary.totalActiveBalance > 0 ? `${formatDays(summary.totalActiveBalance)} pending` : "In Good Standing"}
             </div>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
