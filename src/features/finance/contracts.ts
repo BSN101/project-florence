@@ -1,3 +1,4 @@
+import type { StudentRosterItem } from "@/features/students/contracts";
 import type { Database } from "@/server/db/database.types";
 
 type Tables = Database["public"]["Tables"];
@@ -60,6 +61,118 @@ export function isAuthorizedPaymentAccountManager(
 ): boolean {
   return councilRole === "executive";
 }
+
+/**
+ * Pure authorization check for viewing student financial accounts and payment history (FL-022 / T-033).
+ * Council Executives and Operations officers may view permitted student financial accounts.
+ * Students view their own accounts in the student workspace.
+ * Representatives, Faculty, and unauthenticated actors are forbidden.
+ */
+export function isAuthorizedCouncilFinancialViewer(
+  councilRole: string | null | undefined
+): boolean {
+  return councilRole === "executive" || councilRole === "operations";
+}
+
+/**
+ * Standing lifecycle states for a single financial obligation (FL-022 / T-033).
+ * Derived dynamically from obligations, payment allocations, and refund records.
+ */
+export type ObligationStandingStatus =
+  | "unpaid"
+  | "pending_verification"
+  | "settled"
+  | "waived";
+
+/**
+ * Client-safe projection for student financial obligations (FL-022 / T-033).
+ * Represents fee or fine debt items, including optional waiver attribution and derived standing.
+ */
+export type ObligationDTO = Pick<
+  Tables["obligations"]["Row"],
+  | "id"
+  | "semester_id"
+  | "kind"
+  | "consequence_outcome"
+  | "description"
+  | "amount"
+  | "waived_at"
+  | "waiver_reason"
+>;
+
+export type ObligationWithStandingDTO = ObligationDTO & {
+  status: ObligationStandingStatus;
+  semester_code?: string;
+  is_past_semester?: boolean;
+};
+
+/**
+ * Client-safe projection for student payment history entries (FL-022 / T-033).
+ * Encompasses transfer submissions, recorded cash payments, receipt metadata, and refund records.
+ */
+export type PaymentHistoryDTO = Pick<
+  Tables["payments"]["Row"],
+  | "id"
+  | "student_id"
+  | "semester_id"
+  | "method"
+  | "status"
+  | "record_status"
+  | "receipt_id"
+  | "is_receipt_record"
+  | "destination_label"
+  | "destination_account_name"
+  | "destination_account_reference"
+  | "reference_number"
+  | "amount"
+  | "submitted_at"
+  | "decided_at"
+  | "decision_reason"
+> & {
+  semester_code?: string;
+  is_refunded: boolean;
+  refunded_at?: string | null;
+  refund_reason?: string | null;
+};
+
+/**
+ * Aggregated financial balance and standing metrics for a student (FL-022 / T-033).
+ * Shared across Student and Council views to guarantee mathematical consistency.
+ */
+export type StudentFinancialSummaryDTO = {
+  /** Net collectible amount required to clear all current and prior unpaid obligations */
+  totalOutstandingPayable: number;
+  /** Payable amount strictly belonging to the currently selected or active semester */
+  currentSemesterPayable: number;
+  /** Carryover payable balance from previous semesters that remains collectible */
+  priorSemestersOverduePayable: number;
+  /** Total sum of verified, non-refunded settlements */
+  totalSettledAmount: number;
+  /** Total sum of payments currently under review (transfers pending council verification) */
+  totalPendingVerificationAmount: number;
+  /** Total sum of officially waived obligations */
+  totalWaivedAmount: number;
+  /** Total original debt recorded (gross obligations before waivers and settlements) */
+  totalGrossObligationsAmount: number;
+};
+
+/**
+ * Complete financial account payload for a student (FL-022 / T-033).
+ * Shared across Student fees-and-fines view and Council payments inspection.
+ */
+export type StudentFinancialAccountData = {
+  student: {
+    id: string;
+    universityId: string | null;
+    fullName: string;
+  };
+  obligations: ObligationWithStandingDTO[];
+  summary: StudentFinancialSummaryDTO;
+  payments: PaymentHistoryDTO[];
+};
+
+/** One row of the Council ledger table: an enrolled student and their semester summary (FL-022). */
+export type CouncilFinancialRosterItem = StudentRosterItem & { summary: StudentFinancialSummaryDTO };
 
 /**
  * Defensive error message sanitizer for payment accounts.

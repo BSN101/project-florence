@@ -2398,6 +2398,17 @@ export type Database = {
           updated_at: string
         }[]
       }
+      florence_finance_student: {
+        Args: { p_student: string }
+        Returns: {
+          first_name: string
+          id: string
+          last_name: string
+          middle_name: string
+          suffix: string
+          university_id: string
+        }[]
+      }
       florence_fine_definitions: {
         Args: never
         Returns: {

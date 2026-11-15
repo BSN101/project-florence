@@ -1,7 +1,18 @@
 import "server-only";
 
+import type { SemesterOption } from "@/features/access/access-policy";
+import { getRoster } from "@/features/students/queries";
+import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
+import {
+  calculateObligationsStanding,
+  calculateStudentFinancialSummary,
+  mapPaymentHistory,
+  priorSemesterIdsFor,
+  scopeFinancialRecordsForSemester,
+  summarizeStudentBalances,
+} from "./calculations";
 import {
   type FeeDefinitionCatalogItem,
   type FeeDefinitionDTO,
@@ -9,10 +20,18 @@ import {
   type FeePublicationPreview,
   type FineDefinitionCatalogItem,
   type FineDefinitionDTO,
+  type CouncilFinancialRosterItem,
   type PaymentAccountDTO,
+  type StudentFinancialAccountData,
+  isAuthorizedCouncilFinancialViewer,
   isAuthorizedPaymentAccountManager,
 } from "./contracts";
-import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./schemas";
+import {
+  councilStudentFinancialQuerySchema,
+  previewFeeObligationsSchema,
+  type CouncilStudentFinancialQueryInput,
+  type PreviewFeeObligationsInput,
+} from "./schemas";
 
 /**
  * Enforce that the caller is an authenticated Council member with Executive or Operations authority.
@@ -20,7 +39,7 @@ import { previewFeeObligationsSchema, type PreviewFeeObligationsInput } from "./
  */
 export async function assertAuthorizedCouncilManager() {
   const context = await requireWorkspace("council");
-  if (context.councilRole !== "executive" && context.councilRole !== "operations") {
+  if (!isAuthorizedCouncilFinancialViewer(context.councilRole)) {
     throw new AccessDeniedError("forbidden");
   }
   return context;
@@ -259,4 +278,296 @@ export async function getPaymentAccounts(options?: {
   }
 
   return data ?? [];
+}
+
+/**
+ * Shared underlying query pipeline for student financial accounts.
+ * Executes within the user's RLS context, joining obligations, payments, and refunds,
+ * and running pure financial calculations for consistent cross-role figures.
+ */
+async function fetchStudentFinancialAccountData({
+  client,
+  studentId,
+  studentInfo,
+  semesters,
+  requestedSemesterId,
+}: {
+  client: Awaited<ReturnType<typeof createUserClient>>;
+  studentId: string;
+  studentInfo: {
+    id: string;
+    universityId: string | null;
+    fullName: string;
+  };
+  semesters: SemesterOption[];
+  requestedSemesterId?: string | null;
+}): Promise<StudentFinancialAccountData> {
+  const currentSemester = semesters.find((s) => s.is_current) ?? semesters[0];
+  const targetSemesterId =
+    requestedSemesterId !== undefined
+      ? requestedSemesterId
+      : currentSemester?.id ?? null;
+
+  const [obligationsRes, paymentItemsRes, paymentsRes] = await Promise.all([
+    client
+      .from("obligations")
+      .select(
+        "id, semester_id, kind, consequence_outcome, description, amount, waived_at, waiver_reason"
+      )
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false }),
+    client
+      .from("payment_items")
+      .select("payment_id, obligation_id")
+      .eq("student_id", studentId),
+    client
+      .from("payments")
+      .select(
+        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, amount, submitted_at, decided_at, decision_reason"
+      )
+      .eq("student_id", studentId)
+      .order("submitted_at", { ascending: false }),
+  ]);
+
+  if (obligationsRes.error) {
+    throw new Error("Unable to load student obligations.");
+  }
+  if (paymentItemsRes.error) {
+    throw new Error("Unable to load payment allocations.");
+  }
+  if (paymentsRes.error) {
+    throw new Error("Unable to load payment history.");
+  }
+
+  const rawPayments = paymentsRes.data ?? [];
+  const receiptIds = Array.from(
+    new Set(
+      rawPayments
+        .map((p) => p.receipt_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    )
+  );
+
+  let rawRefunds: Array<{
+    id: string;
+    receipt_id: string;
+    payment_id: string;
+    amount: number;
+    reason: string;
+    refunded_at: string;
+  }> = [];
+
+  if (receiptIds.length > 0) {
+    const { data: refundsData, error: refundError } = await client
+      .from("payment_refunds")
+      .select("id, receipt_id, payment_id, amount, reason, refunded_at")
+      .in("receipt_id", receiptIds);
+
+    if (refundError) {
+      throw new Error("Unable to load payment refunds.");
+    }
+    rawRefunds = refundsData ?? [];
+  }
+
+  const semesterCodeMap = new Map<string, string>();
+  for (const s of semesters) {
+    semesterCodeMap.set(s.id, `${s.academic_year_start} · ${s.term}`);
+  }
+
+  const priorSemesterIds = priorSemesterIdsFor(semesters, targetSemesterId);
+
+  const rawObligations = obligationsRes.data ?? [];
+  const rawPaymentItems = paymentItemsRes.data ?? [];
+
+  const allObligationsWithStanding = calculateObligationsStanding({
+    obligations: rawObligations,
+    paymentItems: rawPaymentItems,
+    payments: rawPayments,
+    refunds: rawRefunds,
+    targetSemesterId,
+    priorSemesterIds,
+    semesterCodeMap,
+  });
+
+  const allPayments = mapPaymentHistory({
+    payments: rawPayments,
+    refunds: rawRefunds,
+    semesterCodeMap,
+  });
+
+  const scoped = scopeFinancialRecordsForSemester({
+    obligationsWithStanding: allObligationsWithStanding,
+    payments: allPayments,
+    paymentItems: rawPaymentItems,
+    targetSemesterId,
+    priorSemesterIds,
+  });
+
+  const summary = calculateStudentFinancialSummary({
+    obligationsWithStanding: scoped.obligations,
+    targetSemesterId,
+  });
+
+  return {
+    student: studentInfo,
+    obligations: scoped.obligations,
+    summary,
+    payments: scoped.payments,
+  };
+}
+
+/** Reads every row past the API row cap; callers order by a unique column so pages never overlap. */
+async function allRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  errorMessage: string
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; ) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw new Error(errorMessage);
+    if (!data?.length) return rows;
+    rows.push(...data);
+    from += data.length;
+  }
+}
+
+/**
+ * The semester's enrolled students with their financial summary, for the Council ledger table (FL-022).
+ * Restricted to Council Executive and Operations; totals match each student's own account view.
+ */
+export async function getCouncilFinancialRoster(
+  semesterId: string
+): Promise<CouncilFinancialRosterItem[]> {
+  const context = await assertAuthorizedCouncilManager();
+  const client = await createUserClient();
+  const priorSemesterIds = priorSemesterIdsFor(context.semesters, semesterId);
+  const semesterIds = [semesterId, ...priorSemesterIds];
+
+  // shortcut: reads all refund receipt ids (no semester column); filter by receipt once refunds grow large.
+  const [roster, obligations, paymentItems, payments, refunds] = await Promise.all([
+    getRoster(semesterId),
+    allRows(
+      (from, to) =>
+        client
+          .from("obligations")
+          .select("id, student_id, semester_id, kind, consequence_outcome, description, amount, waived_at, waiver_reason")
+          .in("semester_id", semesterIds)
+          .order("id")
+          .range(from, to),
+      "Unable to load student obligations."
+    ),
+    allRows(
+      (from, to) =>
+        client
+          .from("payment_items")
+          .select("id, payment_id, obligation_id")
+          .in("semester_id", semesterIds)
+          .order("id")
+          .range(from, to),
+      "Unable to load payment allocations."
+    ),
+    allRows(
+      (from, to) =>
+        client
+          .from("payments")
+          .select("id, status, record_status, is_receipt_record, receipt_id")
+          .in("semester_id", semesterIds)
+          .order("id")
+          .range(from, to),
+      "Unable to load payment records."
+    ),
+    allRows(
+      (from, to) => client.from("payment_refunds").select("id, receipt_id").order("id").range(from, to),
+      "Unable to load payment refunds."
+    ),
+  ]);
+
+  const summaries = summarizeStudentBalances({
+    obligations,
+    paymentItems,
+    payments,
+    refunds,
+    targetSemesterId: semesterId,
+    priorSemesterIds,
+  });
+  const empty = calculateStudentFinancialSummary({ obligationsWithStanding: [] });
+  return roster.map((student) => ({ ...student, summary: summaries.get(student.student_id) ?? empty }));
+}
+
+/**
+ * Fetch financial obligations, standing, and payment history for the signed-in student (FL-022 / T-033).
+ * Strictly restricted to the Student workspace; RLS ensures students read only their own rows.
+ */
+export async function getStudentFinancialAccount(params?: {
+  semesterId?: string | null;
+}): Promise<StudentFinancialAccountData> {
+  const context = await requireWorkspace("student");
+
+  const studentInfo = {
+    id: context.profile.id,
+    universityId: context.profile.university_id,
+    fullName: displayName(context.profile),
+  };
+
+  const client = await createUserClient();
+  return fetchStudentFinancialAccountData({
+    client,
+    studentId: context.profile.id,
+    studentInfo,
+    semesters: context.semesters,
+    requestedSemesterId: params?.semesterId,
+  });
+}
+
+/**
+ * Fetch financial obligations, standing, and payment history for a specific student (FL-022 / T-033).
+ * Strictly restricted to Council Executive and Council Operations.
+ * Resolves student identity via the florence_finance_student RPC in parallel with financial records.
+ */
+export async function getCouncilStudentFinancialAccount(
+  input: CouncilStudentFinancialQueryInput
+): Promise<StudentFinancialAccountData> {
+  const context = await assertAuthorizedCouncilManager();
+  const parsed = councilStudentFinancialQuerySchema.parse(input);
+
+  const currentSemester =
+    context.semesters.find((s) => s.is_current) ?? context.semesters[0];
+  const targetSemesterId =
+    parsed.semesterId !== undefined && parsed.semesterId !== null
+      ? parsed.semesterId
+      : currentSemester?.id ?? null;
+
+  const client = await createUserClient();
+
+  const [identityRes, accountData] = await Promise.all([
+    client.rpc("florence_finance_student", { p_student: parsed.studentId }),
+    fetchStudentFinancialAccountData({
+      client,
+      studentId: parsed.studentId,
+      studentInfo: {
+        id: parsed.studentId,
+        universityId: null,
+        fullName: "",
+      },
+      semesters: context.semesters,
+      requestedSemesterId: targetSemesterId,
+    }),
+  ]);
+
+  if (identityRes.error) {
+    throw new Error("Unable to load the student profile.");
+  }
+  const matchedStudent = identityRes.data[0];
+  if (!matchedStudent) {
+    throw new Error("Student profile not found.");
+  }
+
+  return {
+    ...accountData,
+    student: {
+      id: matchedStudent.id,
+      universityId: matchedStudent.university_id,
+      fullName: displayName(matchedStudent),
+    },
+  };
 }

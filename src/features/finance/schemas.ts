@@ -129,3 +129,15 @@ export const archivePaymentAccountSchema = z.object({
 export type CreatePaymentAccountInput = z.infer<typeof createPaymentAccountSchema>;
 export type UpdatePaymentAccountInput = z.infer<typeof updatePaymentAccountSchema>;
 export type ArchivePaymentAccountInput = z.infer<typeof archivePaymentAccountSchema>;
+
+/**
+ * Query input validation for council inspection of a student's financial account (FL-022 / T-033).
+ */
+export const councilStudentFinancialQuerySchema = z.object({
+  studentId: z.string().uuid("Invalid student identifier"),
+  semesterId: z.string().uuid("Invalid semester identifier").nullable().optional(),
+});
+
+export type CouncilStudentFinancialQueryInput = z.infer<
+  typeof councilStudentFinancialQuerySchema
+>;
