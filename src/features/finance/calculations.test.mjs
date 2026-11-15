@@ -10,6 +10,8 @@ import {
   calculateStudentFinancialSummary,
   mapPaymentHistory,
   scopeFinancialRecordsForSemester,
+  priorSemesterIdsFor,
+  summarizeStudentBalances,
 } from "./calculations.ts";
 import { isAuthorizedCouncilFinancialViewer } from "./contracts.ts";
 
@@ -471,6 +473,52 @@ describe("Task T-033 / FL-022: Shared Financial Calculations", () => {
         scoped.payments.map((p) => p.id),
         ["pay-curr", "pay-prior-pending"]
       );
+    });
+  });
+
+  describe("Council ledger table per-student balances", () => {
+    test("prior semesters are only those that started before the target", () => {
+      const semesters = [
+        { id: semesterPrior, starts_on: "2026-01-10" },
+        { id: semesterCurrent, starts_on: "2026-08-10" },
+        { id: "future", starts_on: "2027-01-10" },
+      ];
+      assert.deepEqual([...priorSemesterIdsFor(semesters, semesterCurrent)], [semesterPrior]);
+    });
+
+    test("groups standing totals by student with carryover and settlement rules", () => {
+      const other = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+      const ob = (id, student_id, semester_id, amount, waived_at = null) =>
+        ({ id, student_id, semester_id, amount, waived_at });
+      const summaries = summarizeStudentBalances({
+        obligations: [
+          ob("a-curr", studentId, semesterCurrent, 100),
+          ob("a-prior", studentId, semesterPrior, 50),
+          ob("a-prior-paid", studentId, semesterPrior, 30),
+          ob("b-pending", other, semesterCurrent, 40),
+          ob("b-waived", other, semesterCurrent, 20, "2026-09-01T00:00:00Z"),
+        ],
+        paymentItems: [
+          { payment_id: "p-verified", obligation_id: "a-prior-paid" },
+          { payment_id: "p-pending", obligation_id: "b-pending" },
+        ],
+        payments: [
+          { id: "p-verified", status: "verified", record_status: "current", is_receipt_record: true, receipt_id: "r1" },
+          { id: "p-pending", status: "pending", record_status: "current", is_receipt_record: false, receipt_id: null },
+        ],
+        refunds: [],
+        targetSemesterId: semesterCurrent,
+        priorSemesterIds: new Set([semesterPrior]),
+      });
+
+      const a = summaries.get(studentId);
+      assert.equal(a.totalOutstandingPayable, 150);
+      assert.equal(a.priorSemestersOverduePayable, 50);
+      assert.equal(a.totalSettledAmount, 0); // settled prior items are not carried over
+      const b = summaries.get(other);
+      assert.equal(b.totalOutstandingPayable, 0);
+      assert.equal(b.totalPendingVerificationAmount, 40);
+      assert.equal(b.totalWaivedAmount, 20);
     });
   });
 

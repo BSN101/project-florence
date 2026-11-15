@@ -299,6 +299,66 @@ export function calculateStudentFinancialSummary({
   };
 }
 
+/** Semesters that started before the target; their unsettled obligations carry over (FL-022). */
+export function priorSemesterIdsFor(
+  semesters: Array<{ id: string; starts_on: string }>,
+  targetSemesterId: string | null
+): Set<string> {
+  const target = targetSemesterId ? semesters.find((s) => s.id === targetSemesterId) : undefined;
+  return new Set(
+    semesters
+      .filter((s) => s.id !== targetSemesterId && (!target || s.starts_on < target.starts_on))
+      .map((s) => s.id)
+  );
+}
+
+/**
+ * Per-student semester summaries for the Council ledger table, using the same standing,
+ * carryover scoping and totals as a single student's account.
+ */
+export function summarizeStudentBalances({
+  obligations,
+  paymentItems,
+  payments,
+  refunds,
+  targetSemesterId,
+  priorSemesterIds,
+}: {
+  obligations: Array<ObligationDTO & { student_id: string }>;
+  paymentItems: PaymentAllocationRecord[];
+  payments: PaymentStandingRecord[];
+  refunds: RefundStandingRecord[];
+  targetSemesterId: string;
+  priorSemesterIds: Set<string>;
+}): Map<string, StudentFinancialSummaryDTO> {
+  const studentOf = new Map(obligations.map((o) => [o.id, o.student_id]));
+  const { obligations: scoped } = scopeFinancialRecordsForSemester({
+    obligationsWithStanding: calculateObligationsStanding({
+      obligations,
+      paymentItems,
+      payments,
+      refunds,
+      targetSemesterId,
+      priorSemesterIds,
+    }),
+    payments: [],
+    targetSemesterId,
+    priorSemesterIds,
+  });
+
+  const byStudent = new Map<string, ObligationWithStandingDTO[]>();
+  for (const item of scoped) {
+    const studentId = studentOf.get(item.id)!;
+    byStudent.set(studentId, [...(byStudent.get(studentId) ?? []), item]);
+  }
+  return new Map(
+    [...byStudent].map(([studentId, items]) => [
+      studentId,
+      calculateStudentFinancialSummary({ obligationsWithStanding: items, targetSemesterId }),
+    ])
+  );
+}
+
 /**
  * Enriches raw payment rows with external refund status and optional semester codes.
  */

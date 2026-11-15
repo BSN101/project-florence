@@ -8,6 +8,7 @@ import {
   calculateObligationsStanding,
   calculateStudentFinancialSummary,
   mapPaymentHistory,
+  priorSemesterIdsFor,
   scopeFinancialRecordsForSemester,
 } from "./calculations";
 import {
@@ -370,16 +371,7 @@ async function fetchStudentFinancialAccountData({
     semesterCodeMap.set(s.id, `${s.academic_year_start} · ${s.term}`);
   }
 
-  const targetSemester = targetSemesterId
-    ? semesters.find((s) => s.id === targetSemesterId)
-    : undefined;
-  const priorSemesterIds = new Set(
-    targetSemester
-      ? semesters
-          .filter((s) => s.id !== targetSemester.id && s.starts_on < targetSemester.starts_on)
-          .map((s) => s.id)
-      : semesters.filter((s) => s.id !== targetSemesterId).map((s) => s.id)
-  );
+  const priorSemesterIds = priorSemesterIdsFor(semesters, targetSemesterId);
 
   const rawObligations = obligationsRes.data ?? [];
   const rawPaymentItems = paymentItemsRes.data ?? [];
