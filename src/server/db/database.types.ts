@@ -2313,6 +2313,17 @@ export type Database = {
           university_id: string
         }[]
       }
+      florence_discipline_names: {
+        Args: { p_ids: string[] }
+        Returns: {
+          first_name: string
+          id: string
+          last_name: string
+          middle_name: string
+          suffix: string
+          university_id: string
+        }[]
+      }
       florence_event_attendance: {
         Args: { p_event: string }
         Returns: {
@@ -2396,6 +2407,17 @@ export type Database = {
           id: string
           name: string
           updated_at: string
+        }[]
+      }
+      florence_finance_student: {
+        Args: { p_student: string }
+        Returns: {
+          first_name: string
+          id: string
+          last_name: string
+          middle_name: string
+          suffix: string
+          university_id: string
         }[]
       }
       florence_fine_definitions: {
