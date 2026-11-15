@@ -104,7 +104,7 @@ Active accounts appear in the active list; archived accounts move to the archive
 - **Author:** Reipoh Gabriel Arradaza
 - **Actors:** Student.
 - **Starts at:** Student workspace > Fees & fines (`/student/fees-and-fines`); user must have an active student profile.
-- **References:** FL-022; Schema sections 7.1 (`obligations`), 7.2 (`payments`), 7.3 (`payment_items`, `payment_refunds`), 2.3 (`semesters`).
+- **References:** FL-022; Schema sections 7.3 (`obligations`), 7.5 (`payments`), 7.6 (`payment_items`), 7.7 (`payment_refunds`), 4.1 (`semesters`).
 
 ### Main flow
 
@@ -146,14 +146,14 @@ The student sees their current debt standing, amounts still payable, pending tra
 - **Author:** Reipoh Gabriel Arradaza
 - **Actors:** Council Executive, Council Operations.
 - **Starts at:** Council workspace > Payments (`/council/payments`); user must hold an active Council Executive or Operations role.
-- **References:** FL-022; Schema sections 7.1 (`obligations`), 7.2 (`payments`), 7.3 (`payment_items`, `payment_refunds`), 2.3 (`semesters`), 1.2 (`profiles`).
+- **References:** FL-022; Schema sections 7.3 (`obligations`), 7.5 (`payments`), 7.6 (`payment_items`), 7.7 (`payment_refunds`), 4.1 (`semesters`), 4.2 (`enrollments`), 3.1 (`profiles`).
 
 ### Main flow
 
 1. The Council Executive or Operations officer navigates to Payments in the Council workspace.
-2. The officer searches for a student by name, university ID, or institutional email.
-3. The system displays matching active student profiles in a search dropdown.
-4. The officer selects a student, and the system loads that student's financial summary, obligations ledger, and payment history.
+2. The system displays a paginated table of students enrolled in the selected semester, showing each student's payable amount, amount under review and standing (Unpaid, Under Review or Cleared).
+3. The officer can search the table by name, university ID, or institutional email, and filter it by year level, academic status and payment standing (Unpaid, Prior-Term Balance, Under Review or Cleared).
+4. The officer selects a student, and the system opens that student's financial summary, obligations ledger, and payment history. "All students" returns to the table.
 5. The officer reviews the financial summary metrics, including total outstanding payable balance, current semester dues, prior semester carryovers, settled totals, and payments under review.
 6. The officer inspects individual obligations (fees and fines), filters by standing, and can inspect waiver details (waiver date and documented reason) on waived items.
 7. The officer switches to the Payment history tab to audit payment receipts, reference numbers, timestamps, decision notes, and any issued refunds.
@@ -161,8 +161,8 @@ The student sees their current debt standing, amounts still payable, pending tra
 ### System involvement
 
 - Authorization checks at both the page and query layers enforce that the actor holds an active Council Executive or Operations role. Representatives and Faculty are denied.
-- Tables `enrollments` and `profiles`: student directory lookup uses the restricted `florence_roster` RPC rather than broad profile reads.
-- Tables `obligations`, `payments`, `payment_items`, and `payment_refunds`: loads the selected student's records using the same shared financial calculations and integer-cent math as the student workspace.
+- Tables `enrollments` and `profiles`: the student table uses the restricted `florence_roster` RPC, and the selected student's identity comes from the restricted `florence_finance_student` RPC, rather than broad profile reads.
+- Tables `obligations`, `payments`, `payment_items`, and `payment_refunds`: the table totals and the selected student's records use the same shared financial calculations and integer-cent math as the student workspace.
 
 ### Outcome
 
@@ -176,7 +176,7 @@ Council Executive and Operations officers can inspect permitted student financia
 
 ### Acceptance checks
 
-- Council Executive and Operations officers can search for students and inspect their financial accounts and payment histories.
+- Council Executive and Operations officers can browse and search the semester's students, see each student's standing, and inspect their financial accounts and payment histories.
 - Council Representatives and non-Council roles are denied access to student financial ledgers.
 - Financial figures, obligation standings, and payment histories match between the student view and the council ledger view.
 - Waiver details and refund records are accurately displayed.
