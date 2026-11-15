@@ -66,7 +66,11 @@ export default async function StudentFeesAndFinesPage({
         </div>
       ) : financialData ? (
         <StudentFeesAndFinesView data={financialData} />
-      ) : null}
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          You are not enrolled in a semester, so there are no fees or fines to show.
+        </p>
+      )}
     </WorkspaceShell>
   );
 }
