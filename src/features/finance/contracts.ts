@@ -174,13 +174,6 @@ export type StudentFinancialAccountData = {
   obligations: ObligationWithStandingDTO[];
   summary: StudentFinancialSummaryDTO;
   payments: PaymentHistoryDTO[];
-  targetSemesterId: string | null;
-  targetSemesterCode: string | null;
-  availableSemesters: Array<{
-    id: string;
-    code: string;
-    is_current: boolean;
-  }>;
 };
 
 /**

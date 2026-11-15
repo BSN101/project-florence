@@ -10,7 +10,6 @@ import {
   createPaymentAccountSchema,
   updatePaymentAccountSchema,
   archivePaymentAccountSchema,
-  financialSemesterFilterSchema,
   councilStudentFinancialQuerySchema,
 } from "./schemas.ts";
 
@@ -387,15 +386,6 @@ test("payment account update requires the values the editor loaded", () => {
   );
 });
 
-test("financial semester filter schema accepts valid UUIDs, 'all', empty string, and nullish", () => {
-  assert.equal(financialSemesterFilterSchema.safeParse(validUuid).data, validUuid);
-  assert.equal(financialSemesterFilterSchema.safeParse("all").data, null);
-  assert.equal(financialSemesterFilterSchema.safeParse("").data, null);
-  assert.equal(financialSemesterFilterSchema.safeParse(undefined).data, null);
-  assert.equal(financialSemesterFilterSchema.safeParse(null).data, null);
-  assert.equal(financialSemesterFilterSchema.safeParse("not-a-uuid").success, false);
-});
-
 test("council student financial query schema validates student UUID and optional semester", () => {
   const valid = councilStudentFinancialQuerySchema.safeParse({
     studentId: validUuid,
@@ -407,18 +397,25 @@ test("council student financial query schema validates student UUID and optional
     assert.equal(valid.data.semesterId, validUuid);
   }
 
-  const validAll = councilStudentFinancialQuerySchema.safeParse({
+  const validNullSemester = councilStudentFinancialQuerySchema.safeParse({
     studentId: validUuid,
-    semesterId: "all",
+    semesterId: null,
   });
-  assert.equal(validAll.success, true);
-  if (validAll.success) {
-    assert.equal(validAll.data.semesterId, null);
+  assert.equal(validNullSemester.success, true);
+  if (validNullSemester.success) {
+    assert.equal(validNullSemester.data.semesterId, null);
   }
 
   assert.equal(
     councilStudentFinancialQuerySchema.safeParse({
       studentId: "invalid-uuid",
+    }).success,
+    false
+  );
+  assert.equal(
+    councilStudentFinancialQuerySchema.safeParse({
+      studentId: validUuid,
+      semesterId: "invalid-uuid",
     }).success,
     false
   );

@@ -25,23 +25,9 @@ export const phDateFormatter = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila",
 });
 
-export const phDateTimeFormatter = new Intl.DateTimeFormat("en-PH", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Asia/Manila",
-});
-
 export function formatPhDate(isoString: string): string {
   try {
     return phDateFormatter.format(new Date(isoString));
-  } catch {
-    return isoString;
-  }
-}
-
-export function formatPhDateTime(isoString: string): string {
-  try {
-    return phDateTimeFormatter.format(new Date(isoString));
   } catch {
     return isoString;
   }
@@ -134,6 +120,7 @@ export function calculateObligationsStanding({
   payments,
   refunds,
   targetSemesterId,
+  priorSemesterIds,
   semesterCodeMap,
 }: {
   obligations: ObligationDTO[];
@@ -141,6 +128,7 @@ export function calculateObligationsStanding({
   payments: PaymentStandingRecord[];
   refunds: RefundStandingRecord[];
   targetSemesterId?: string | null;
+  priorSemesterIds?: Set<string>;
   semesterCodeMap?: Map<string, string>;
 }): ObligationWithStandingDTO[] {
   const refundedReceiptIds = new Set(
@@ -170,9 +158,9 @@ export function calculateObligationsStanding({
       refundedReceiptIds,
     });
 
-    const isPastSemester = Boolean(
-      targetSemesterId && obligation.semester_id !== targetSemesterId
-    );
+    const isPastSemester = priorSemesterIds
+      ? priorSemesterIds.has(obligation.semester_id)
+      : Boolean(targetSemesterId && obligation.semester_id !== targetSemesterId);
     const semesterCode = semesterCodeMap?.get(obligation.semester_id);
 
     return {
@@ -182,6 +170,54 @@ export function calculateObligationsStanding({
       ...(semesterCode ? { semester_code: semesterCode } : {}),
     };
   });
+}
+
+/**
+ * Scopes obligations and payment history to a selected semester while retaining
+ * unsettled obligations from prior semesters as collectible carryovers (FL-022 / T-033).
+ */
+export function scopeFinancialRecordsForSemester({
+  obligationsWithStanding,
+  payments,
+  targetSemesterId,
+  priorSemesterIds,
+}: {
+  obligationsWithStanding: ObligationWithStandingDTO[];
+  payments: PaymentHistoryDTO[];
+  targetSemesterId?: string | null;
+  priorSemesterIds?: Set<string>;
+}): {
+  obligations: ObligationWithStandingDTO[];
+  payments: PaymentHistoryDTO[];
+} {
+  if (!targetSemesterId) {
+    return {
+      obligations: obligationsWithStanding,
+      payments,
+    };
+  }
+
+  const obligations = obligationsWithStanding.filter((item) => {
+    if (item.semester_id === targetSemesterId) {
+      return true;
+    }
+    const isPrior = priorSemesterIds
+      ? priorSemesterIds.has(item.semester_id)
+      : item.semester_id !== targetSemesterId;
+    return (
+      isPrior &&
+      (item.status === "unpaid" || item.status === "pending_verification")
+    );
+  });
+
+  const scopedPayments = payments.filter(
+    (p) => p.semester_id === targetSemesterId
+  );
+
+  return {
+    obligations,
+    payments: scopedPayments,
+  };
 }
 
 /**
@@ -226,9 +262,9 @@ export function calculateStudentFinancialSummary({
         pendingCents += cents;
         break;
       case "unpaid": {
-        const isPast = Boolean(
-          targetSemesterId && item.semester_id !== targetSemesterId
-        );
+        const isPast =
+          item.is_past_semester ??
+          Boolean(targetSemesterId && item.semester_id !== targetSemesterId);
         if (isPast) {
           priorOverdueCents += cents;
         } else {

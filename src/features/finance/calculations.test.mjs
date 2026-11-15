@@ -9,6 +9,7 @@ import {
   calculateObligationsStanding,
   calculateStudentFinancialSummary,
   mapPaymentHistory,
+  scopeFinancialRecordsForSemester,
 } from "./calculations.ts";
 import { isAuthorizedCouncilFinancialViewer } from "./contracts.ts";
 
@@ -402,6 +403,44 @@ describe("Task T-033 / FL-022: Shared Financial Calculations", () => {
       assert.equal(cleanPayment.is_refunded, false);
       assert.equal(cleanPayment.refunded_at, null);
       assert.equal(cleanPayment.refund_reason, null);
+    });
+  });
+
+  describe("Semester scoping with prior-term carryover retention", () => {
+    const semesterFuture = "33333333-3333-3333-3333-333333333333";
+
+    test("retains current-semester items and prior unpaid/pending carryovers while excluding prior closed and future items", () => {
+      const obligationsWithStanding = [
+        { id: "curr-settled", semester_id: semesterCurrent, status: "settled", amount: 100 },
+        { id: "curr-unpaid", semester_id: semesterCurrent, status: "unpaid", amount: 150 },
+        { id: "prior-unpaid", semester_id: semesterPrior, status: "unpaid", amount: 200 },
+        { id: "prior-pending", semester_id: semesterPrior, status: "pending_verification", amount: 75 },
+        { id: "prior-settled", semester_id: semesterPrior, status: "settled", amount: 300 },
+        { id: "prior-waived", semester_id: semesterPrior, status: "waived", amount: 50 },
+        { id: "future-unpaid", semester_id: semesterFuture, status: "unpaid", amount: 400 },
+      ];
+
+      const payments = [
+        { id: "pay-curr", semester_id: semesterCurrent },
+        { id: "pay-prior", semester_id: semesterPrior },
+        { id: "pay-future", semester_id: semesterFuture },
+      ];
+
+      const scoped = scopeFinancialRecordsForSemester({
+        obligationsWithStanding,
+        payments,
+        targetSemesterId: semesterCurrent,
+        priorSemesterIds: new Set([semesterPrior]),
+      });
+
+      assert.deepEqual(
+        scoped.obligations.map((o) => o.id),
+        ["curr-settled", "curr-unpaid", "prior-unpaid", "prior-pending"]
+      );
+      assert.deepEqual(
+        scoped.payments.map((p) => p.id),
+        ["pay-curr"]
+      );
     });
   });
 
