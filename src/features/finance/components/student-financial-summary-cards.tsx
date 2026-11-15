@@ -15,7 +15,9 @@ export function StudentFinancialSummaryCards({
 }: {
   summary: StudentFinancialSummaryDTO;
 }) {
-  const isFullyCleared = summary.totalOutstandingPayable === 0;
+  const hasPending = summary.totalPendingVerificationAmount > 0;
+  // A pending transfer settles nothing, so the account is cleared only when nothing is pending either.
+  const isFullyCleared = summary.totalOutstandingPayable === 0 && !hasPending;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -50,6 +52,8 @@ export function StudentFinancialSummaryCards({
           <p className="mt-1 text-xs text-muted-foreground">
             {isFullyCleared
               ? "All active dues settled. Account is cleared."
+              : summary.totalOutstandingPayable === 0
+              ? `Nothing payable; ${formatPhp(summary.totalPendingVerificationAmount)} under review.`
               : summary.priorSemestersOverduePayable > 0
               ? `Includes ${formatPhp(
                   summary.priorSemestersOverduePayable
@@ -72,7 +76,7 @@ export function StudentFinancialSummaryCards({
             {formatPhp(summary.totalPendingVerificationAmount)}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {summary.totalPendingVerificationAmount > 0
+            {hasPending
               ? "Transfers submitted, awaiting Council review."
               : "No payments currently pending review."}
           </p>
