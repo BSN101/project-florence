@@ -43,14 +43,16 @@ export default async function StudentMeritsDemeritsAndServicesPage({
 
   let data: Awaited<ReturnType<typeof getMyDisciplinaryRecords>> | null = null;
   let loadFailed = false;
-  try {
-    data = await getMyDisciplinaryRecords(semesterId);
-  } catch {
-    loadFailed = true;
+  if (semesterId) {
+    try {
+      data = await getMyDisciplinaryRecords(semesterId);
+    } catch {
+      loadFailed = true;
+    }
   }
 
-  const content =
-    loadFailed || !data ? (
+  // WorkspaceShell 404s unknown semesters and explains when none exist.
+  const content = !semesterId ? null : loadFailed || !data ? (
       <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center">
         <AlertCircle className="size-8 text-destructive" />
         <p className="text-xs text-muted-foreground">

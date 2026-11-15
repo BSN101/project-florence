@@ -68,13 +68,8 @@ export default async function CouncilMeritEndorsementsAndDemeritsPage({
     } else {
       content = <CouncilDisciplinaryView data={data} />;
     }
-  } else {
-    content = (
-      <p className="text-xs text-muted-foreground">
-        Select a valid semester to view Council-generated demerits and merit endorsements.
-      </p>
-    );
   }
+  // Without a semester, WorkspaceShell 404s an unknown one or explains that none exist.
 
   return (
     <WorkspaceShell
