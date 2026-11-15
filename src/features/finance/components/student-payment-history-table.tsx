@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  History,
   Receipt,
   RotateCcw,
   XCircle,
@@ -23,31 +24,20 @@ export function StudentPaymentHistoryTable({
 }) {
   const [activeTab, setActiveTab] = useState<PaymentTab>("all");
 
-  const verifiedCount = payments.filter(
-    (p) => !p.is_refunded && p.status === "verified"
-  ).length;
-  const pendingCount = payments.filter(
-    (p) => !p.is_refunded && p.status === "pending"
-  ).length;
-  const rejectedCount = payments.filter(
-    (p) => !p.is_refunded && p.status === "rejected"
-  ).length;
-  const refundedCount = payments.filter((p) => p.is_refunded).length;
+  // Superseded versions stay in "All" as correction history but never count toward an outcome.
+  const matchesTab = (p: PaymentHistoryDTO, tab: PaymentTab) => {
+    if (tab === "all") return true;
+    if (p.record_status === "superseded") return false;
+    if (tab === "refunded") return p.is_refunded;
+    return !p.is_refunded && p.status === tab;
+  };
 
-  const filteredPayments = payments.filter((p) => {
-    switch (activeTab) {
-      case "verified":
-        return !p.is_refunded && p.status === "verified";
-      case "pending":
-        return !p.is_refunded && p.status === "pending";
-      case "rejected":
-        return !p.is_refunded && p.status === "rejected";
-      case "refunded":
-        return p.is_refunded;
-      default:
-        return true;
-    }
-  });
+  const verifiedCount = payments.filter((p) => matchesTab(p, "verified")).length;
+  const pendingCount = payments.filter((p) => matchesTab(p, "pending")).length;
+  const rejectedCount = payments.filter((p) => matchesTab(p, "rejected")).length;
+  const refundedCount = payments.filter((p) => matchesTab(p, "refunded")).length;
+
+  const filteredPayments = payments.filter((p) => matchesTab(p, activeTab));
 
   return (
     <div className="space-y-3">
@@ -239,7 +229,12 @@ export function StudentPaymentHistoryTable({
 
                   {/* Outcome */}
                   <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                    {p.is_refunded ? (
+                    {p.record_status === "superseded" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground border border-border">
+                        <History className="size-3" />
+                        Superseded
+                      </span>
+                    ) : p.is_refunded ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-400 border border-purple-500/20">
                         <RotateCcw className="size-3" />
                         Refunded
@@ -264,7 +259,9 @@ export function StudentPaymentHistoryTable({
 
                   {/* Notes / Reason */}
                   <td className="px-5 py-3.5 text-xs text-muted-foreground max-w-xs">
-                    {p.is_refunded ? (
+                    {p.record_status === "superseded" ? (
+                      <span>Replaced by a corrected record.</span>
+                    ) : p.is_refunded ? (
                       <span className="text-purple-600 dark:text-purple-400">
                         Refund note: {p.refund_reason || "Full payment returned."}
                       </span>
