@@ -1,28 +1,54 @@
+"use client";
+
+import { useState } from "react";
 import { AlertCircle, Clock, User } from "lucide-react";
 import type { ServiceCreditRecord } from "../contracts";
 import { BucketBadge, ServiceCreditBadge } from "./disciplinary-badges";
+import { BUCKET_OPTIONS, FilterSelect, matches, TableEmpty, TableFrame, THEAD_CLASS, usePagedRows } from "./table-controls";
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "revoked", label: "Revoked" },
+];
 
 export function ServiceCreditsTable({
   credits,
 }: {
   credits: ServiceCreditRecord[];
 }) {
-  if (credits.length === 0) {
+  const [bucket, setBucket] = useState("all");
+  const [status, setStatus] = useState("all");
+  const rows = credits.filter(
+    (c) => matches(bucket, c.bucket) && matches(status, c.revoked_at ? "revoked" : "active")
+  );
+
+  const filters = (
+    <>
+      <FilterSelect label="Bucket" value={bucket} options={BUCKET_OPTIONS} onChange={setBucket} />
+      <FilterSelect label="Status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
+    </>
+  );
+
+  const { pageRows, pager } = usePagedRows(rows, `${bucket}|${status}`);
+
+  if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 p-8 text-center">
-        <Clock className="size-8 text-muted-foreground/60" />
-        <p className="text-sm font-medium text-foreground">No service duty credits recorded</p>
-        <p className="text-xs text-muted-foreground">
-          Completed extension service duty sessions will appear here.
-        </p>
-      </div>
+      <TableFrame filters={filters} pager={pager}>
+        <TableEmpty
+          icon={Clock}
+          title="No service duty credits recorded"
+          text="Completed extension service duty sessions will appear here."
+          filtered={credits.length > 0}
+        />
+      </TableFrame>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <TableFrame filters={filters} pager={pager}>
       <table className="w-full text-left text-xs">
-        <thead className="border-b border-border bg-muted/50 font-medium text-muted-foreground">
+        <thead className={THEAD_CLASS}>
           <tr>
             <th className="px-4 py-3">Issued Date</th>
             <th className="px-4 py-3">Duty Bucket</th>
@@ -31,7 +57,7 @@ export function ServiceCreditsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
-          {credits.map((c) => {
+          {pageRows.map((c) => {
             const isRevoked = c.revoked_at !== null;
             return (
               <tr key={c.id} className="hover:bg-muted/30">
@@ -67,6 +93,6 @@ export function ServiceCreditsTable({
           })}
         </tbody>
       </table>
-    </div>
+    </TableFrame>
   );
 }
