@@ -122,8 +122,8 @@ export type FacultyDisciplinaryViewData = {
   isCoordinator: boolean;
   student: {
     id: string;
-    universityId: string;
-    fullName: string;
+    universityId?: string | null;
+    fullName?: string | null;
   };
   summary: StudentDisciplinarySummary | null;
   demerits: DemeritRecord[];

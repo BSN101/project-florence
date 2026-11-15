@@ -355,21 +355,8 @@ export async function getStudentDisciplinaryLedger(
   const client = await createUserClient();
   const todayManila = getTodayManila();
 
-  // Load student basic identity
-  const { data: studentProfile, error: studentError } = await client
-    .from("profiles")
-    .select("id, university_id, first_name, middle_name, last_name, suffix")
-    .eq("id", studentId)
-    .single();
-
-  if (studentError || !studentProfile) {
-    throw new Error("Unable to find the student profile");
-  }
-
   const student = {
-    id: studentProfile.id,
-    universityId: studentProfile.university_id ?? "",
-    fullName: displayName(studentProfile),
+    id: studentId,
   };
 
   if (isCoordinator) {
