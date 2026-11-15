@@ -3,44 +3,34 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Award, Clock, FileWarning, Loader2, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getStudentDisciplinaryLedgerAction } from "../actions";
 import type { FacultyDisciplinaryViewData } from "../contracts";
 import { DemeritsTable } from "./demerits-table";
 import { DisciplinaryBalanceCards } from "./disciplinary-balance-cards";
 import { MeritsTable } from "./merits-table";
 import { ServiceCreditsTable } from "./service-credits-table";
 
-export function FacultyStudentDisciplinaryPanel({
-  studentId,
-}: {
-  studentId: string;
-  semesterId?: string;
-}) {
+export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: string }) {
   const [data, setData] = useState<FacultyDisciplinaryViewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"demerits" | "merits" | "services">("demerits");
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
-    getStudentDisciplinaryLedgerAction(studentId)
-      .then((res) => {
-        if (!cancelled) {
-          setData(res);
-          setLoading(false);
-        }
+    fetch(`/faculty/students/${studentId}/discipline`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Unable to load disciplinary records");
+        setData(await res.json());
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(err?.message ?? "Unable to load disciplinary records");
-          setLoading(false);
-        }
+        if (!controller.signal.aborted) setError(err?.message ?? "Unable to load disciplinary records");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [studentId]);
 
   if (loading) {
