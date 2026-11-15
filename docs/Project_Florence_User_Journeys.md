@@ -98,3 +98,85 @@ Active accounts appear in the active list; archived accounts move to the archive
 - Archived accounts move to the archived list and can no longer be edited.
 - Edits to an active account do not rewrite destination snapshots on existing payments.
 - The workflow offers no way to delete an account.
+
+## View student obligations and payment history
+
+- **Author:** Reipoh Gabriel Arradaza
+- **Actors:** Student.
+- **Starts at:** Student workspace > Fees & fines (`/student/fees-and-fines`); user must have an active student profile.
+- **References:** FL-022; Schema sections 7.1 (`obligations`), 7.2 (`payments`), 7.3 (`payment_items`, `payment_refunds`), 2.3 (`semesters`).
+
+### Main flow
+
+1. The Student navigates to Fees & fines in the Student workspace.
+2. The system loads the student's financial summary, obligations, and payment history for the selected semester, along with any unpaid obligations carried over from prior semesters.
+3. The student reviews the financial summary metrics: total outstanding payable balance, current semester dues, prior semester overdue amounts, verified settled totals, and payments under review.
+4. If unpaid debt remains from prior semesters, the system displays a multi-semester overdue notice explaining that older obligations remain collectible across terms and clearances.
+5. The student inspects the obligations list for fee publications and fine assessments, filtering by standing (All Dues, Unpaid, Under Review, Settled, Waived), and can open waiver details (waiver date and documented reason) on waived items.
+6. The student switches to the Payment history tab to inspect submitted transfers, recorded cash payments, receipt metadata, and any refund or rejection reasons.
+7. The student may use the workspace semester selector to view obligations and payments scoped to any earlier semester.
+
+### System involvement
+
+- Table `obligations`: reads fee and fine records scoped to the student's active profile via RLS; obligation standing is derived dynamically rather than stored as a status column.
+- Tables `payments`, `payment_items`, and `payment_refunds`: joins settlement and refund records so that only current verified payments without a refund settle active debt.
+- Shared financial calculations compute balances, semester breakdowns, and carryovers using integer-cent precision.
+- Ordinary reads use the request-scoped user client respecting RLS.
+
+### Outcome
+
+The student sees their current debt standing, amounts still payable, pending transfer verifications, settled payments, and any prior-semester carryovers.
+
+### Important alternatives
+
+- **Carryover Unpaid Debt Across Semesters:** Unpaid obligations from older semesters do not expire upon a new semester or clearance; they remain collectible in the prior-semester overdue balance.
+- **Waived Obligations:** Waived obligations are marked as waived, excluded from the payable balance, and show their recorded waiver date and reason.
+- **Refunded Payments:** When a verified payment has a linked refund record, the underlying obligation returns to unpaid status, the payable balance updates accordingly, and the refund details appear in payment history.
+- **Pending Transfer Verification:** Transfer payments awaiting Council verification mark linked obligations as under review without settling the debt until verified.
+
+### Acceptance checks
+
+- A student sees only their own obligations, balance metrics, and payment records.
+- Outstanding payable balances accurately distinguish current-semester dues from prior-semester overdue carryovers.
+- Dynamic obligation standings reflect active debt, transfers under review, verified settlements, and approved waivers.
+- Refunded and rejected payments do not settle debt, and their reasons are visible in payment history.
+
+## Inspect student financial accounts and payment history
+
+- **Author:** Reipoh Gabriel Arradaza
+- **Actors:** Council Executive, Council Operations.
+- **Starts at:** Council workspace > Payments (`/council/payments`); user must hold an active Council Executive or Operations role.
+- **References:** FL-022; Schema sections 7.1 (`obligations`), 7.2 (`payments`), 7.3 (`payment_items`, `payment_refunds`), 2.3 (`semesters`), 1.2 (`profiles`).
+
+### Main flow
+
+1. The Council Executive or Operations officer navigates to Payments in the Council workspace.
+2. The officer searches for a student by name, university ID, or institutional email.
+3. The system displays matching active student profiles in a search dropdown.
+4. The officer selects a student, and the system loads that student's financial summary, obligations ledger, and payment history.
+5. The officer reviews the financial summary metrics, including total outstanding payable balance, current semester dues, prior semester carryovers, settled totals, and payments under review.
+6. The officer inspects individual obligations (fees and fines), filters by standing, and can inspect waiver details (waiver date and documented reason) on waived items.
+7. The officer switches to the Payment history tab to audit payment receipts, reference numbers, timestamps, decision notes, and any issued refunds.
+
+### System involvement
+
+- Authorization checks at both the page and server action layers enforce that the actor holds an active Council Executive or Operations role. Representatives and Faculty are denied.
+- Table `profiles`: student search queries project only permitted non-sensitive student identity fields.
+- Tables `obligations`, `payments`, `payment_items`, and `payment_refunds`: loads the selected student's records using the same shared financial calculations and integer-cent math as the student workspace.
+
+### Outcome
+
+Council Executive and Operations officers can inspect permitted student financial accounts, audit payment histories, and verify whether prior-semester dues remain collectible.
+
+### Important alternatives
+
+- **Unauthorized Council Access:** If a Council Representative or non-authorized member navigates to `/council/payments`, the system displays an Officer Access Required notice and blocks student lookup and ledger inspection.
+- **Student With Prior Overdue Balance:** If the selected student has unpaid obligations from older semesters, the system displays a multi-semester overdue notice with the collectible carryover amount.
+- **Changing Semester Context:** The officer can use the workspace semester selector to filter the selected student's obligations and payments to a specific semester while keeping cumulative prior overdue totals visible.
+
+### Acceptance checks
+
+- Council Executive and Operations officers can search for students and inspect their financial accounts and payment histories.
+- Council Representatives and non-Council roles are denied access to student financial ledgers.
+- Financial figures, obligation standings, and payment histories match between the student view and the council ledger view.
+- Waiver details and refund records are accurately displayed.

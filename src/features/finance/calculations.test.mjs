@@ -10,6 +10,7 @@ import {
   calculateStudentFinancialSummary,
   mapPaymentHistory,
 } from "./calculations.ts";
+import { isAuthorizedCouncilFinancialViewer } from "./contracts.ts";
 
 const semesterCurrent = "11111111-1111-1111-1111-111111111111";
 const semesterPrior = "22222222-2222-2222-2222-222222222222";
@@ -401,6 +402,22 @@ describe("Task T-033 / FL-022: Shared Financial Calculations", () => {
       assert.equal(cleanPayment.is_refunded, false);
       assert.equal(cleanPayment.refunded_at, null);
       assert.equal(cleanPayment.refund_reason, null);
+    });
+  });
+
+  describe("Council financial viewer authorization guard", () => {
+    test("permits council executive and operations roles", () => {
+      assert.equal(isAuthorizedCouncilFinancialViewer("executive"), true);
+      assert.equal(isAuthorizedCouncilFinancialViewer("operations"), true);
+    });
+
+    test("forbids representatives, faculty, unknown roles, and nullish states", () => {
+      assert.equal(isAuthorizedCouncilFinancialViewer("representative"), false);
+      assert.equal(isAuthorizedCouncilFinancialViewer("faculty"), false);
+      assert.equal(isAuthorizedCouncilFinancialViewer("admin"), false);
+      assert.equal(isAuthorizedCouncilFinancialViewer(null), false);
+      assert.equal(isAuthorizedCouncilFinancialViewer(undefined), false);
+      assert.equal(isAuthorizedCouncilFinancialViewer(""), false);
     });
   });
 });
