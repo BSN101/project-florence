@@ -442,6 +442,36 @@ describe("Task T-033 / FL-022: Shared Financial Calculations", () => {
         ["pay-curr"]
       );
     });
+
+    test("keeps prior-semester payments linked to retained carryover obligations", () => {
+      const obligationsWithStanding = [
+        { id: "curr-unpaid", semester_id: semesterCurrent, status: "unpaid", amount: 150 },
+        { id: "prior-pending", semester_id: semesterPrior, status: "pending_verification", amount: 75 },
+        { id: "prior-settled", semester_id: semesterPrior, status: "settled", amount: 300 },
+      ];
+      const payments = [
+        { id: "pay-curr", semester_id: semesterCurrent },
+        { id: "pay-prior-pending", semester_id: semesterPrior },
+        { id: "pay-prior-settled", semester_id: semesterPrior },
+      ];
+      const paymentItems = [
+        { payment_id: "pay-prior-pending", obligation_id: "prior-pending" },
+        { payment_id: "pay-prior-settled", obligation_id: "prior-settled" },
+      ];
+
+      const scoped = scopeFinancialRecordsForSemester({
+        obligationsWithStanding,
+        payments,
+        paymentItems,
+        targetSemesterId: semesterCurrent,
+        priorSemesterIds: new Set([semesterPrior]),
+      });
+
+      assert.deepEqual(
+        scoped.payments.map((p) => p.id),
+        ["pay-curr", "pay-prior-pending"]
+      );
+    });
   });
 
   describe("Council financial viewer authorization guard", () => {

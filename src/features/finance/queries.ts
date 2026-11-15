@@ -405,6 +405,7 @@ async function fetchStudentFinancialAccountData({
   const scoped = scopeFinancialRecordsForSemester({
     obligationsWithStanding: allObligationsWithStanding,
     payments: allPayments,
+    paymentItems: rawPaymentItems,
     targetSemesterId,
     priorSemesterIds,
   });

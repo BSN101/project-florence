@@ -179,11 +179,13 @@ export function calculateObligationsStanding({
 export function scopeFinancialRecordsForSemester({
   obligationsWithStanding,
   payments,
+  paymentItems = [],
   targetSemesterId,
   priorSemesterIds,
 }: {
   obligationsWithStanding: ObligationWithStandingDTO[];
   payments: PaymentHistoryDTO[];
+  paymentItems?: PaymentAllocationRecord[];
   targetSemesterId?: string | null;
   priorSemesterIds?: Set<string>;
 }): {
@@ -210,8 +212,17 @@ export function scopeFinancialRecordsForSemester({
     );
   });
 
+  // Payments share their obligations' semester, so carryover items need their own older payments kept.
+  const carryoverIds = new Set(
+    obligations.filter((o) => o.semester_id !== targetSemesterId).map((o) => o.id)
+  );
+  const carryoverPaymentIds = new Set(
+    paymentItems
+      .filter((item) => carryoverIds.has(item.obligation_id))
+      .map((item) => item.payment_id)
+  );
   const scopedPayments = payments.filter(
-    (p) => p.semester_id === targetSemesterId
+    (p) => p.semester_id === targetSemesterId || carryoverPaymentIds.has(p.id)
   );
 
   return {
