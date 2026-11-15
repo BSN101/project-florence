@@ -1,28 +1,46 @@
+"use client";
+
+import { useState } from "react";
 import { Award, CheckCircle2, User, XCircle } from "lucide-react";
 import type { MeritEndorsementRecord } from "../contracts";
 import { EndorsementStatusBadge } from "./disciplinary-badges";
+import { FilterSelect, matches, TableEmpty, TableFrame, THEAD_CLASS, usePagedRows } from "./table-controls";
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+];
 
 export function CouncilEndorsementsTable({
   endorsements,
 }: {
   endorsements: MeritEndorsementRecord[];
 }) {
-  if (endorsements.length === 0) {
+  const [status, setStatus] = useState("all");
+  const rows = endorsements.filter((e) => matches(status, e.status));
+  const filters = <FilterSelect label="Status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />;
+
+  const { pageRows, pager } = usePagedRows(rows, status);
+
+  if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 p-8 text-center">
-        <Award className="size-8 text-muted-foreground/60" />
-        <p className="text-sm font-medium text-foreground">No merit endorsements submitted</p>
-        <p className="text-xs text-muted-foreground">
-          Student merit recommendations submitted by Council will appear here.
-        </p>
-      </div>
+      <TableFrame filters={filters} pager={pager}>
+        <TableEmpty
+          icon={Award}
+          title="No merit endorsements submitted"
+          text="Student merit recommendations submitted by Council will appear here."
+          filtered={endorsements.length > 0}
+        />
+      </TableFrame>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <TableFrame filters={filters} pager={pager}>
       <table className="w-full text-left text-xs">
-        <thead className="border-b border-border bg-muted/50 font-medium text-muted-foreground">
+        <thead className={THEAD_CLASS}>
           <tr>
             <th className="px-4 py-3">Student</th>
             <th className="px-4 py-3">Basis / Description</th>
@@ -33,7 +51,7 @@ export function CouncilEndorsementsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
-          {endorsements.map((e) => (
+          {pageRows.map((e) => (
             <tr key={e.id} className="hover:bg-muted/30">
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-0.5">
@@ -71,7 +89,7 @@ export function CouncilEndorsementsTable({
                 {e.status === "approved" && (
                   <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="size-3" />
-                    Approved
+                    Approved · {e.awarded_days} {e.awarded_days === 1 ? "day" : "days"} awarded
                   </span>
                 )}
                 {e.status === "rejected" && (
@@ -97,6 +115,6 @@ export function CouncilEndorsementsTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </TableFrame>
   );
 }
