@@ -160,8 +160,8 @@ The student sees their current debt standing, amounts still payable, pending tra
 
 ### System involvement
 
-- Authorization checks at both the page and server action layers enforce that the actor holds an active Council Executive or Operations role. Representatives and Faculty are denied.
-- Table `profiles`: student search queries project only permitted non-sensitive student identity fields.
+- Authorization checks at both the page and query layers enforce that the actor holds an active Council Executive or Operations role. Representatives and Faculty are denied.
+- Tables `enrollments` and `profiles`: student directory lookup uses the restricted `florence_roster` RPC rather than broad profile reads.
 - Tables `obligations`, `payments`, `payment_items`, and `payment_refunds`: loads the selected student's records using the same shared financial calculations and integer-cent math as the student workspace.
 
 ### Outcome
