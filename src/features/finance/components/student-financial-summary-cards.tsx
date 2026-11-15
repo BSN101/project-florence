@@ -96,7 +96,7 @@ export function StudentFinancialSummaryCards({
             {formatPhp(summary.totalSettledAmount)}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Verified payments credited to your account.
+            Verified payments credited to this account.
           </p>
         </CardContent>
       </Card>

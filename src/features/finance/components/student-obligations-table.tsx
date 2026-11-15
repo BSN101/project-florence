@@ -163,7 +163,7 @@ export function StudentObligationsTable({
             </p>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm">
               {activeTab === "unpaid"
-                ? "You have no unpaid obligations due in this scope."
+                ? "No unpaid obligations are due in this scope."
                 : "No dues match the selected filter."}
             </p>
           </div>
