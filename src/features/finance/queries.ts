@@ -1,8 +1,6 @@
 import "server-only";
 
 import type { SemesterOption } from "@/features/access/access-policy";
-import type { StudentRosterItem } from "@/features/students/contracts";
-import { getRoster } from "@/features/students/queries";
 import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
@@ -451,11 +449,10 @@ export async function getStudentFinancialAccount(params?: {
 /**
  * Fetch financial obligations, standing, and payment history for a specific student (FL-022 / T-033).
  * Strictly restricted to Council Executive and Council Operations.
- * Resolves student identity via the authorized florence_roster RPC in parallel with financial records.
+ * Resolves student identity via the florence_finance_student RPC in parallel with financial records.
  */
 export async function getCouncilStudentFinancialAccount(
-  input: CouncilStudentFinancialQueryInput,
-  rosterPromise?: Promise<StudentRosterItem[]>
+  input: CouncilStudentFinancialQueryInput
 ): Promise<StudentFinancialAccountData> {
   const context = await assertAuthorizedCouncilManager();
   const parsed = councilStudentFinancialQuerySchema.parse(input);
@@ -468,12 +465,9 @@ export async function getCouncilStudentFinancialAccount(
       : currentSemester?.id ?? null;
 
   const client = await createUserClient();
-  const initialRosterPromise =
-    rosterPromise ??
-    (targetSemesterId ? getRoster(targetSemesterId) : Promise.resolve([]));
 
-  const [roster, accountData] = await Promise.all([
-    initialRosterPromise,
+  const [identityRes, accountData] = await Promise.all([
+    client.rpc("florence_finance_student", { p_student: parsed.studentId }),
     fetchStudentFinancialAccountData({
       client,
       studentId: parsed.studentId,
@@ -487,25 +481,18 @@ export async function getCouncilStudentFinancialAccount(
     }),
   ]);
 
-  let matchedStudent = roster.find((s) => s.student_id === parsed.studentId);
-
-  if (!matchedStudent) {
-    for (const sem of context.semesters) {
-      if (sem.id === targetSemesterId) continue;
-      const semRoster = await getRoster(sem.id);
-      matchedStudent = semRoster.find((s) => s.student_id === parsed.studentId);
-      if (matchedStudent) break;
-    }
+  if (identityRes.error) {
+    throw new Error("Unable to load the student profile.");
   }
-
+  const matchedStudent = identityRes.data[0];
   if (!matchedStudent) {
-    throw new Error("Student profile not found in the roster.");
+    throw new Error("Student profile not found.");
   }
 
   return {
     ...accountData,
     student: {
-      id: matchedStudent.student_id,
+      id: matchedStudent.id,
       universityId: matchedStudent.university_id,
       fullName: displayName(matchedStudent),
     },

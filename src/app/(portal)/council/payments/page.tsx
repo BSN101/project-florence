@@ -64,14 +64,10 @@ export default async function CouncilPaymentsPage({
   let errorNotice: string | null = null;
 
   if (semesterId) {
-    const rosterPromise = getRoster(semesterId);
     const [rosterResult, ledgerResult] = await Promise.allSettled([
-      rosterPromise,
+      getRoster(semesterId),
       resolvedStudentParam
-        ? getCouncilStudentFinancialAccount(
-            { studentId: resolvedStudentParam, semesterId },
-            rosterPromise
-          )
+        ? getCouncilStudentFinancialAccount({ studentId: resolvedStudentParam, semesterId })
         : Promise.resolve(null),
     ]);
 
@@ -101,12 +97,16 @@ export default async function CouncilPaymentsPage({
           <p className="mt-1 text-xs">{errorNotice}</p>
         </div>
       )}
-      {semesterId && (
+      {semesterId ? (
         <CouncilFinancialLedgerView
           students={students}
           initialStudentData={initialStudentData}
           currentSemesterId={semesterId}
         />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No semester is available. Select a semester to view student financial accounts.
+        </p>
       )}
     </WorkspaceShell>
   );
