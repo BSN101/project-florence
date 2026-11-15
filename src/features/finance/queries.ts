@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SemesterOption } from "@/features/access/access-policy";
+import { getRoster } from "@/features/students/queries";
 import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
@@ -10,6 +11,7 @@ import {
   mapPaymentHistory,
   priorSemesterIdsFor,
   scopeFinancialRecordsForSemester,
+  summarizeStudentBalances,
 } from "./calculations";
 import {
   type FeeDefinitionCatalogItem,
@@ -18,6 +20,7 @@ import {
   type FeePublicationPreview,
   type FineDefinitionCatalogItem,
   type FineDefinitionDTO,
+  type CouncilFinancialRosterItem,
   type PaymentAccountDTO,
   type StudentFinancialAccountData,
   isAuthorizedCouncilFinancialViewer,
@@ -411,6 +414,84 @@ async function fetchStudentFinancialAccountData({
     summary,
     payments: scoped.payments,
   };
+}
+
+/** Reads every row past the API row cap; callers order by a unique column so pages never overlap. */
+async function allRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  errorMessage: string
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; ) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw new Error(errorMessage);
+    if (!data?.length) return rows;
+    rows.push(...data);
+    from += data.length;
+  }
+}
+
+/**
+ * The semester's enrolled students with their financial summary, for the Council ledger table (FL-022).
+ * Restricted to Council Executive and Operations; totals match each student's own account view.
+ */
+export async function getCouncilFinancialRoster(
+  semesterId: string
+): Promise<CouncilFinancialRosterItem[]> {
+  const context = await assertAuthorizedCouncilManager();
+  const client = await createUserClient();
+  const priorSemesterIds = priorSemesterIdsFor(context.semesters, semesterId);
+  const semesterIds = [semesterId, ...priorSemesterIds];
+
+  // shortcut: reads all refund receipt ids (no semester column); filter by receipt once refunds grow large.
+  const [roster, obligations, paymentItems, payments, refunds] = await Promise.all([
+    getRoster(semesterId),
+    allRows(
+      (from, to) =>
+        client
+          .from("obligations")
+          .select("id, student_id, semester_id, kind, consequence_outcome, description, amount, waived_at, waiver_reason")
+          .in("semester_id", semesterIds)
+          .order("id")
+          .range(from, to),
+      "Unable to load student obligations."
+    ),
+    allRows(
+      (from, to) =>
+        client
+          .from("payment_items")
+          .select("id, payment_id, obligation_id")
+          .in("semester_id", semesterIds)
+          .order("id")
+          .range(from, to),
+      "Unable to load payment allocations."
+    ),
+    allRows(
+      (from, to) =>
+        client
+          .from("payments")
+          .select("id, status, record_status, is_receipt_record, receipt_id")
+          .in("semester_id", semesterIds)
+          .order("id")
+          .range(from, to),
+      "Unable to load payment records."
+    ),
+    allRows(
+      (from, to) => client.from("payment_refunds").select("id, receipt_id").order("id").range(from, to),
+      "Unable to load payment refunds."
+    ),
+  ]);
+
+  const summaries = summarizeStudentBalances({
+    obligations,
+    paymentItems,
+    payments,
+    refunds,
+    targetSemesterId: semesterId,
+    priorSemesterIds,
+  });
+  const empty = calculateStudentFinancialSummary({ obligationsWithStanding: [] });
+  return roster.map((student) => ({ ...student, summary: summaries.get(student.student_id) ?? empty }));
 }
 
 /**

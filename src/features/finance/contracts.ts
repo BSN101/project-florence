@@ -1,3 +1,4 @@
+import type { StudentRosterItem } from "@/features/students/contracts";
 import type { Database } from "@/server/db/database.types";
 
 type Tables = Database["public"]["Tables"];
@@ -169,6 +170,9 @@ export type StudentFinancialAccountData = {
   summary: StudentFinancialSummaryDTO;
   payments: PaymentHistoryDTO[];
 };
+
+/** One row of the Council ledger table: an enrolled student and their semester summary (FL-022). */
+export type CouncilFinancialRosterItem = StudentRosterItem & { summary: StudentFinancialSummaryDTO };
 
 /**
  * Defensive error message sanitizer for payment accounts.
