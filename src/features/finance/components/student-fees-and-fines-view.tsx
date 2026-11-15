@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   FileText,
   History,
-  User,
 } from "lucide-react";
 
 import { formatPhp } from "../calculations";
@@ -18,8 +17,10 @@ type ViewSection = "obligations" | "payments";
 
 export function StudentFeesAndFinesView({
   data,
+  isCouncilView = false,
 }: {
   data: StudentFinancialAccountData;
+  isCouncilView?: boolean;
 }) {
   const [activeSection, setActiveSection] = useState<ViewSection>("obligations");
 
@@ -27,30 +28,6 @@ export function StudentFeesAndFinesView({
 
   return (
     <div className="space-y-6">
-      {/* Account Context Banner */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-            My Fees &amp; Fines
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            View your current dues, past obligations, and submitted payment
-            history.
-          </p>
-        </div>
-        {data.student.universityId && (
-          <div className="flex items-center gap-2 self-start rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground sm:self-auto">
-            <User className="size-3.5 text-muted-foreground" />
-            <span className="font-medium text-foreground">
-              {data.student.fullName}
-            </span>
-            <span className="font-mono text-muted-foreground">
-              ({data.student.universityId})
-            </span>
-          </div>
-        )}
-      </div>
-
       {/* Prior Semesters Overdue Policy Notice */}
       {hasPriorOverdue && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200 shadow-xs">
@@ -61,7 +38,7 @@ export function StudentFeesAndFinesView({
                 Prior Term Collectible Obligations Detected
               </div>
               <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                You have{" "}
+                {isCouncilView ? "This student has " : "You have "}
                 <span className="font-semibold">
                   {formatPhp(data.summary.priorSemestersOverduePayable)}
                 </span>{" "}

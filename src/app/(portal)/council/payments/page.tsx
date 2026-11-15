@@ -1,9 +1,12 @@
 import { connection } from "next/server";
 
 import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
+import { CouncilFinancialLedgerView } from "@/features/finance/components/council-financial-ledger-view";
 import { isAuthorizedCouncilFinancialViewer } from "@/features/finance/contracts";
 import { getCouncilStudentFinancialAccount } from "@/features/finance/queries";
-import { CouncilFinancialLedgerView } from "@/features/finance/components/council-financial-ledger-view";
+import { semesterFilterSchema } from "@/features/semesters/schemas";
+import type { StudentRosterItem } from "@/features/students/contracts";
+import { getRoster } from "@/features/students/queries";
 import { getAccessContext } from "@/server/auth/access-context";
 
 export const instant = false;
@@ -47,23 +50,42 @@ export default async function CouncilPaymentsPage({
     );
   }
 
-  const resolvedSemesterParam = typeof semester === "string" ? semester : undefined;
+  const filter = semesterFilterSchema.safeParse({ semester });
+  const semesterId = !filter.success
+    ? undefined
+    : filter.data.semester
+    ? access.semesters.find((item) => item.id === filter.data.semester)?.id
+    : access.semesters.find((item) => item.is_current)?.id ?? access.semesters[0]?.id;
+
   const resolvedStudentParam = typeof student === "string" ? student : undefined;
 
+  let students: StudentRosterItem[] = [];
   let initialStudentData = null;
   let errorNotice: string | null = null;
 
-  if (resolvedStudentParam) {
-    try {
-      initialStudentData = await getCouncilStudentFinancialAccount({
-        studentId: resolvedStudentParam,
-        semesterId: resolvedSemesterParam,
-      });
-    } catch (err) {
+  if (semesterId) {
+    const rosterPromise = getRoster(semesterId);
+    const [rosterResult, ledgerResult] = await Promise.allSettled([
+      rosterPromise,
+      resolvedStudentParam
+        ? getCouncilStudentFinancialAccount(
+            { studentId: resolvedStudentParam, semesterId },
+            rosterPromise
+          )
+        : Promise.resolve(null),
+    ]);
+
+    if (rosterResult.status === "fulfilled") {
+      students = rosterResult.value;
+    } else {
+      errorNotice = "Unable to load the semester student roster at this time. Please refresh the page.";
+    }
+
+    if (ledgerResult.status === "fulfilled") {
+      initialStudentData = ledgerResult.value;
+    } else if (!errorNotice) {
       errorNotice =
-        err instanceof Error
-          ? err.message
-          : "Failed to load student financial ledger. Please select another student or retry.";
+        "Unable to load the selected student's financial ledger. Please select another student or try again.";
     }
   }
 
@@ -79,10 +101,13 @@ export default async function CouncilPaymentsPage({
           <p className="mt-1 text-xs">{errorNotice}</p>
         </div>
       )}
-      <CouncilFinancialLedgerView
-        initialStudentData={initialStudentData}
-        currentSemesterId={resolvedSemesterParam}
-      />
+      {semesterId && (
+        <CouncilFinancialLedgerView
+          students={students}
+          initialStudentData={initialStudentData}
+          currentSemesterId={semesterId}
+        />
+      )}
     </WorkspaceShell>
   );
 }

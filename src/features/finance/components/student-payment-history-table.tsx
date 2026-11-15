@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import {
   Banknote,
   CheckCircle2,
@@ -11,24 +14,153 @@ import {
 import { formatPhDate, formatPhp } from "../calculations";
 import type { PaymentHistoryDTO } from "../contracts";
 
+type PaymentTab = "all" | "verified" | "pending" | "rejected" | "refunded";
+
 export function StudentPaymentHistoryTable({
   payments,
 }: {
   payments: PaymentHistoryDTO[];
 }) {
+  const [activeTab, setActiveTab] = useState<PaymentTab>("all");
+
+  const verifiedCount = payments.filter(
+    (p) => !p.is_refunded && p.status === "verified"
+  ).length;
+  const pendingCount = payments.filter(
+    (p) => !p.is_refunded && p.status === "pending"
+  ).length;
+  const rejectedCount = payments.filter(
+    (p) => !p.is_refunded && p.status === "rejected"
+  ).length;
+  const refundedCount = payments.filter((p) => p.is_refunded).length;
+
+  const filteredPayments = payments.filter((p) => {
+    switch (activeTab) {
+      case "verified":
+        return !p.is_refunded && p.status === "verified";
+      case "pending":
+        return !p.is_refunded && p.status === "pending";
+      case "rejected":
+        return !p.is_refunded && p.status === "rejected";
+      case "refunded":
+        return p.is_refunded;
+      default:
+        return true;
+    }
+  });
+
   return (
     <div className="space-y-3">
+      {/* Accessible Tab Switcher */}
+      <div
+        role="tablist"
+        aria-label="Payment outcome filter"
+        className="flex border-b border-border overflow-x-auto"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "all"}
+          onClick={() => setActiveTab("all")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
+            activeTab === "all"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          All Payments
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
+            {payments.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "verified"}
+          onClick={() => setActiveTab("verified")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
+            activeTab === "verified"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Verified
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
+            {verifiedCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "pending"}
+          onClick={() => setActiveTab("pending")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
+            activeTab === "pending"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Pending Review
+          {pendingCount > 0 && (
+            <span className="rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 text-xs font-semibold">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "rejected"}
+          onClick={() => setActiveTab("rejected")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
+            activeTab === "rejected"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Rejected
+          {rejectedCount > 0 && (
+            <span className="rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-xs font-semibold">
+              {rejectedCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "refunded"}
+          onClick={() => setActiveTab("refunded")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
+            activeTab === "refunded"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Refunded
+          {refundedCount > 0 && (
+            <span className="rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 px-2 py-0.5 text-xs font-semibold">
+              {refundedCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Fixed Height Table Container with Sticky Header */}
-      <div className="h-[24rem] overflow-auto overscroll-contain rounded-xl border border-border bg-card shadow-xs">
-        {payments.length === 0 ? (
+      <div className="h-[28rem] overflow-auto overscroll-contain rounded-xl border border-border bg-card shadow-xs">
+        {filteredPayments.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center p-8 text-center">
             <Receipt className="size-10 text-muted-foreground/40 mb-3" />
             <p className="text-sm font-medium text-foreground">
               No payment history recorded
             </p>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-              Any bank transfers or council cash receipts submitted for your
-              account will be tracked here.
+              {activeTab === "all"
+                ? "Any bank transfers or council cash receipts submitted for this account will be tracked here."
+                : "No payment records match the selected filter."}
             </p>
           </div>
         ) : (
@@ -56,7 +188,7 @@ export function StudentPaymentHistoryTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {payments.map((p) => (
+              {filteredPayments.map((p) => (
                 <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                   {/* Date */}
                   <td className="px-5 py-3.5 text-xs text-muted-foreground whitespace-nowrap">

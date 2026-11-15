@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
 import { StudentFeesAndFinesView } from "@/features/finance/components/student-fees-and-fines-view";
 import { getStudentFinancialAccount } from "@/features/finance/queries";
+import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 
 export const instant = false;
@@ -25,22 +26,31 @@ export default async function StudentFeesAndFinesPage({
     );
   }
 
+  // Same selection as WorkspaceShell: only semesters the student is enrolled in.
+  const enrolled = access.semesters.filter((s) =>
+    access.enrollments.some((e) => e.semester_id === s.id)
+  );
+  const filter = semesterFilterSchema.safeParse({ semester });
+  const semesterId = !filter.success
+    ? undefined
+    : filter.data.semester
+    ? enrolled.find((s) => s.id === filter.data.semester)?.id
+    : enrolled.find((s) => s.is_current)?.id ?? enrolled[0]?.id;
+
   preloadWorkspaceShell("student");
 
-  const resolvedSemesterParam =
-    typeof semester === "string" ? semester : undefined;
   let financialData = null;
   let errorNotice: string | null = null;
 
-  try {
-    financialData = await getStudentFinancialAccount({
-      semesterId: resolvedSemesterParam,
-    });
-  } catch (err) {
-    errorNotice =
-      err instanceof Error
-        ? err.message
-        : "Failed to load financial records. Please refresh.";
+  if (semesterId) {
+    try {
+      financialData = await getStudentFinancialAccount({
+        semesterId,
+      });
+    } catch {
+      errorNotice =
+        "Unable to load your financial records at this time. Please refresh the page.";
+    }
   }
 
   return (
