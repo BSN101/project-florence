@@ -4,110 +4,120 @@ import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
 
-import {
-  calculateDisciplinarySummary,
-  evaluateMeritState,
-  getTodayManila,
-} from "./calculations";
+import { calculateDisciplinarySummary, evaluateMeritState, getTodayManila } from "./calculations";
 import type {
   CouncilDisciplinaryViewData,
-  DemeritRecord,
+  DisciplinaryLedger,
   FacultyDisciplinaryViewData,
-  MeritApplicationRecord,
-  MeritEndorsementRecord,
-  MeritRecord,
-  ServiceCreditRecord,
   StudentDisciplinarySummary,
 } from "./contracts";
 
-type RawProfileName = {
-  first_name: string;
-  middle_name?: string | null;
-  last_name: string;
-  suffix?: string | null;
-};
+type UserClient = Awaited<ReturnType<typeof createUserClient>>;
 
-type RawStudentProfile = {
-  university_id: string;
-  first_name: string;
-  last_name: string;
-};
+const DEMERIT_COLUMNS =
+  "id, incident_group_id, incident_unit_index, student_id, semester_id, bucket, source, misconduct_id, description, incident_on, event_attendance_id, consequence_outcome, source_unit_index, issued_by, external_source_name, waived_at, waived_by, waiver_reason, created_at, misconduct:misconduct_catalog(label)";
+const MERIT_COLUMNS =
+  "id, student_id, semester_id, source, endorsement_id, endorsement_unit_index, description, awarded_on, expires_on, awarded_by, external_source_name, created_at";
+const CREDIT_COLUMNS =
+  "id, student_id, semester_id, bucket, service_participant_id, issued_by, issued_at, revoked_by, revoked_at, revocation_reason";
 
-type RawDemeritRow = {
-  id: string;
-  incident_group_id: string;
-  incident_unit_index: number;
-  student_id: string;
-  student?: RawStudentProfile | null;
-  semester_id: string;
-  bucket: "office" | "rle";
-  source: string;
-  misconduct_id: string | null;
-  misconduct?: { label: string } | null;
-  description: string;
-  incident_on: string;
-  event_attendance_id: string | null;
-  consequence_outcome: string | null;
-  source_unit_index: number | null;
-  issued_by: string;
-  issuer?: RawProfileName | null;
-  external_source_name: string | null;
-  waived_at: string | null;
-  waived_by: string | null;
-  waived_by_profile?: RawProfileName | null;
-  waiver_reason: string | null;
-  created_at: string;
-};
+type NameRow = { id: string; university_id: string | null; first_name: string; middle_name: string | null; last_name: string; suffix: string | null };
 
-type RawMeritRow = {
-  id: string;
-  student_id: string;
-  student?: RawStudentProfile | null;
-  semester_id: string;
-  source: string;
-  endorsement_id: string | null;
-  endorsement_unit_index: number | null;
-  description: string;
-  awarded_on: string;
-  expires_on: string;
-  awarded_by: string;
-  awarder?: RawProfileName | null;
-  external_source_name: string | null;
-  created_at: string;
-};
+/** Names for people on rows the caller can read; `own_profile` RLS blocks embedded profile joins. */
+async function loadNames(client: UserClient, ids: (string | null)[]) {
+  const unique = [...new Set(ids.filter((id): id is string => id !== null))];
+  const names = new Map<string, NameRow>();
+  if (unique.length === 0) return names;
+  const { data, error } = await client.rpc("florence_discipline_names", { p_ids: unique });
+  if (error) throw new Error("Unable to load names");
+  for (const row of data) names.set(row.id, row);
+  return names;
+}
 
-type RawServiceCreditRow = {
-  id: string;
-  student_id: string;
-  student?: RawStudentProfile | null;
-  semester_id: string;
-  bucket: "office" | "rle";
-  service_participant_id: string;
-  issued_by: string;
-  issuer?: RawProfileName | null;
-  issued_at: string;
-  revoked_by: string | null;
-  revoked_at: string | null;
-  revocation_reason: string | null;
-};
+function nameOf(names: Map<string, NameRow>, id: string | null) {
+  const row = id ? names.get(id) : undefined;
+  return row ? displayName(row) : null;
+}
 
-type RawEndorsementRow = {
-  id: string;
-  student_id: string;
-  student?: RawStudentProfile | null;
-  semester_id: string;
-  assigned_instructor_id: string;
-  assigned_instructor?: RawProfileName | null;
-  description: string;
-  requested_days: number;
-  status: "pending" | "approved" | "rejected";
-  submitted_by: string;
-  submitter?: RawProfileName | null;
-  submitted_at: string;
-  decided_by: string | null;
-  decided_at: string | null;
-  decision_reason: string | null;
-};
+// Council actors are students; display "Council" instead of their names. `issued_by` /
+// `waived_by` / `submitted_by` still carry the actual actors for attribution.
+const COUNCIL = "Council";
+
+function toDemerit<T extends { source: string; issued_by: string; waived_by: string | null; misconduct: { label: string } | null }>(
+  { misconduct, ...d }: T,
+  names: Map<string, NameRow>
+) {
+  const council = d.source === "council";
+  return {
+    ...d,
+    misconduct_label: misconduct?.label ?? null,
+    issuer_name: council ? COUNCIL : nameOf(names, d.issued_by),
+    waived_by_name: council ? (d.waived_by ? COUNCIL : null) : nameOf(names, d.waived_by),
+  };
+}
+
+/** Actor ids whose names a demerit row displays (none for Council rows). */
+const demeritActors = (d: { source: string; issued_by: string; waived_by: string | null }) =>
+  d.source === "council" ? [] : [d.issued_by, d.waived_by];
+
+/**
+ * One student's ledger. With `issuerId`, only entries that actor issued and no
+ * applications or summary (ordinary instructors, FL-029); otherwise the full ledger.
+ */
+async function loadLedger(
+  studentId: string,
+  issuerId?: string
+): Promise<DisciplinaryLedger & { summary: StudentDisciplinarySummary | null }> {
+  const client = await createUserClient();
+  const today = getTodayManila();
+
+  let demeritsQuery = client.from("demerits").select(DEMERIT_COLUMNS).eq("student_id", studentId);
+  let meritsQuery = client.from("merits").select(MERIT_COLUMNS).eq("student_id", studentId);
+  let creditsQuery = client.from("service_credits").select(CREDIT_COLUMNS).eq("student_id", studentId);
+  if (issuerId) {
+    demeritsQuery = demeritsQuery.eq("issued_by", issuerId);
+    meritsQuery = meritsQuery.eq("awarded_by", issuerId);
+    creditsQuery = creditsQuery.eq("issued_by", issuerId);
+  }
+
+  const [demeritsRes, meritsRes, creditsRes, applicationsRes] = await Promise.all([
+    demeritsQuery.order("incident_on", { ascending: false }),
+    meritsQuery.order("awarded_on", { ascending: false }),
+    creditsQuery.order("issued_at", { ascending: false }),
+    issuerId
+      ? null
+      : client
+          .from("merit_applications")
+          .select("id, application_group_id, student_id, merit_id, bucket, applied_at")
+          .eq("student_id", studentId),
+  ]);
+  if (demeritsRes.error) throw new Error("Unable to load demerits");
+  if (meritsRes.error) throw new Error("Unable to load merits");
+  if (creditsRes.error) throw new Error("Unable to load service credits");
+  if (applicationsRes?.error) throw new Error("Unable to load merit applications");
+
+  const names = await loadNames(client, [
+    ...demeritsRes.data.flatMap(demeritActors),
+    ...meritsRes.data.map((m) => m.awarded_by),
+    ...creditsRes.data.map((c) => c.issued_by),
+  ]);
+  const applications = applicationsRes?.data ?? [];
+  const appliedMeritIds = new Set(applications.map((a) => a.merit_id));
+
+  const demerits = demeritsRes.data.map((d) => toDemerit(d, names));
+  const merits = meritsRes.data.map((m) => {
+    const record = { ...m, awarder_name: nameOf(names, m.awarded_by) };
+    if (issuerId) return record;
+    const { isApplied, isExpired } = evaluateMeritState(m, appliedMeritIds, today);
+    return { ...record, isApplied, isExpired };
+  });
+  const serviceCredits = creditsRes.data.map((c) => ({ ...c, issuer_name: nameOf(names, c.issued_by) }));
+
+  const summary = issuerId
+    ? null
+    : calculateDisciplinarySummary({ demerits, merits, applications, serviceCredits, asOfDate: today });
+  return { summary, demerits, merits, serviceCredits };
+}
 
 /**
  * Access guard for Council disciplinary routes (FL-029).
@@ -122,645 +132,87 @@ export async function requireCouncilDisciplinaryViewer() {
 }
 
 /**
- * Student workspace query (FL-029).
- * Fetches own merits, demerits, applications, and service credits to calculate
- * cumulative Office/RLE balances and merit availability.
+ * Student workspace query (FL-029). Balances are cumulative across semesters;
+ * only the listed records are narrowed to `semesterId`.
  */
-export async function getMyDisciplinaryRecords(semesterId?: string): Promise<{
-  summary: StudentDisciplinarySummary;
-  demerits: DemeritRecord[];
-  merits: MeritRecord[];
-  serviceCredits: ServiceCreditRecord[];
-}> {
+export async function getMyDisciplinaryRecords(semesterId: string) {
   const access = await requireWorkspace("student");
-  const studentId = access.profile.id;
-  const client = await createUserClient();
-  const todayManila = getTodayManila();
-
-  // All student records across semesters are fetched to compute authoritative cumulative balances
-  const [demeritsRes, meritsRes, applicationsRes, creditsRes] = await Promise.all([
-    client
-      .from("demerits")
-      .select(`
-        id,
-        incident_group_id,
-        incident_unit_index,
-        student_id,
-        semester_id,
-        bucket,
-        source,
-        misconduct_id,
-        description,
-        incident_on,
-        event_attendance_id,
-        consequence_outcome,
-        source_unit_index,
-        issued_by,
-        external_source_name,
-        waived_at,
-        waived_by,
-        waiver_reason,
-        created_at,
-        misconduct:misconduct_catalog(label),
-        issuer:profiles!demerits_issued_by_fkey(first_name, last_name),
-        waived_by_profile:profiles!demerits_waived_by_fkey(first_name, last_name)
-      `)
-      .eq("student_id", studentId)
-      .order("incident_on", { ascending: false }),
-
-    client
-      .from("merits")
-      .select(`
-        id,
-        student_id,
-        semester_id,
-        source,
-        endorsement_id,
-        endorsement_unit_index,
-        description,
-        awarded_on,
-        expires_on,
-        awarded_by,
-        external_source_name,
-        created_at,
-        awarder:profiles!merits_awarded_by_fkey(first_name, last_name)
-      `)
-      .eq("student_id", studentId)
-      .order("awarded_on", { ascending: false }),
-
-    client
-      .from("merit_applications")
-      .select("id, application_group_id, student_id, merit_id, bucket, applied_at")
-      .eq("student_id", studentId),
-
-    client
-      .from("service_credits")
-      .select(`
-        id,
-        student_id,
-        semester_id,
-        bucket,
-        service_participant_id,
-        issued_by,
-        issued_at,
-        revoked_by,
-        revoked_at,
-        revocation_reason,
-        issuer:profiles!service_credits_issued_by_fkey(first_name, last_name)
-      `)
-      .eq("student_id", studentId)
-      .order("issued_at", { ascending: false }),
-  ]);
-
-  if (demeritsRes.error) throw new Error("Unable to load demerits");
-  if (meritsRes.error) throw new Error("Unable to load merits");
-  if (applicationsRes.error) throw new Error("Unable to load merit applications");
-  if (creditsRes.error) throw new Error("Unable to load service credits");
-
-  const rawDemerits = (demeritsRes.data ?? []) as unknown as RawDemeritRow[];
-  const rawMerits = (meritsRes.data ?? []) as unknown as RawMeritRow[];
-  const rawApplications = (applicationsRes.data ?? []) as unknown as MeritApplicationRecord[];
-  const rawCredits = (creditsRes.data ?? []) as unknown as RawServiceCreditRow[];
-
-  const appliedMeritIds = new Set(rawApplications.map((a) => a.merit_id));
-
-  const demerits: DemeritRecord[] = rawDemerits.map((d) => ({
-    id: d.id,
-    incident_group_id: d.incident_group_id,
-    incident_unit_index: d.incident_unit_index,
-    student_id: d.student_id,
-    semester_id: d.semester_id,
-    bucket: d.bucket,
-    source: d.source,
-    misconduct_id: d.misconduct_id,
-    misconduct_label: d.misconduct?.label ?? null,
-    description: d.description,
-    incident_on: d.incident_on,
-    event_attendance_id: d.event_attendance_id,
-    consequence_outcome: d.consequence_outcome,
-    source_unit_index: d.source_unit_index,
-    issued_by: d.issued_by,
-    issuer_name: d.issuer ? displayName(d.issuer) : null,
-    external_source_name: d.external_source_name,
-    waived_at: d.waived_at,
-    waived_by: d.waived_by,
-    waived_by_name: d.waived_by_profile ? displayName(d.waived_by_profile) : null,
-    waiver_reason: d.waiver_reason,
-    created_at: d.created_at,
-  }));
-
-  const merits: MeritRecord[] = rawMerits.map((m) => {
-    const state = evaluateMeritState(m, appliedMeritIds, todayManila);
-    return {
-      id: m.id,
-      student_id: m.student_id,
-      semester_id: m.semester_id,
-      source: m.source,
-      endorsement_id: m.endorsement_id,
-      endorsement_unit_index: m.endorsement_unit_index,
-      description: m.description,
-      awarded_on: m.awarded_on,
-      expires_on: m.expires_on,
-      awarded_by: m.awarded_by,
-      awarder_name: m.awarder ? displayName(m.awarder) : null,
-      external_source_name: m.external_source_name,
-      created_at: m.created_at,
-      isApplied: state.isApplied,
-      isExpired: state.isExpired,
-    };
-  });
-
-  const serviceCredits: ServiceCreditRecord[] = rawCredits.map((c) => ({
-    id: c.id,
-    student_id: c.student_id,
-    semester_id: c.semester_id,
-    bucket: c.bucket,
-    service_participant_id: c.service_participant_id,
-    issued_by: c.issued_by,
-    issuer_name: c.issuer ? displayName(c.issuer) : null,
-    issued_at: c.issued_at,
-    revoked_by: c.revoked_by,
-    revoked_at: c.revoked_at,
-    revocation_reason: c.revocation_reason,
-  }));
-
-  const summary = calculateDisciplinarySummary({
-    demerits,
-    merits,
-    applications: rawApplications,
-    serviceCredits,
-    asOfDate: todayManila,
-  });
-
-  const filteredDemerits = semesterId
-    ? demerits.filter((d) => d.semester_id === semesterId)
-    : demerits;
-  const filteredMerits = semesterId
-    ? merits.filter((m) => m.semester_id === semesterId)
-    : merits;
-  const filteredCredits = semesterId
-    ? serviceCredits.filter((c) => c.semester_id === semesterId)
-    : serviceCredits;
-
+  const { summary, demerits, merits, serviceCredits } = await loadLedger(access.profile.id);
+  const inSemester = <T extends { semester_id: string }>(rows: T[]) =>
+    rows.filter((row) => row.semester_id === semesterId);
   return {
-    summary,
-    demerits: filteredDemerits,
-    merits: filteredMerits,
-    serviceCredits: filteredCredits,
+    summary: summary!,
+    demerits: inSemester(demerits),
+    merits: inSemester(merits),
+    serviceCredits: inSemester(serviceCredits),
   };
 }
 
 /**
  * Council workspace query (FL-029).
- * Scoped strictly to Council-generated demerits and Council-origin merit endorsements.
- * Entirely excludes whole-ledger Office/RLE balances, Faculty demerits, and service sessions.
+ * Scoped to Council-generated demerits and Council-origin merit endorsements with the
+ * merit units their approval created. Excludes whole-ledger balances, Faculty demerits,
+ * merit applications and service sessions.
  */
-export async function getCouncilDisciplinaryRecords(
-  semesterId: string
-): Promise<CouncilDisciplinaryViewData> {
+export async function getCouncilDisciplinaryRecords(semesterId: string): Promise<CouncilDisciplinaryViewData> {
   await requireCouncilDisciplinaryViewer();
   const client = await createUserClient();
 
-  const [demeritsRes, endorsementsRes] = await Promise.all([
+  const [demeritsRes, endorsementsRes, awardsRes] = await Promise.all([
     client
       .from("demerits")
-      .select(`
-        id,
-        incident_group_id,
-        incident_unit_index,
-        student_id,
-        semester_id,
-        bucket,
-        source,
-        misconduct_id,
-        description,
-        incident_on,
-        event_attendance_id,
-        consequence_outcome,
-        source_unit_index,
-        issued_by,
-        external_source_name,
-        waived_at,
-        waived_by,
-        waiver_reason,
-        created_at,
-        student:profiles!demerits_student_id_fkey(first_name, last_name, university_id),
-        issuer:profiles!demerits_issued_by_fkey(first_name, last_name),
-        waived_by_profile:profiles!demerits_waived_by_fkey(first_name, last_name)
-      `)
+      .select(DEMERIT_COLUMNS)
       .eq("source", "council")
       .eq("semester_id", semesterId)
       .order("incident_on", { ascending: false }),
-
     client
       .from("merit_endorsements")
-      .select(`
-        id,
-        student_id,
-        semester_id,
-        assigned_instructor_id,
-        description,
-        requested_days,
-        status,
-        submitted_by,
-        submitted_at,
-        decided_by,
-        decided_at,
-        decision_reason,
-        student:profiles!merit_endorsements_student_id_fkey(first_name, last_name, university_id),
-        assigned_instructor:profiles!merit_endorsements_assigned_instructor_id_fkey(first_name, last_name),
-        submitter:profiles!merit_endorsements_submitted_by_fkey(first_name, last_name),
-        decider:profiles!merit_endorsements_decided_by_fkey(first_name, last_name)
-      `)
+      .select("id, student_id, semester_id, assigned_instructor_id, description, requested_days, status, submitted_by, submitted_at, decided_by, decided_at, decision_reason")
       .eq("semester_id", semesterId)
       .order("submitted_at", { ascending: false }),
+    // Approval keeps the endorsement semester on its merits.
+    client.from("merits").select("endorsement_id").eq("source", "endorsement").eq("semester_id", semesterId),
   ]);
-
   if (demeritsRes.error) throw new Error("Unable to load Council demerits");
   if (endorsementsRes.error) throw new Error("Unable to load merit endorsements");
+  if (awardsRes.error) throw new Error("Unable to load endorsement merits");
 
-  const demerits: DemeritRecord[] = (
-    (demeritsRes.data ?? []) as unknown as RawDemeritRow[]
-  ).map((d) => ({
-    id: d.id,
-    incident_group_id: d.incident_group_id,
-    incident_unit_index: d.incident_unit_index,
-    student_id: d.student_id,
-    student_university_id: d.student?.university_id ?? null,
-    student_name: d.student ? displayName(d.student) : null,
-    semester_id: d.semester_id,
-    bucket: d.bucket,
-    source: d.source,
-    misconduct_id: d.misconduct_id,
-    description: d.description,
-    incident_on: d.incident_on,
-    event_attendance_id: d.event_attendance_id,
-    consequence_outcome: d.consequence_outcome,
-    source_unit_index: d.source_unit_index,
-    issued_by: d.issued_by,
-    issuer_name: d.issuer ? displayName(d.issuer) : null,
-    external_source_name: d.external_source_name,
-    waived_at: d.waived_at,
-    waived_by: d.waived_by,
-    waived_by_name: d.waived_by_profile ? displayName(d.waived_by_profile) : null,
-    waiver_reason: d.waiver_reason,
-    created_at: d.created_at,
-  }));
+  const names = await loadNames(client, [
+    ...demeritsRes.data.map((d) => d.student_id),
+    ...endorsementsRes.data.flatMap((e) => [e.student_id, e.assigned_instructor_id]),
+  ]);
+  const awardedDays = new Map<string, number>();
+  for (const { endorsement_id } of awardsRes.data) {
+    if (endorsement_id) awardedDays.set(endorsement_id, (awardedDays.get(endorsement_id) ?? 0) + 1);
+  }
 
-  const endorsements: MeritEndorsementRecord[] = (
-    (endorsementsRes.data ?? []) as unknown as RawEndorsementRow[]
-  ).map((e) => ({
-    id: e.id,
-    student_id: e.student_id,
-    student_university_id: e.student?.university_id ?? null,
-    student_name: e.student ? displayName(e.student) : null,
-    semester_id: e.semester_id,
-    assigned_instructor_id: e.assigned_instructor_id,
-    assigned_instructor_name: e.assigned_instructor ? displayName(e.assigned_instructor) : null,
-    description: e.description,
-    requested_days: e.requested_days,
-    status: e.status,
-    submitted_by: e.submitted_by,
-    submitter_name: e.submitter ? displayName(e.submitter) : null,
-    submitted_at: e.submitted_at,
-    decided_by: e.decided_by,
-    decided_at: e.decided_at,
-    decision_reason: e.decision_reason,
-  }));
-
-  return { demerits, endorsements };
+  return {
+    demerits: demeritsRes.data.map((d) => ({
+      ...toDemerit(d, names),
+      student_university_id: names.get(d.student_id)?.university_id ?? null,
+      student_name: nameOf(names, d.student_id),
+    })),
+    endorsements: endorsementsRes.data.map((e) => ({
+      ...e,
+      student_university_id: names.get(e.student_id)?.university_id ?? null,
+      student_name: nameOf(names, e.student_id),
+      assigned_instructor_name: nameOf(names, e.assigned_instructor_id),
+      submitter_name: COUNCIL,
+      awarded_days: awardedDays.get(e.id) ?? 0,
+    })),
+  };
 }
 
 /**
- * Faculty workspace query (FL-029).
- * Used when viewing a student in the Faculty workspace.
- * Coordinators (Academic Coordinator, RLE Coordinator) receive complete student ledger and balances.
- * Ordinary instructors receive ONLY their own issued entries and no overall ledger/balance.
+ * Faculty workspace query (FL-029), used from the student detail dialog.
+ * Coordinators receive the complete ledger and balances; ordinary instructors only
+ * the entries they issued. `access-policy` rejects a coordinator assignment without
+ * its paired instructor role, matching `f_access_private.coordinator()`.
  */
-export async function getStudentDisciplinaryLedger(
-  studentId: string
-): Promise<FacultyDisciplinaryViewData> {
+export async function getStudentDisciplinaryLedger(studentId: string): Promise<FacultyDisciplinaryViewData> {
   const access = await requireWorkspace("faculty");
   const isCoordinator =
     access.roles.includes("Academic Coordinator") || access.roles.includes("RLE Coordinator");
-  const actorId = access.profile.id;
-  const client = await createUserClient();
-  const todayManila = getTodayManila();
-
-  const student = {
-    id: studentId,
-  };
-
-  if (isCoordinator) {
-    // Coordinators see full records across all sources
-    const [demeritsRes, meritsRes, applicationsRes, creditsRes] = await Promise.all([
-      client
-        .from("demerits")
-        .select(`
-          id,
-          incident_group_id,
-          incident_unit_index,
-          student_id,
-          semester_id,
-          bucket,
-          source,
-          misconduct_id,
-          description,
-          incident_on,
-          event_attendance_id,
-          consequence_outcome,
-          source_unit_index,
-          issued_by,
-          external_source_name,
-          waived_at,
-          waived_by,
-          waiver_reason,
-          created_at,
-          misconduct:misconduct_catalog(label),
-          issuer:profiles!demerits_issued_by_fkey(first_name, last_name),
-          waived_by_profile:profiles!demerits_waived_by_fkey(first_name, last_name)
-        `)
-        .eq("student_id", studentId)
-        .order("incident_on", { ascending: false }),
-
-      client
-        .from("merits")
-        .select(`
-          id,
-          student_id,
-          semester_id,
-          source,
-          endorsement_id,
-          endorsement_unit_index,
-          description,
-          awarded_on,
-          expires_on,
-          awarded_by,
-          external_source_name,
-          created_at,
-          awarder:profiles!merits_awarded_by_fkey(first_name, last_name)
-        `)
-        .eq("student_id", studentId)
-        .order("awarded_on", { ascending: false }),
-
-      client
-        .from("merit_applications")
-        .select("id, application_group_id, student_id, merit_id, bucket, applied_at")
-        .eq("student_id", studentId),
-
-      client
-        .from("service_credits")
-        .select(`
-          id,
-          student_id,
-          semester_id,
-          bucket,
-          service_participant_id,
-          issued_by,
-          issued_at,
-          revoked_by,
-          revoked_at,
-          revocation_reason,
-          issuer:profiles!service_credits_issued_by_fkey(first_name, last_name)
-        `)
-        .eq("student_id", studentId)
-        .order("issued_at", { ascending: false }),
-    ]);
-
-    if (demeritsRes.error) throw new Error("Unable to load demerits");
-    if (meritsRes.error) throw new Error("Unable to load merits");
-    if (applicationsRes.error) throw new Error("Unable to load merit applications");
-    if (creditsRes.error) throw new Error("Unable to load service credits");
-
-    const rawDemerits = (demeritsRes.data ?? []) as unknown as RawDemeritRow[];
-    const rawMerits = (meritsRes.data ?? []) as unknown as RawMeritRow[];
-    const rawApplications = (applicationsRes.data ?? []) as unknown as MeritApplicationRecord[];
-    const rawCredits = (creditsRes.data ?? []) as unknown as RawServiceCreditRow[];
-
-    const appliedMeritIds = new Set(rawApplications.map((a) => a.merit_id));
-
-    const demerits: DemeritRecord[] = rawDemerits.map((d) => ({
-      id: d.id,
-      incident_group_id: d.incident_group_id,
-      incident_unit_index: d.incident_unit_index,
-      student_id: d.student_id,
-      semester_id: d.semester_id,
-      bucket: d.bucket,
-      source: d.source,
-      misconduct_id: d.misconduct_id,
-      misconduct_label: d.misconduct?.label ?? null,
-      description: d.description,
-      incident_on: d.incident_on,
-      event_attendance_id: d.event_attendance_id,
-      consequence_outcome: d.consequence_outcome,
-      source_unit_index: d.source_unit_index,
-      issued_by: d.issued_by,
-      issuer_name: d.issuer ? displayName(d.issuer) : null,
-      external_source_name: d.external_source_name,
-      waived_at: d.waived_at,
-      waived_by: d.waived_by,
-      waived_by_name: d.waived_by_profile ? displayName(d.waived_by_profile) : null,
-      waiver_reason: d.waiver_reason,
-      created_at: d.created_at,
-    }));
-
-    const merits: MeritRecord[] = rawMerits.map((m) => {
-      const state = evaluateMeritState(m, appliedMeritIds, todayManila);
-      return {
-        id: m.id,
-        student_id: m.student_id,
-        semester_id: m.semester_id,
-        source: m.source,
-        endorsement_id: m.endorsement_id,
-        endorsement_unit_index: m.endorsement_unit_index,
-        description: m.description,
-        awarded_on: m.awarded_on,
-        expires_on: m.expires_on,
-        awarded_by: m.awarded_by,
-        awarder_name: m.awarder ? displayName(m.awarder) : null,
-        external_source_name: m.external_source_name,
-        created_at: m.created_at,
-        isApplied: state.isApplied,
-        isExpired: state.isExpired,
-      };
-    });
-
-    const serviceCredits: ServiceCreditRecord[] = rawCredits.map((c) => ({
-      id: c.id,
-      student_id: c.student_id,
-      semester_id: c.semester_id,
-      bucket: c.bucket,
-      service_participant_id: c.service_participant_id,
-      issued_by: c.issued_by,
-      issuer_name: c.issuer ? displayName(c.issuer) : null,
-      issued_at: c.issued_at,
-      revoked_by: c.revoked_by,
-      revoked_at: c.revoked_at,
-      revocation_reason: c.revocation_reason,
-    }));
-
-    const summary = calculateDisciplinarySummary({
-      demerits,
-      merits,
-      applications: rawApplications,
-      serviceCredits,
-      asOfDate: todayManila,
-    });
-
-    return {
-      isCoordinator: true,
-      student,
-      summary,
-      demerits,
-      merits,
-      serviceCredits,
-    };
-  }
-
-  // Non-coordinator instructors see ONLY entries they personally issued (FL-029)
-  const [demeritsRes, meritsRes, creditsRes] = await Promise.all([
-    client
-      .from("demerits")
-      .select(`
-        id,
-        incident_group_id,
-        incident_unit_index,
-        student_id,
-        semester_id,
-        bucket,
-        source,
-        misconduct_id,
-        description,
-        incident_on,
-        event_attendance_id,
-        consequence_outcome,
-        source_unit_index,
-        issued_by,
-        external_source_name,
-        waived_at,
-        waived_by,
-        waiver_reason,
-        created_at,
-        misconduct:misconduct_catalog(label),
-        issuer:profiles!demerits_issued_by_fkey(first_name, last_name),
-        waived_by_profile:profiles!demerits_waived_by_fkey(first_name, last_name)
-      `)
-      .eq("student_id", studentId)
-      .eq("issued_by", actorId)
-      .order("incident_on", { ascending: false }),
-
-    client
-      .from("merits")
-      .select(`
-        id,
-        student_id,
-        semester_id,
-        source,
-        endorsement_id,
-        endorsement_unit_index,
-        description,
-        awarded_on,
-        expires_on,
-        awarded_by,
-        external_source_name,
-        created_at,
-        awarder:profiles!merits_awarded_by_fkey(first_name, last_name)
-      `)
-      .eq("student_id", studentId)
-      .eq("awarded_by", actorId)
-      .order("awarded_on", { ascending: false }),
-
-    client
-      .from("service_credits")
-      .select(`
-        id,
-        student_id,
-        semester_id,
-        bucket,
-        service_participant_id,
-        issued_by,
-        issued_at,
-        revoked_by,
-        revoked_at,
-        revocation_reason,
-        issuer:profiles!service_credits_issued_by_fkey(first_name, last_name)
-      `)
-      .eq("student_id", studentId)
-      .eq("issued_by", actorId)
-      .order("issued_at", { ascending: false }),
-  ]);
-
-  if (demeritsRes.error) throw new Error("Unable to load instructor demerits");
-  if (meritsRes.error) throw new Error("Unable to load instructor merits");
-  if (creditsRes.error) throw new Error("Unable to load instructor service credits");
-
-  const demerits: DemeritRecord[] = (
-    (demeritsRes.data ?? []) as unknown as RawDemeritRow[]
-  ).map((d) => ({
-    id: d.id,
-    incident_group_id: d.incident_group_id,
-    incident_unit_index: d.incident_unit_index,
-    student_id: d.student_id,
-    semester_id: d.semester_id,
-    bucket: d.bucket,
-    source: d.source,
-    misconduct_id: d.misconduct_id,
-    misconduct_label: d.misconduct?.label ?? null,
-    description: d.description,
-    incident_on: d.incident_on,
-    event_attendance_id: d.event_attendance_id,
-    consequence_outcome: d.consequence_outcome,
-    source_unit_index: d.source_unit_index,
-    issued_by: d.issued_by,
-    issuer_name: d.issuer ? displayName(d.issuer) : null,
-    external_source_name: d.external_source_name,
-    waived_at: d.waived_at,
-    waived_by: d.waived_by,
-    waived_by_name: d.waived_by_profile ? displayName(d.waived_by_profile) : null,
-    waiver_reason: d.waiver_reason,
-    created_at: d.created_at,
-  }));
-
-  const merits: MeritRecord[] = (
-    (meritsRes.data ?? []) as unknown as RawMeritRow[]
-  ).map((m) => ({
-    id: m.id,
-    student_id: m.student_id,
-    semester_id: m.semester_id,
-    source: m.source,
-    endorsement_id: m.endorsement_id,
-    endorsement_unit_index: m.endorsement_unit_index,
-    description: m.description,
-    awarded_on: m.awarded_on,
-    expires_on: m.expires_on,
-    awarded_by: m.awarded_by,
-    awarder_name: m.awarder ? displayName(m.awarder) : null,
-    external_source_name: m.external_source_name,
-    created_at: m.created_at,
-  }));
-
-  const serviceCredits: ServiceCreditRecord[] = (
-    (creditsRes.data ?? []) as unknown as RawServiceCreditRow[]
-  ).map((c) => ({
-    id: c.id,
-    student_id: c.student_id,
-    semester_id: c.semester_id,
-    bucket: c.bucket,
-    service_participant_id: c.service_participant_id,
-    issued_by: c.issued_by,
-    issuer_name: c.issuer ? displayName(c.issuer) : null,
-    issued_at: c.issued_at,
-    revoked_by: c.revoked_by,
-    revoked_at: c.revoked_at,
-    revocation_reason: c.revocation_reason,
-  }));
-
-  return {
-    isCoordinator: false,
-    student,
-    summary: null, // Ordinary instructors do not see whole-ledger balances
-    demerits,
-    merits,
-    serviceCredits,
-  };
+  const ledger = await loadLedger(studentId, isCoordinator ? undefined : access.profile.id);
+  return { isCoordinator, ...ledger };
 }
