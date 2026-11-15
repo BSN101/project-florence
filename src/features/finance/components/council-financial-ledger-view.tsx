@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Search, User, Users, X } from "lu
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { displayName, sortName } from "@/lib/format-name";
 import { formatPhp } from "../calculations";
 import type { CouncilFinancialRosterItem, StudentFinancialAccountData, StudentFinancialSummaryDTO } from "../contracts";
@@ -14,16 +15,60 @@ import { StudentFeesAndFinesView } from "./student-fees-and-fines-view";
 
 const PAGE_SIZE = 25;
 
+type Standing = "unpaid" | "under_review" | "cleared";
+
+// Anything payable wins over a pending review: a pending transfer settles nothing (FL-023).
+function standingOf(summary: StudentFinancialSummaryDTO): Standing {
+  if (summary.totalOutstandingPayable > 0) return "unpaid";
+  if (summary.totalPendingVerificationAmount > 0) return "under_review";
+  return "cleared";
+}
+
+const standingBadges: Record<Standing, [string, string]> = {
+  unpaid: ["Unpaid", "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"],
+  under_review: ["Under Review", "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"],
+  cleared: ["Cleared", "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"],
+};
+
 function StandingBadge({ summary }: { summary: StudentFinancialSummaryDTO }) {
-  // Anything payable wins over a pending review: a pending transfer settles nothing (FL-023).
-  const [label, tone] =
-    summary.totalOutstandingPayable > 0
-      ? ["Unpaid", "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"]
-      : summary.totalPendingVerificationAmount > 0
-        ? ["Under Review", "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"]
-        : ["Cleared", "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"];
+  const [label, tone] = standingBadges[standingOf(summary)];
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
+  );
+}
+
+const yearOptions = { all: "All Years", "1": "Year 1", "2": "Year 2", "3": "Year 3", "4": "Year 4" };
+const statusOptions = { all: "All Statuses", regular: "Regular", irregular: "Irregular" };
+const paymentOptions = {
+  all: "All Payments",
+  unpaid: "Unpaid",
+  prior: "Prior-Term Balance",
+  under_review: "Under Review",
+  cleared: "Cleared",
+};
+
+function FilterSelect<T extends Record<string, string>>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: keyof T & string;
+  options: T;
+  onChange: (value: keyof T & string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange((v ?? "all") as keyof T & string)}>
+      <SelectTrigger aria-label={label} className="w-full text-xs lg:w-[170px]">
+        <span className="truncate">{label}: {value === "all" ? "All" : options[value]}</span>
+      </SelectTrigger>
+      <SelectContent>
+        {Object.entries(options).map(([key, text]) => (
+          <SelectItem key={key} value={key}>{text}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -39,6 +84,9 @@ export function CouncilFinancialRosterTable({
   const searchInputId = useId();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [year, setYear] = useState<keyof typeof yearOptions>("all");
+  const [status, setStatus] = useState<keyof typeof statusOptions>("all");
+  const [payment, setPayment] = useState<keyof typeof paymentOptions>("all");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -50,11 +98,14 @@ export function CouncilFinancialRosterTable({
         !sortName(s).toLowerCase().includes(q) &&
         !s.email?.toLowerCase().includes(q)
       ) return false;
-      return true;
+      if (year !== "all" && s.year_level !== Number(year)) return false;
+      if (status !== "all" && s.academic_status !== status) return false;
+      if (payment === "prior") return s.summary.priorSemestersOverduePayable > 0;
+      return payment === "all" || standingOf(s.summary) === payment;
     });
-  }, [students, search]);
+  }, [students, search, year, status, payment]);
 
-  // A new search starts again from the first page.
+  // Every filter change starts again from the first page.
   const resetting = <T,>(set: (value: T) => void) => (value: T) => {
     set(value);
     setPage(0);
@@ -108,6 +159,12 @@ export function CouncilFinancialRosterTable({
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 lg:flex lg:justify-end">
+        <FilterSelect label="Year" value={year} options={yearOptions} onChange={resetting(setYear)} />
+        <FilterSelect label="Status" value={status} options={statusOptions} onChange={resetting(setStatus)} />
+        <FilterSelect label="Payment" value={payment} options={paymentOptions} onChange={resetting(setPayment)} />
+      </div>
+
       <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
         <span>
           {filtered.length === 0 ? (
@@ -142,7 +199,7 @@ export function CouncilFinancialRosterTable({
               <p className="text-xs text-muted-foreground">
                 {students.length === 0
                   ? "No students are enrolled in this semester."
-                  : "No students match your search."}
+                  : "No students match your search or filters."}
               </p>
             </div>
           ) : (
