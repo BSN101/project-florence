@@ -1,10 +1,11 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, Search, User, Users, X } from "lucide-react";
 
+import { NavigationOverlay } from "@/components/layout/navigation-overlay";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -117,10 +118,21 @@ export function CouncilFinancialRosterTable({
   const firstIndex = currentPage * PAGE_SIZE;
   const pageStudents = filtered.slice(firstIndex, firstIndex + PAGE_SIZE);
   const href = (s: CouncilFinancialRosterItem) => `?semester=${semesterId}&student=${s.student_id}`;
+  const [isOpening, startOpening] = useTransition();
+
+  function openStudent(event: React.MouseEvent, s: CouncilFinancialRosterItem) {
+    event.stopPropagation();
+    // Modifier clicks keep the link's native new-tab/window behaviour.
+    if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    if (!isOpening) startOpening(() => router.push(href(s)));
+  }
+
   const updateSearch = resetting(setSearch);
 
   return (
     <div className="space-y-4">
+      <NavigationOverlay visible={isOpening} label="Opening student ledger…" />
       <div className="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="font-heading text-lg font-medium text-foreground">
@@ -218,14 +230,14 @@ export function CouncilFinancialRosterTable({
                 {pageStudents.map((s) => (
                   <tr
                     key={s.student_id}
-                    onClick={() => router.push(href(s))}
+                    onClick={(e) => openStudent(e, s)}
                     className="cursor-pointer transition-colors hover:bg-muted/40"
                   >
                     <td className="px-4 py-3.5 font-mono text-xs font-semibold text-foreground">{s.university_id}</td>
                     <td className="px-4 py-3.5">
                       <div className="flex flex-col">
                         {/* The row is clickable; the name stays a real link for keyboard and screen readers. */}
-                        <Link href={href(s)} onClick={(e) => e.stopPropagation()}
+                        <Link href={href(s)} onClick={(e) => openStudent(e, s)}
                           className="font-medium text-foreground underline-offset-4 hover:underline">
                           {sortName(s)}
                         </Link>
