@@ -23,7 +23,15 @@ import { StudentRowActions } from "./student-invitation-dialogs";
 
 const PAGE_SIZE = 25;
 
-export function RosterTable({ students, canEdit }: { students: StudentRosterItem[]; canEdit: boolean }) {
+export function RosterTable({
+  students,
+  canEdit,
+  workspace = "council",
+}: {
+  students: StudentRosterItem[];
+  canEdit: boolean;
+  workspace?: "council" | "faculty";
+}) {
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -240,7 +248,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
 
                       <div className="flex items-center gap-1 shrink-0">
                         <StudentRowActions student={student} canEdit={canEdit} />
-                        <StudentDetailDialog student={student} canEdit={canEdit} />
+                        <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
                         {canEdit && <EditStudentDialog student={student} />}
                       </div>
                     </div>
@@ -308,7 +316,7 @@ export function RosterTable({ students, canEdit }: { students: StudentRosterItem
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <StudentRowActions student={student} canEdit={canEdit} />
-                            <StudentDetailDialog student={student} canEdit={canEdit} />
+                            <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
                             {canEdit && <EditStudentDialog student={student} />}
                           </div>
                         </td>

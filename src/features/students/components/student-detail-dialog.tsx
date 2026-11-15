@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { displayName, sortName } from "@/lib/format-name";
+import { cn } from "@/lib/utils";
+import { FacultyStudentDisciplinaryPanel } from "@/features/discipline/components/faculty-student-disciplinary-panel";
 import type { StudentRosterItem } from "../contracts";
 import { AcademicStatusBadge } from "./academic-status-badge";
 import { InvitationStatusBadge } from "./invitation-status-badge";
@@ -26,9 +28,11 @@ import {
 export function StudentDetailDialog({
   student,
   canEdit = false,
+  workspace,
 }: {
   student: StudentRosterItem;
   canEdit?: boolean;
+  workspace?: "council" | "faculty";
 }) {
   const [open, setOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -64,7 +68,12 @@ export function StudentDetailDialog({
             </Button>
           }
         />
-        <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
+        <DialogContent
+          className={cn(
+            "max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto",
+            workspace === "faculty" ? "sm:max-w-3xl" : "sm:max-w-md"
+          )}
+        >
           <DialogHeader className="text-left">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <GraduationCap className="size-4 text-primary" />
@@ -225,6 +234,13 @@ export function StudentDetailDialog({
                     </p>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Disciplinary Records & Balances (Faculty View - FL-029) */}
+            {workspace === "faculty" && open && (
+              <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/60 p-3.5">
+                <FacultyStudentDisciplinaryPanel key={student.student_id} studentId={student.student_id} />
               </div>
             )}
           </div>

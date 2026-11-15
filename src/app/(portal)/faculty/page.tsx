@@ -76,7 +76,7 @@ export default async function FacultyPage({
                 </p>
               </Card>
             ) : (
-              <RosterTable students={students} canEdit={false} />
+              <RosterTable students={students} canEdit={false} workspace="faculty" />
             )}
           </>
         )}

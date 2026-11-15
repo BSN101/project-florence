@@ -1330,7 +1330,7 @@ Future-selectable misconduct options maintained by Platform Admin. Every selecti
 - Platform Admin may read/manage catalog options.
 - Instructors/RLE Coordinators may read active options for demerit entry.
 - Council users read catalog data only if an implementation path genuinely needs it; Council-generated event demerits do not imply catalog management authority.
-- Students may see the frozen description on their demerit records rather than browse the catalog.
+- Students may see the frozen description on their demerit records rather than browse the catalog. They may also read the catalog label of an entry referenced by one of their own demerits, and no other entries.
 '''
 }
 
@@ -1382,6 +1382,7 @@ One row equals one whole-day demerit unit. Multi-day sanctions create multiple r
 - Coordinators receive only their documented history scope.
 - RLE Coordinator may read/manage external-CI records they entered within FL-035 scope.
 - Waiver authority and self-benefit restrictions remain application checks plus atomic balance validation when required.
+- `florence_discipline_names(uuid[])` returns display names for the people on demerit, merit, service-credit and merit-endorsement rows the caller can read, using the same visibility rules as those tables' policies. The university number is returned only for the student on such a row, never for staff actors. `own_profile` hides other profiles, so this restricted function replaces embedded profile joins. Only authenticated users can execute it.
 '''
 }
 
