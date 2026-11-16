@@ -13,6 +13,7 @@ import type { CouncilClearanceCandidate } from "../contracts";
 import { ConfirmClearanceDialog } from "./confirm-clearance-dialog";
 
 const PAGE_SIZE = 25;
+const confirmedFormat = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" });
 
 function CandidateTableColgroup() {
   return (
@@ -64,12 +65,15 @@ function DemeritBadge({
   );
 }
 
-function ClearanceStatusBadge({ cleared }: { cleared: boolean }) {
-  if (cleared) {
+function ClearanceStatusBadge({ confirmedAt }: { confirmedAt: string | null }) {
+  if (confirmedAt) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-        <Check className="size-3" />
-        Cleared
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+          <Check className="size-3" />
+          Cleared
+        </span>
+        <span className="text-[11px] text-muted-foreground">{confirmedFormat.format(new Date(confirmedAt))}</span>
       </span>
     );
   }
@@ -90,7 +94,7 @@ function ClearanceActionButton({
   onSelect: (candidate: CouncilClearanceCandidate) => void;
   fullWidth?: boolean;
 }) {
-  const buttonWidthClass = fullWidth ? "w-full" : "w-[124px] justify-center ml-auto";
+  const buttonWidthClass = fullWidth ? "w-full min-h-11" : "w-[124px] justify-center ml-auto";
 
   if (candidate.status.cleared) {
     return (
@@ -124,7 +128,7 @@ function ClearanceActionButton({
           }
         >
           <ShieldX className="mr-1.5 size-3.5 text-destructive" />
-          Self Prohibited
+          Your own record
         </TooltipTrigger>
         <TooltipContent side="top">
           Council officers cannot confirm clearance for their own student profile.
@@ -136,13 +140,11 @@ function ClearanceActionButton({
   return (
     <Button
       size="sm"
+      variant="outline"
       onClick={() => onSelect(candidate)}
-      className={cn(
-        "text-xs bg-primary text-primary-foreground hover:bg-primary/90",
-        buttonWidthClass
-      )}
+      className={cn("text-xs", buttonWidthClass)}
     >
-      Grant Clearance
+      Grant clearance
     </Button>
   );
 }
@@ -320,7 +322,7 @@ export function CandidateTable({
                 aria-label="Previous page"
                 disabled={currentPage === 0}
                 onClick={() => setPage(currentPage - 1)}
-                className="h-7 px-2 text-xs"
+                className="h-7 px-2 text-xs max-md:size-11"
               >
                 <ChevronLeft className="size-3.5" />
               </Button>
@@ -331,7 +333,7 @@ export function CandidateTable({
                 aria-label="Next page"
                 disabled={currentPage === pageCount - 1}
                 onClick={() => setPage(currentPage + 1)}
-                className="h-7 px-2 text-xs"
+                className="h-7 px-2 text-xs max-md:size-11"
               >
                 <ChevronRight className="size-3.5" />
               </Button>
@@ -372,7 +374,7 @@ export function CandidateTable({
                       </div>
 
                       <div className="shrink-0">
-                        <ClearanceStatusBadge cleared={candidate.status.cleared} />
+                        <ClearanceStatusBadge confirmedAt={candidate.status.confirmedAt} />
                       </div>
                     </div>
 
@@ -401,86 +403,64 @@ export function CandidateTable({
 
             {/* Tablet & Desktop Table View (>= md) */}
             <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block shadow-xs">
-              <div className="overflow-x-auto clearance-scrollbar">
-                <div className="w-full min-w-[840px]">
-                  {/* Column Header Row (sits above the scrollbar track) */}
-                  <div className="border-b border-border bg-muted/95 backdrop-blur-xs text-xs font-medium text-muted-foreground">
-                    <table className="w-full table-fixed text-left text-xs font-medium text-muted-foreground">
-                      <CandidateTableColgroup />
-                      <thead>
-                        <tr>
-                          <th className="px-4 py-3.5 font-medium">Student</th>
-                          <th className="px-4 py-3.5 font-medium">Year & Status</th>
-                          <th className="px-4 py-3.5 text-right font-medium">Outstanding Balance</th>
-                          <th className="px-4 py-3.5 text-center font-medium">Active Demerits</th>
-                          <th className="px-4 py-3.5 font-medium">Clearance Status</th>
-                          <th className="pl-4 pr-6 py-3.5 text-right font-medium">Action</th>
-                        </tr>
-                      </thead>
-                    </table>
-                  </div>
+              <div className="max-h-[560px] overflow-auto clearance-scrollbar">
+                <table className="w-full min-w-[840px] table-fixed text-left text-sm">
+                  <CandidateTableColgroup />
+                  <thead className="sticky top-0 z-10 border-b border-border bg-muted text-xs font-medium text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3.5 font-medium">Student</th>
+                      <th className="px-4 py-3.5 font-medium">Year & Status</th>
+                      <th className="px-4 py-3.5 text-right font-medium">Outstanding Balance</th>
+                      <th className="px-4 py-3.5 text-center font-medium">Active Demerits</th>
+                      <th className="px-4 py-3.5 font-medium">Clearance Status</th>
+                      <th className="pl-4 pr-6 py-3.5 text-right font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {paged.map((candidate) => (
+                      <tr key={candidate.studentId} className="transition-colors hover:bg-muted/40">
+                        {/* Student Info */}
+                        <td className="px-4 py-3.5">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-foreground">{candidate.name}</span>
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {candidate.studentNumber}
+                            </span>
+                          </div>
+                        </td>
 
-                  {/* Scrollable Data Rows (track starts directly below header; stays clear of bottom-right corner) */}
-                  <div className="max-h-[520px] overflow-y-auto overflow-x-hidden clearance-scrollbar pb-2">
-                    <table className="w-full table-fixed text-left text-sm">
-                      <CandidateTableColgroup />
-                      <thead className="sr-only">
-                        <tr>
-                          <th>Student</th>
-                          <th>Year & Status</th>
-                          <th>Outstanding Balance</th>
-                          <th>Active Demerits</th>
-                          <th>Clearance Status</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/60">
-                        {paged.map((candidate) => (
-                          <tr key={candidate.studentId} className="transition-colors hover:bg-muted/40">
-                            {/* Student Info */}
-                            <td className="px-4 py-3.5">
-                              <div className="flex flex-col">
-                                <span className="font-medium text-foreground">{candidate.name}</span>
-                                <span className="font-mono text-xs text-muted-foreground">
-                                  {candidate.studentNumber}
-                                </span>
-                              </div>
-                            </td>
+                        {/* Year & Status */}
+                        <td className="px-4 py-3.5 text-xs text-foreground">
+                          <div>Year {candidate.yearLevel}</div>
+                          <div className="capitalize text-muted-foreground">{candidate.academicStatus}</div>
+                        </td>
 
-                            {/* Year & Status */}
-                            <td className="px-4 py-3.5 text-xs text-foreground">
-                              <div>Year {candidate.yearLevel}</div>
-                              <div className="capitalize text-muted-foreground">{candidate.academicStatus}</div>
-                            </td>
+                        {/* Financial Balance */}
+                        <td className="px-4 py-3.5 text-right text-xs">
+                          <BalanceDisplay amount={candidate.totalOutstandingPayable} />
+                        </td>
 
-                            {/* Financial Balance */}
-                            <td className="px-4 py-3.5 text-right text-xs">
-                              <BalanceDisplay amount={candidate.totalOutstandingPayable} />
-                            </td>
+                        {/* Active Demerits */}
+                        <td className="px-4 py-3.5 text-center text-xs">
+                          <DemeritBadge count={candidate.activeCouncilDemerits} />
+                        </td>
 
-                            {/* Active Demerits */}
-                            <td className="px-4 py-3.5 text-center text-xs">
-                              <DemeritBadge count={candidate.activeCouncilDemerits} />
-                            </td>
+                        {/* Clearance Status */}
+                        <td className="px-4 py-3.5">
+                          <ClearanceStatusBadge confirmedAt={candidate.status.confirmedAt} />
+                        </td>
 
-                            {/* Clearance Status */}
-                            <td className="px-4 py-3.5">
-                              <ClearanceStatusBadge cleared={candidate.status.cleared} />
-                            </td>
-
-                            {/* Action */}
-                            <td className="pl-4 pr-6 py-3.5 text-right">
-                              <ClearanceActionButton
-                                candidate={candidate}
-                                onSelect={setSelectedCandidate}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                        {/* Action */}
+                        <td className="pl-4 pr-6 py-3.5 text-right">
+                          <ClearanceActionButton
+                            candidate={candidate}
+                            onSelect={setSelectedCandidate}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </>
@@ -488,6 +468,7 @@ export function CandidateTable({
 
         {/* Confirmation Dialog */}
         <ConfirmClearanceDialog
+          key={selectedCandidate?.studentId}
           candidate={selectedCandidate}
           semesterId={semesterId}
           isOpen={Boolean(selectedCandidate)}
