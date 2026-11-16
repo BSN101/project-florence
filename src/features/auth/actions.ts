@@ -76,9 +76,9 @@ export async function completePasswordRecovery(formData: FormData) {
   redirect("/sign-in?reset=success");
 }
 
-// Invoke only through a POST Server Action form; Next.js checks Origin against Host.
+// Invoke only through SignOutForm (a POST Server Action); Next.js checks Origin against Host.
+// No redirect here: the form reloads the page in full so no signed-in pages stay in memory.
 export async function signOut() {
   const client = await createUserClient();
   await client.auth.signOut();
-  redirect("/sign-in");
 }

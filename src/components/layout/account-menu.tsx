@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
-import { signOut } from "@/features/auth/actions";
+import { SignOutForm } from "@/features/auth/components/sign-out-form";
 import type { Workspace } from "@/features/access/access-policy";
 import { workspaceLabels } from "@/features/access/workspace-navigation";
 import type { AccessContext } from "@/server/auth/access-context";
@@ -103,7 +103,7 @@ export function AccountMenu({ workspace, access }: Props) {
           <DropdownMenuSeparator />
           <DropdownMenuItem render={<Link href="/account" />}><UserRoundCog />Account</DropdownMenuItem>
           <DropdownMenuItem render={<Link href="/account#password" />}><KeyRound />Change password</DropdownMenuItem>
-          <DropdownMenuItem render={<form action={signOut}><button type="submit" className="flex w-full items-center gap-1.5"><LogOut />Sign out</button></form>} />
+          <DropdownMenuItem render={<SignOutForm><button type="submit" className="flex w-full items-center gap-1.5"><LogOut />Sign out</button></SignOutForm>} />
         </DropdownMenuContent>
       </DropdownMenu>
     </>
@@ -164,11 +164,11 @@ export function AccountSheet({ workspace, access }: Props) {
           </li>
         </ul>
 
-        <form action={signOut} className={sheetGroup}>
+        <SignOutForm className={sheetGroup}>
           <button type="submit" className={`${sheetRow} justify-center font-medium text-destructive`}>
             <LogOut className="size-4" />Sign out
           </button>
-        </form>
+        </SignOutForm>
       </BottomSheet>
     </>
   );

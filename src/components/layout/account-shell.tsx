@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Landmark, LogOut } from "lucide-react";
 
-import { signOut } from "@/features/auth/actions";
+import { SignOutForm } from "@/features/auth/components/sign-out-form";
 import { workspaceLabels } from "@/features/access/workspace-navigation";
 import type { AccessContext } from "@/server/auth/access-context";
 
@@ -24,9 +24,9 @@ export function AccountShell({ access, children }: {
                 {workspaceLabels[workspace]}
               </Link>
             ))}
-            <form action={signOut}>
+            <SignOutForm>
               <button type="submit" className="inline-flex items-center gap-2 font-medium text-primary hover:underline"><LogOut className="size-4" />Sign out</button>
-            </form>
+            </SignOutForm>
           </nav>
         </div>
       </header>
