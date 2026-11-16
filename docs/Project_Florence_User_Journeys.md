@@ -180,3 +180,46 @@ Council Executive and Operations officers can inspect permitted student financia
 - Council Representatives and non-Council roles are denied access to student financial ledgers.
 - Financial figures, obligation standings, and payment histories match between the student view and the council ledger view.
 - Waiver details and refund records are accurately displayed.
+
+## Submit student transfer evidence
+
+- **Author:** Reipoh Gabriel Arradaza
+- **Actors:** Student.
+- **Starts at:** Student workspace > Fees & fines (`/student/fees-and-fines`); user must have an active student profile.
+- **References:** FL-023, FL-047, FL-022; Schema sections 7.3 (`obligations`), 7.4 (`payment_accounts`), 7.5 (`payments`), 7.6 (`payment_items`), 5 (`files`).
+
+### Main flow
+
+1. The Student navigates to Fees & fines in the Student workspace and clicks "Submit Transfer Evidence".
+2. The system opens the multi-step payment wizard.
+3. In Step 1 (Obligations), the student selects an academic term with unpaid obligations (including older unpaid semesters) and selects one or more complete obligations. The system enforces the single-semester rule and live-calculates the full payable sum.
+4. In Step 2 (Destination), the student selects an active Council payment account (e.g., GCash, Landbank), copies the account number or scans the QR code image if available.
+5. In Step 3 (Proof), the student enters the bank/e-wallet transfer reference number and uploads a screenshot/photo of their receipt (JPEG/PNG/WebP, max 4 MB).
+6. In Step 4 (Review), the student reviews the semester, selected dues, total amount, destination snapshot, reference number, and receipt thumbnail, then submits.
+7. The system compresses the proof image, uploads it to private R2 storage (`payment_proof`), executes the atomic `submit_transfer_payment` RPC capturing immutable destination snapshots and same-semester items, and sets payment status to `pending`.
+8. The student sees the confirmation screen and can switch directly to Payment History to track their submission.
+
+### System involvement
+
+- Table `payments`: inserts a pending transfer record with captured snapshot columns (`destination_label`, `destination_account_name`, `destination_account_reference`), `proof_file_id`, and `request_key`.
+- Table `payment_items`: records one row per selected obligation, enforcing composite foreign keys (`student_id`, `semester_id`).
+- Private R2 Storage: validates, strips EXIF metadata, compresses, and stores the receipt image under purpose `payment_proof`.
+- RPC `submit_transfer_payment`: validates active destination account status under `FOR SHARE` lock, proof ownership, and same-semester non-waived obligation validity.
+
+### Outcome
+
+The student creates a pending transfer submission covering selected obligations for one semester. The submission does not settle obligations until Council manually verifies it.
+
+### Important alternatives
+
+- **Cross-Semester Selection Block:** The UI and server both enforce that an individual transfer covers obligations from exactly one semester. Switching semesters in the wizard clears previous selections.
+- **Archived Destination Account:** If a destination account is archived while a student is submitting, the atomic transaction rejects the submission and prompts the student to choose an active account.
+- **Duplicate Submissions:** Duplicate submissions covering the same obligation are permitted in pending status; Council manually reviews and resolves duplicates during verification without automated reservation locks.
+
+### Acceptance checks
+
+- A student can select complete obligations from only one semester per submission.
+- Selecting obligations across different semesters is blocked in both UI and server validation.
+- Destination account details are immutably snapshotted onto the payment record.
+- Uploaded receipt proof is private and accessible only by the student and authorized Council reviewers.
+- Pending submissions do not settle obligations until Council manual verification.
