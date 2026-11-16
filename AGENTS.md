@@ -78,6 +78,9 @@ Details: architecture §4, "Caching and authorization".
   never an authorization check.
 - Writes refresh affected data with `revalidatePath`, or `updateTag` for
   tagged cache entries.
+- Link revisits within 30 s reuse the last render (`staleTimes.dynamic`).
+  Screens showing changes made by other people (payments, attendance,
+  clearance) include `RefreshButton`.
 
 ### Types and contracts
 
