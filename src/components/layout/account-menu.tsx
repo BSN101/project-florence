@@ -49,24 +49,30 @@ function stayIfCurrent(event: React.MouseEvent, workspace: Workspace, next: Work
   if (next === workspace) event.preventDefault();
 }
 
-/** Desktop account menu in the sidebar footer. */
-export function AccountMenu({ workspace, access }: Props) {
+/** Desktop account menu: the sidebar footer row, or (`compact`) a header avatar where there is no sidebar. */
+export function AccountMenu({ workspace, access, compact = false }: Props & { compact?: boolean }) {
   const { fullName, initials, role } = identity(access, workspace);
 
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<SidebarMenuButton size="lg" tooltip={fullName} />}>
-          <Avatar className="size-8 rounded-lg">
-            <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-          </Avatar>
-          <div className="grid flex-1 text-left leading-tight">
-            <span className="truncate font-medium">{fullName}</span>
-            <span className="truncate text-xs">{role}</span>
-          </div>
-          <ChevronUp className="ml-auto" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="start" className="min-w-64">
+        {compact ? (
+          <DropdownMenuTrigger aria-label="Account menu" className="flex size-9 items-center justify-center rounded-full transition-opacity duration-150 hover:opacity-80">
+            <Avatar className="size-8"><AvatarFallback className="text-xs">{initials}</AvatarFallback></Avatar>
+          </DropdownMenuTrigger>
+        ) : (
+          <DropdownMenuTrigger render={<SidebarMenuButton size="lg" tooltip={fullName} />}>
+            <Avatar className="size-8 rounded-lg">
+              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="grid flex-1 text-left leading-tight">
+              <span className="truncate font-medium">{fullName}</span>
+              <span className="truncate text-xs">{role}</span>
+            </div>
+            <ChevronUp className="ml-auto" />
+          </DropdownMenuTrigger>
+        )}
+        <DropdownMenuContent side={compact ? "bottom" : "top"} align={compact ? "end" : "start"} className="min-w-64">
           <DropdownMenuGroup>
             <DropdownMenuLabel className="p-2 font-normal">
               <div className="flex items-center gap-2">

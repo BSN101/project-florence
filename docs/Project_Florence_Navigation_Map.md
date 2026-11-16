@@ -20,19 +20,19 @@ Shared access and account
 └── Personal information / password change / sign out
 
 Student
-├── Home and attendance QR
+├── Home
 ├── Events
-├── Fees and fines
-├── Merits, demerits and services
+├── Fees & fines
+├── Conduct
 ├── Clearance
 └── Notifications
 
 Council
 ├── Students
 ├── Events
-├── Fees and fines
+├── Fees & fines
 ├── Payments
-├── Merit endorsements and Council demerits
+├── Conduct
 ├── Clearance
 ├── Reports
 ├── Semesters
@@ -41,9 +41,9 @@ Council
 
 Faculty
 ├── Students
-├── My merits and demerits
-├── Merit endorsements
-├── Service sessions
+├── My entries
+├── Endorsements
+├── Services
 ├── Clearance                       [matching Coordinator only]
 └── External CI records             [RLE Coordinator only]
 
@@ -79,10 +79,10 @@ All student views are limited to the signed-in student's records.
 
 | Destination | What belongs here | Related FL IDs |
 |---|---|---|
-| Home and attendance QR | Summary, quick links and university-number attendance QR; profile through shared account controls | FL-004, FL-012, FL-043 |
+| Home | Summary, quick links and university-number attendance QR; profile through shared account controls | FL-004, FL-012, FL-043 |
 | Events | Upcoming/past eligible events, own attendance and identified post-event feedback submission | FL-015, FL-019 |
-| Fees and fines | Semester-specific obligations, transfer submission, payment history and outcomes | FL-022–023 |
-| Merits, demerits and services | Own Office/RLE records and balances, merit application and own disciplinary report | FL-029, FL-036, FL-045 |
+| Fees & fines | Semester-specific obligations, transfer submission, payment history and outcomes | FL-022–023 |
+| Conduct | Own Office/RLE records and balances, merit application and own disciplinary report | FL-029, FL-036, FL-045 |
 | Clearance | Own Council, Academic and RLE semester confirmations | FL-042 |
 | Notifications | Agreed business notices with links to permitted records | FL-044 |
 
@@ -96,9 +96,9 @@ Notifications uses FL-044 in-app delivery. Business email, read-state and notifi
 |---|---|---|---|
 | Students | E, O | Roster import/add/edit, invitations and directory; contextual links to permitted student records | FL-007–009 |
 | Events | E, O, R | All events and attendance capture. E/O also manage events, configure/generate consequences and view identified feedback/results. R has no event-management, consequence-generation or feedback-result access | FL-013, FL-015–019 |
-| Fees and fines | E, O | Fee/fine definitions, fee publication, student obligations and unpaid-obligation waiver | FL-014, FL-020–022, FL-026 |
+| Fees & fines | E, O | Fee/fine definitions, fee publication, student obligations and unpaid-obligation waiver | FL-014, FL-020–022, FL-026 |
 | Payments | E, O | Transfer review, cash recording, actual refunds, payment correction and histories | FL-022, FL-024–025, FL-027–028 |
-| Merit endorsements and Council demerits | E, O | Council-origin endorsements/awards and generated demerits; submit endorsements. Only E may waive Council-generated demerits | FL-029, FL-031, FL-034 |
+| Conduct | E, O | Council-origin endorsements/awards and generated demerits; submit endorsements. Only E may waive Council-generated demerits | FL-029, FL-031, FL-034 |
 | Clearance | E, O | Review and permanently confirm Council clearance; view permitted confirmation context | FL-040, FL-042 |
 | Reports | E, O | Council summaries and student listings within the agreed financial/Council-origin disciplinary scope | FL-046 |
 | Semesters | E, O | Create semesters and activate the current semester | FL-006 |
@@ -114,9 +114,9 @@ Academic/Clinical instructors share the navigation structure; actions use the co
 | Destination | Visible to | What belongs here | Related FL IDs |
 |---|---|---|---|
 | Students | Instructors and coordinators | Student directory/personal information. Instructors reach their permitted own-entry actions; coordinators can additionally review student disciplinary history and balances | FL-009, FL-029–030, FL-033–034 |
-| My merits and demerits | Instructors and coordinators in their instructor capacity | Own awards, own demerits and permitted waiver actions; contextual student selection for entry | FL-029–030, FL-033–034 |
-| Merit endorsements | Instructors, including coordinators in their instructor capacity | Assigned Council endorsements and own approval/rejection decisions | FL-032 |
-| Service sessions | Instructors and coordinators in their instructor capacity | Applicable-bucket sessions, participant attendance, explicit completion and issuer-only credit revocation | FL-037–039 |
+| My entries | Instructors and coordinators in their instructor capacity | Own awards, own demerits and permitted waiver actions; contextual student selection for entry | FL-029–030, FL-033–034 |
+| Endorsements | Instructors, including coordinators in their instructor capacity | Assigned Council endorsements and own approval/rejection decisions | FL-032 |
+| Services | Instructors and coordinators in their instructor capacity | Applicable-bucket sessions, participant attendance, explicit completion and issuer-only credit revocation | FL-037–039 |
 | Clearance | Academic/RLE Coordinators only | Student history and Council status; confirm only the corresponding Faculty component | FL-029, FL-041–042 |
 | External CI records | RLE Coordinator only | Attributed external merits/demerits and waivers of external demerits entered by that coordinator | FL-034–035 |
 
@@ -138,11 +138,11 @@ Below the `md` breakpoint, the Student and Council workspaces show a bottom tab 
 
 | Workspace | Tabs | Everything else |
 |---|---|---|
-| Student | Home, Events, Fees, Merits, Clearance | Notifications through the header bell |
+| Student | Home, Events, Fees, Conduct, Clearance | Notifications through the header bell |
 | Council Executive and Operations | Students, Events, Payments, Clearance | A "More" sheet |
 | Council Representative | No tab bar | Only one destination is visible |
 
-Faculty, Platform administration and Representatives use the sidebar drawer on phones. In the Student and Council workspaces, the account menu moves to a header avatar on phones.
+Faculty and Platform administration use the sidebar drawer on phones. A workspace with only one destination (Council Representatives) shows no sidebar, drawer or tab bar at any width; its header carries the brand and the account menu. In the Student and Council workspaces, the account menu moves to a header avatar on phones.
 
 ## Contextual navigation, not additional menu items
 

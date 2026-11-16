@@ -1,6 +1,6 @@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { Workspace } from "@/features/access/access-policy";
-import { getWorkspaceNavigation, hasMobileTabBar } from "@/features/access/workspace-navigation";
+import { getWorkspaceNavigation, hasMobileTabBar, isFocusedWorkspace } from "@/features/access/workspace-navigation";
 import { getUnreadNotificationCount } from "@/features/notifications/queries";
 import { getAccessContext } from "@/server/auth/access-context";
 import { AppSidebar } from "./app-sidebar";
@@ -18,15 +18,18 @@ export async function WorkspaceChrome({ workspace, children }: { workspace: Work
 
   const navigation = getWorkspaceNavigation(workspace, access);
   const tabBar = hasMobileTabBar(navigation);
+  const focused = isFocusedWorkspace(navigation);
   // Not awaited: the badge streams in. Notification actions refresh it with revalidatePath("/student", "layout").
   const unreadNotifications = workspace === "student" ? getUnreadNotificationCount().catch(() => 0) : undefined;
 
   return (
     <SidebarProvider>
-      <AppSidebar workspace={workspace} navigation={navigation} access={access} unreadNotifications={unreadNotifications} />
+      {!focused && <AppSidebar workspace={workspace} navigation={navigation} access={access} unreadNotifications={unreadNotifications} />}
+      {/* Inset panel (md+): covers the 8px gap above the sticky header so content never shows through it. */}
+      {!focused && <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-30 hidden h-2 bg-sidebar md:block" />}
       <SidebarInset className="min-w-0">
         <WorkspaceHeader workspace={workspace} navigation={navigation} access={access}
-          unreadNotifications={unreadNotifications} tabBar={tabBar} />
+          unreadNotifications={unreadNotifications} tabBar={tabBar} focused={focused} />
         {children}
       </SidebarInset>
       {tabBar && <MobileTabBar workspace={workspace} navigation={navigation} />}

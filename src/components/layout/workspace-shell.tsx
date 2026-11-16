@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import type { Workspace } from "@/features/access/access-policy";
-import { destinationHref, getWorkspaceNavigation, hasMobileTabBar, workspaceLabels } from "@/features/access/workspace-navigation";
+import { destinationHref, getWorkspaceNavigation, hasMobileTabBar, isFocusedWorkspace, workspaceLabels } from "@/features/access/workspace-navigation";
 import { SemesterContext } from "@/features/semesters/components/semester-context";
 import { SemesterFilter } from "@/features/semesters/components/semester-filter";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
@@ -34,6 +34,7 @@ export async function WorkspaceShell({ workspace, destination = "", semester, ch
 
   const currentItem = navigation.find((item) => item.slug === destination)!;
   const tabBar = hasMobileTabBar(navigation);
+  const focused = isFocusedWorkspace(navigation);
   const visibleSemesters = workspace === "student"
     ? access.semesters.filter((item) => access.enrollments.some((enrollment) => enrollment.semester_id === item.id))
     : access.semesters;
@@ -46,8 +47,8 @@ export async function WorkspaceShell({ workspace, destination = "", semester, ch
 
   return (
     <PageTransition>
-      <div className={`min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-8 lg:px-10 ${tabBar ? "max-md:pb-[calc(5rem+env(safe-area-inset-bottom))]" : ""}`}>
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 sm:gap-8">
+      <div className={`min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-8 lg:px-10 ${tabBar ? "max-md:pb-[calc(6rem+env(safe-area-inset-bottom))]" : ""}`}>
+        <div className={`mx-auto flex flex-col gap-6 sm:gap-8 ${focused ? "max-w-2xl" : "max-w-5xl"}`}>
           <section className="flex flex-col gap-3 sm:gap-5">
             <div>
               <p className="hidden text-sm font-medium text-muted-foreground md:block">{workspaceLabels[workspace]} workspace</p>
