@@ -77,6 +77,17 @@ export type CouncilDisciplinaryViewData = {
   endorsements: MeritEndorsementRecord[];
 };
 
+/** The roster fields the award picker needs; nothing else leaves the server. */
+export type AwardRecipientOption = {
+  student_id: string;
+  university_id: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  suffix: string | null;
+  year_level: number;
+};
+
 export type FacultyMeritGroup = {
   id: string;
   student_id: string;

@@ -231,7 +231,7 @@ export async function getMyFacultyMerits(semesterId: string): Promise<FacultyMer
   const { data, error } = await client
     .from("merits")
     .select(
-      "id, student_id, semester_id, source, description, awarded_on, expires_on, awarded_by, created_at, award_request_key, award_unit_index"
+      "id, student_id, semester_id, description, awarded_on, expires_on, created_at, award_request_key"
     )
     .eq("awarded_by", actorId)
     .eq("semester_id", semesterId)
