@@ -132,7 +132,7 @@ The app runs Next.js with `cacheComponents` and `partialPrefetching`. A link pre
 - **`instant = false`.** Every page and workspace layout currently exports it, because both await the session outside `<Suspense>`. Keep it on new pages until session reads move behind Suspense or a private cache.
 - **Client cache window.** `staleTimes.dynamic` is 30 s (`next.config.ts`): returning to a page by link within 30 s reuses its last render without a server request. A user's own writes refresh it immediately through `revalidatePath`. Screens that show changes other people make (payment review, event attendance, clearance queues) render `RefreshButton` (`src/components/layout/refresh-button.tsx`) with the render time, so users can see the data's age and fetch fresh data. Add it to new screens of that kind.
 - **Preserved routes.** With Cache Components, Next.js keeps the last three visited routes alive, hidden with React `<Activity>`, and Back/Forward shows them without a server request. Do not key layout-level wrappers by pathname: re-mounting discards the preserved routes. Component state survives a return, so reset transient UI (open menus, stale success messages) explicitly. Sign-out loads `/sign-in` in full (`SignOutForm`) so no signed-in pages stay in memory.
-- **Motion** uses React `ViewTransition` and the values in [Design tokens](Florence_Design_Tokens.md). Respect `prefers-reduced-motion`.
+- **Motion** uses React `ViewTransition` for page changes (`PageTransition`, and `DrillTransition` for list → detail inside one page) and CSS transitions for selection indicators. Principles are in [`DESIGN.md`](../DESIGN.md) and values in [Design tokens](Florence_Design_Tokens.md). Respect `prefers-reduced-motion`.
 
 ### Features and shared code
 

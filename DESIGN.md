@@ -1,6 +1,6 @@
 # Florence frontend design principles
 
-**Status:** Adopted 2026-11-16. Rules marked *planned* are agreed but not yet built.
+**Status:** Adopted 2026-11-16.
 
 These are the rules for layout, placement, spacing, type, materials, motion and interaction in the Florence frontend. Values live in [`docs/Florence_Design_Tokens.md`](docs/Florence_Design_Tokens.md). Navigation, layout and caching rules in [`AGENTS.md` §4](AGENTS.md) still apply and win if the two disagree.
 
@@ -112,7 +112,7 @@ Frosted material belongs only to the functional and modal layers, never to cards
 | Gesture | Transition |
 |---|---|
 | Switching tabs or sidebar items | Content crossfades. The selection indicator glides. No sliding pages (HIG: tab switches don't push). |
-| Opening a detail (list → event) | *Planned:* a forward push (slide in from the trailing edge with a slight parallax). Back reverses it. Uses `transitionTypes` on `<Link>`. |
+| Opening a detail (list → event) | A forward push on phones: the new view slides 60 px in from the trailing edge while the old one gives way and fades. The back link reverses it. Use `DrillTransition` in the page and `transitionTypes={["nav-forward"]}` or `["nav-back"]` on the links. |
 | Browser Back or swipe | No direction is known, so content crossfades. Preserved routes show at once. |
 | Sheet or drawer | Slides up from the bottom (phones). The backdrop fades. |
 | Dialog or menu | Fades in from 96–98% scale, anchored to its trigger when possible. |

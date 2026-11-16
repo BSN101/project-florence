@@ -15,3 +15,14 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     </ViewTransition>
   );
 }
+
+const push = { "nav-forward": "push-forward", "nav-back": "push-back", default: "none" };
+
+/**
+ * Directional push for a drill-down inside one page (event list → event detail), keyed by what is
+ * shown. Links opt in with transitionTypes={["nav-forward"]} or ["nav-back"]; browser Back carries no
+ * type, so it swaps without motion. Phones only (globals.css). Render it inside the page, never a layout.
+ */
+export function DrillTransition({ id, children }: { id: string; children: React.ReactNode }) {
+  return <ViewTransition key={id} enter={push} exit={push} default="none">{children}</ViewTransition>;
+}

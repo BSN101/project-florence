@@ -51,6 +51,9 @@
   --radius-2xl: 1.5rem;
   --radius-3xl: 1.5rem;
   --radius-4xl: 1.5rem;
+  /* Motion (DESIGN.md §7). Utilities: ease-glide, ease-out-soft. */
+  --ease-glide: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 :root {
@@ -94,9 +97,7 @@
   --input: #7c7673;
   --ring: #7b5844;
   --radius: 1rem;
-  /* Font files are not yet bundled. The documented faces take effect if installed locally. */
-  --font-body: "Inter", Arial, sans-serif;
-  --font-display: "Be Vietnam Pro", Arial, sans-serif;
+  /* --font-body (Inter) and --font-display (Be Vietnam Pro) come from next/font in app/layout.tsx. */
 }
 
 @layer base {
@@ -134,6 +135,7 @@
     font-size: 1.75rem;
     font-weight: 600;
     line-height: 2.25rem;
+    letter-spacing: -0.02em;
   }
 
   .section-title {
@@ -141,6 +143,7 @@
     font-size: 1.25rem;
     font-weight: 600;
     line-height: 1.75rem;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -154,15 +157,18 @@
 }
 
 /* Page navigation (React <ViewTransition> in PageTransition): only the content fades; the
-   header (anchored by its own name), tab bar and page chrome swap instantly, as iOS tab switches do. Phones only. */
-::view-transition-group(workspace-header) {
+   header and tab bar (anchored by their own names, so the fading content never paints over them) and page chrome swap instantly, as iOS tab switches do. Phones only. */
+::view-transition-group(workspace-header),
+::view-transition-group(workspace-tab-bar) {
   animation: none;
   z-index: 100;
 }
-::view-transition-old(workspace-header) {
+::view-transition-old(workspace-header),
+::view-transition-old(workspace-tab-bar) {
   display: none;
 }
-::view-transition-new(workspace-header) {
+::view-transition-new(workspace-header),
+::view-transition-new(workspace-tab-bar) {
   animation: none;
 }
 ::view-transition {
@@ -176,7 +182,7 @@
   animation: 90ms ease-out both page-fade-out;
 }
 ::view-transition-new(.page-fade) {
-  animation: 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both page-fade-in;
+  animation: 160ms var(--ease-out-soft) both page-fade-in;
 }
 @keyframes page-fade-in {
   from { opacity: 0; }
@@ -184,9 +190,38 @@
 @keyframes page-fade-out {
   to { opacity: 0; }
 }
+/* Drill-down push (DrillTransition): the new view slides in from the side it lives on, the old one
+   gives way a little and fades, as an iOS navigation push does at a web-friendly 60px. */
+::view-transition-old(.push-forward) {
+  --push-offset: -60px;
+  animation: 150ms ease-in both push-fade reverse, 350ms var(--ease-glide) both push-slide reverse;
+}
+::view-transition-new(.push-forward) {
+  --push-offset: 60px;
+  animation: 200ms var(--ease-out-soft) 100ms both push-fade, 350ms var(--ease-glide) both push-slide;
+}
+::view-transition-old(.push-back) {
+  --push-offset: 60px;
+  animation: 150ms ease-in both push-fade reverse, 350ms var(--ease-glide) both push-slide reverse;
+}
+::view-transition-new(.push-back) {
+  --push-offset: -60px;
+  animation: 200ms var(--ease-out-soft) 100ms both push-fade, 350ms var(--ease-glide) both push-slide;
+}
+@keyframes push-fade {
+  from { opacity: 0; }
+}
+@keyframes push-slide {
+  from { translate: var(--push-offset); }
+  to { translate: 0; }
+}
 @media (min-width: 768px) {
   ::view-transition-old(.page-fade),
-  ::view-transition-new(.page-fade) {
+  ::view-transition-new(.page-fade),
+  ::view-transition-old(.push-forward),
+  ::view-transition-new(.push-forward),
+  ::view-transition-old(.push-back),
+  ::view-transition-new(.push-back) {
     animation: none;
   }
 }
