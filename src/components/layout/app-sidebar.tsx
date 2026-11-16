@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import {
   Bell,
   BookOpenCheck,
@@ -24,6 +26,7 @@ import {
 
 import { AccountMenu } from "@/components/layout/account-menu";
 import { LinkPendingIndicator } from "@/components/layout/navigation-overlay";
+import { NotificationCount } from "@/components/layout/notification-count";
 import type { AccessContext } from "@/server/auth/access-context";
 import {
   Sidebar,
@@ -51,13 +54,15 @@ const icons = [QrCode, CalendarDays, CircleDollarSign, Medal, ClipboardCheck, Be
 
 type ReadyAccess = Extract<AccessContext, { status: "ready" }>;
 
-export function AppSidebar({ workspace, navigation, currentSlug, access, unreadNotifications = 0 }: {
+export function AppSidebar({ workspace, navigation, access, unreadNotifications }: {
   workspace: Workspace;
   navigation: NavigationItem[];
-  currentSlug: string;
   access: ReadyAccess;
-  unreadNotifications?: number;
+  /** Students only; streamed so the sidebar does not wait for the count. */
+  unreadNotifications?: Promise<number>;
 }) {
+  // Rendered once by the workspace layout, so the current item comes from the URL, not a page prop.
+  const currentSlug = usePathname().replace(new RegExp(`^/${workspace}/?`), "");
   return (
     <Sidebar collapsible="icon" className="pl-[env(safe-area-inset-left)]">
       <SidebarHeader>
@@ -115,10 +120,8 @@ export function AppSidebar({ workspace, navigation, currentSlug, access, unreadN
                       render={<Link href={destinationHref(workspace, item.slug)} />}>
                       <Icon />
                       <span>{item.label}</span>
-                      {workspace === "student" && item.slug === "notifications" && unreadNotifications > 0 && (
-                        <span className="ml-auto flex min-w-5 h-5 items-center justify-center rounded-full bg-primary/15 text-primary px-1.5 text-[10px] font-bold">
-                          {unreadNotifications > 99 ? "99+" : unreadNotifications}
-                        </span>
+                      {item.slug === "notifications" && unreadNotifications && (
+                        <Suspense><NotificationCount count={unreadNotifications} variant="sidebar" /></Suspense>
                       )}
                       <LinkPendingIndicator />
                     </SidebarMenuButton>

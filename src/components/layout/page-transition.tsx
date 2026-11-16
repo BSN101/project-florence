@@ -1,17 +1,16 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { ViewTransition } from "react";
 
 /**
- * Fades the page on navigation (phones only, see globals.css). Keyed by pathname so React sees an
- * exit/enter pair at the top level, which is the only place enter/exit fire. Search-param changes
- * (the semester filter) and refreshes keep the same key and stay still.
+ * Fades page content on navigation (phones only, see globals.css). Rendered inside each page, not
+ * keyed by pathname in the layout: a key would re-mount the subtree and discard the routes Next.js
+ * keeps alive with <Activity>, so Back would rebuild the page instead of showing it at once.
+ * Search-param changes (the semester filter) and refreshes keep it mounted and still.
  */
 export function PageTransition({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   return (
-    <ViewTransition key={pathname} enter="page-fade" exit="page-fade" default="none">
+    <ViewTransition enter="page-fade" exit="page-fade" default="none">
       {children}
     </ViewTransition>
   );

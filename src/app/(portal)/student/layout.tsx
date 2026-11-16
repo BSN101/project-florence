@@ -1,13 +1,8 @@
-import { Suspense } from "react";
+import { WorkspaceChrome } from "@/components/layout/workspace-chrome";
 
-import { PageTransition } from "@/components/layout/page-transition";
-import { WorkspaceTabBar } from "@/components/layout/workspace-tab-bar";
+// The chrome reads the session; every page here blocks on it too (see AGENTS.md, Rendering and navigation).
+export const instant = false;
 
 export default function StudentLayout({ children }: LayoutProps<"/student">) {
-  return (
-    <>
-      <PageTransition>{children}</PageTransition>
-      <Suspense><WorkspaceTabBar workspace="student" /></Suspense>
-    </>
-  );
+  return <WorkspaceChrome workspace="student">{children}</WorkspaceChrome>;
 }

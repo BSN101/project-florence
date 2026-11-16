@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { AttendanceQrCard } from "@/features/students/components/attendance-qr-card";
 import { generateAttendanceQrDataUrl } from "@/features/students/qr";
 import { displayName } from "@/lib/format-name";
@@ -24,7 +24,6 @@ export default async function StudentPage({
   const { semester } = await searchParams;
   const access = await getAccessContext();
   const ready = access.status === "ready" ? access : null;
-  if (ready) preloadWorkspaceShell("student");
 
   const profile = ready?.profile;
   const universityId = profile?.university_id;

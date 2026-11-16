@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 
-import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
 import {
   CouncilFinancialRosterTable,
@@ -34,7 +34,6 @@ export default async function CouncilPaymentsPage({
     );
   }
 
-  preloadWorkspaceShell("council");
 
   // Verify Council officer privilege (Executive or Operations required for financial inspection)
   if (!isAuthorizedCouncilFinancialViewer(access.councilRole)) {

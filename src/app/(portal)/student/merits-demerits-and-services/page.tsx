@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { AlertCircle } from "lucide-react";
 
-import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Card } from "@/components/ui/card";
 import { StudentDisciplinaryView } from "@/features/discipline/components/student-disciplinary-view";
 import { getMyDisciplinaryRecords } from "@/features/discipline/queries";
@@ -39,7 +39,6 @@ export default async function StudentMeritsDemeritsAndServicesPage({
     ? enrolled.find((s) => s.id === filter.data.semester)?.id
     : enrolled.find((s) => s.is_current)?.id ?? enrolled[0]?.id;
 
-  preloadWorkspaceShell("student");
 
   let data: Awaited<ReturnType<typeof getMyDisciplinaryRecords>> | null = null;
   let loadFailed = false;

@@ -1,3 +1,7 @@
 "use client";
 
-export { PortalError as default } from "@/components/layout/portal-error";
+import { PortalError } from "@/components/layout/portal-error";
+
+export default function ErrorPage(props: React.ComponentProps<typeof PortalError>) {
+  return <PortalError {...props} />;
+}

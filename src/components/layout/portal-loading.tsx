@@ -1,9 +1,29 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
+/** Page content placeholder. Workspace layouts show it while a page loads; their chrome stays mounted. */
+export function ContentLoading() {
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-5 sm:gap-8 sm:px-8 sm:py-8 lg:px-10" aria-busy="true" role="status">
+      <span className="sr-only">Loading page</span>
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-9 w-72 max-w-full" />
+        <Skeleton className="h-5 w-96 max-w-full" />
+      </div>
+      <Skeleton className="h-16 w-full" />
+      <div className="grid gap-5 md:grid-cols-2">
+        <Skeleton className="h-44 w-full" />
+        <Skeleton className="h-44 w-full" />
+        <Skeleton className="h-32 w-full md:col-span-2" />
+      </div>
+    </div>
+  );
+}
+
+/** First-load placeholder, before any workspace layout exists: sidebar, header and content. */
 export function PortalLoading() {
   return (
-    <main className="flex min-h-svh w-full" aria-busy="true" role="status">
-      <span className="sr-only">Loading page</span>
+    <main className="flex min-h-svh w-full">
       <aside className="hidden w-64 shrink-0 border-r border-border bg-sidebar p-4 md:flex md:flex-col">
         <Skeleton className="h-10 w-44" />
         <div className="mt-10 flex flex-col gap-3">
@@ -16,19 +36,7 @@ export function PortalLoading() {
           <Skeleton className="size-8" />
           <Skeleton className="h-5 w-40" />
         </header>
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-5 sm:gap-8 sm:px-8 sm:py-8 lg:px-10">
-          <div className="space-y-3">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-9 w-72 max-w-full" />
-            <Skeleton className="h-5 w-96 max-w-full" />
-          </div>
-          <Skeleton className="h-16 w-full" />
-          <div className="grid gap-5 md:grid-cols-2">
-            <Skeleton className="h-44 w-full" />
-            <Skeleton className="h-44 w-full" />
-            <Skeleton className="h-32 w-full md:col-span-2" />
-          </div>
-        </div>
+        <ContentLoading />
       </section>
     </main>
   );
