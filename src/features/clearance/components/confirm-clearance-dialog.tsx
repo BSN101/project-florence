@@ -31,6 +31,8 @@ export function ConfirmClearanceDialog({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // One key per opened dialog (it is keyed by student), so a retry replays instead of repeating.
+  const [requestKey] = useState(() => crypto.randomUUID());
 
   if (!candidate) return null;
 
@@ -45,6 +47,7 @@ export function ConfirmClearanceDialog({
       const result = await confirmCouncilClearanceAction({
         studentId: candidate.studentId,
         semesterId,
+        requestKey,
       });
 
       if (!result.success) {
@@ -131,11 +134,11 @@ export function ConfirmClearanceDialog({
           <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card/60 p-3.5 text-xs">
             <div className="flex items-center gap-1.5 font-heading font-semibold text-foreground">
               <ShieldAlert className="size-3.5 text-primary" />
-              <h4>Permanent Record Invariant</h4>
+              <h4>Permanent record</h4>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Council clearance confirmation is <strong>permanent and irreversible</strong>. Once confirmed,
-              it cannot be undone, deleted, or revoked in-app.
+              Council clearance is <strong>permanent</strong>. Once confirmed, it can&apos;t be undone or
+              withdrawn.
             </p>
           </div>
         </div>
@@ -146,7 +149,7 @@ export function ConfirmClearanceDialog({
             variant="outline"
             onClick={onClose}
             disabled={isPending}
-            className="w-full sm:w-auto"
+            className="w-full max-md:min-h-11 sm:w-auto"
           >
             Cancel
           </Button>
@@ -154,7 +157,7 @@ export function ConfirmClearanceDialog({
             type="button"
             onClick={handleConfirm}
             disabled={isPending || candidate.isSelf}
-            className="w-full gap-2 bg-primary font-medium text-primary-foreground hover:bg-primary/90 sm:w-auto"
+            className="w-full gap-2 font-medium max-md:min-h-11 sm:w-auto"
           >
             {isPending && <Loader2 className="size-4 animate-spin" />}
             Confirm Clearance
