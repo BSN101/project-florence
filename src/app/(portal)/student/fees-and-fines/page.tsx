@@ -2,7 +2,15 @@ import { connection } from "next/server";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { StudentFeesAndFinesView } from "@/features/finance/components/student-fees-and-fines-view";
-import { getStudentFinancialAccount } from "@/features/finance/queries";
+import type {
+  ObligationWithStandingDTO,
+  StudentPaymentAccountDTO,
+} from "@/features/finance/contracts";
+import {
+  getActivePaymentAccountsForStudent,
+  getStudentFinancialAccount,
+  getStudentPayableObligations,
+} from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 
@@ -39,13 +47,19 @@ export default async function StudentFeesAndFinesPage({
 
 
   let financialData = null;
+  let paymentAccounts: StudentPaymentAccountDTO[] = [];
+  let payableObligations: ObligationWithStandingDTO[] = [];
   let errorNotice: string | null = null;
 
   if (semesterId) {
     try {
-      financialData = await getStudentFinancialAccount({
-        semesterId,
-      });
+      [financialData, paymentAccounts, payableObligations] = await Promise.all([
+        getStudentFinancialAccount({
+          semesterId,
+        }),
+        getActivePaymentAccountsForStudent(),
+        getStudentPayableObligations(),
+      ]);
     } catch {
       errorNotice =
         "Unable to load your financial records at this time. Please refresh the page.";
@@ -64,7 +78,12 @@ export default async function StudentFeesAndFinesPage({
           <p className="mt-1 text-xs">{errorNotice}</p>
         </div>
       ) : financialData ? (
-        <StudentFeesAndFinesView data={financialData} />
+        <StudentFeesAndFinesView
+          data={financialData}
+          paymentAccounts={paymentAccounts}
+          payableObligations={payableObligations}
+          currentSemesterId={semesterId}
+        />
       ) : (
         <p className="text-sm text-muted-foreground">
           You are not enrolled in a semester, so there are no fees or fines to show.
