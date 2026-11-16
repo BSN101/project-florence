@@ -215,12 +215,11 @@ export function StudentPaymentHistoryTable({
                   <td className="px-5 py-3.5">
                     {p.method === "transfer" ? (
                       <div className="space-y-0.5">
-                        <div className="text-xs font-medium text-foreground">
-                          {p.destination_label || "Transfer"}
-                          {p.destination_account_name
-                            ? ` · ${p.destination_account_name}`
-                            : ""}
-                        </div>
+                        {p.destination_account_name && (
+                          <div className="text-xs font-medium text-foreground">
+                            {p.destination_account_name}
+                          </div>
+                        )}
                         {p.destination_account_reference && (
                           <div className="text-[11px] font-mono text-muted-foreground">
                             Acct: {p.destination_account_reference}
@@ -230,6 +229,11 @@ export function StudentPaymentHistoryTable({
                           <div className="text-[11px] font-mono text-muted-foreground">
                             Ref: {p.reference_number}
                           </div>
+                        )}
+                        {!p.destination_account_name &&
+                          !p.destination_account_reference &&
+                          !p.reference_number && (
+                            <span className="text-xs text-muted-foreground/60">—</span>
                         )}
                       </div>
                     ) : (
