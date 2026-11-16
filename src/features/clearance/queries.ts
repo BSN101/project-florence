@@ -2,7 +2,8 @@ import { cache } from "react";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
-import { getCouncilFinancialRoster } from "@/features/finance/queries";
+import { allRows, getCouncilFinancialRoster } from "@/features/finance/queries";
+import { displayName } from "@/lib/format-name";
 import { isAuthorizedCouncilClearanceRole } from "./authorization";
 import { buildCouncilClearanceCandidates } from "./candidates";
 import type { CouncilClearanceCandidate } from "./contracts";
@@ -13,22 +14,6 @@ export async function assertAuthorizedCouncilClearanceManager() {
     throw new AccessDeniedError("forbidden");
   }
   return context;
-}
-
-/** Reads all rows past the PostgREST API 1,000-row cap with early exit on single page. */
-async function allRows<T>(
-  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-  errorMessage: string
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; ) {
-    const { data, error } = await fetchPage(from, from + 999);
-    if (error) throw new Error(`${errorMessage}: ${error.message}`);
-    if (!data?.length) return rows;
-    rows.push(...data);
-    if (data.length < 1000) return rows;
-    from += data.length;
-  }
 }
 
 /**
@@ -84,7 +69,7 @@ export const getCouncilClearanceCandidates = cache(async function getCouncilClea
   }
 
   return buildCouncilClearanceCandidates({
-    roster: financialRoster,
+    roster: financialRoster.map((student) => ({ ...student, name: displayName(student) })),
     clearances,
     financialSummaries,
     councilDemeritCounts,

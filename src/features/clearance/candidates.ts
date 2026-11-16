@@ -1,22 +1,10 @@
 import type { CouncilClearanceCandidate } from "./contracts";
 
-export type NameParts = {
-  first_name: string;
-  middle_name?: string | null;
-  last_name: string;
-  suffix?: string | null;
-};
-
-export function displayName(p: NameParts): string {
-  return [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ") + (p.suffix ? `, ${p.suffix}` : "");
-}
-
-export const formatDisplayName = displayName;
-
-export type RosterEntry = NameParts & {
+export type RosterEntry = {
   student_id: string;
   university_id: string;
-  student_name?: string;
+  /** Already formatted by the caller (`displayName`), so this module has no runtime imports for `node --test`. */
+  name: string;
   year_level: number;
   academic_status: string;
 };
@@ -57,12 +45,11 @@ export function buildCouncilClearanceCandidates({
     const clearance = clearanceMap.get(student.student_id);
     const financial = financialSummaries.get(student.student_id);
     const demerits = councilDemeritCounts.get(student.student_id) ?? 0;
-    const name = student.student_name ?? displayName(student);
 
     return {
       studentId: student.student_id,
       studentNumber: student.university_id,
-      name,
+      name: student.name,
       yearLevel: student.year_level,
       academicStatus: student.academic_status,
       totalOutstandingPayable: financial?.totalOutstandingPayable ?? 0,
