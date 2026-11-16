@@ -272,6 +272,10 @@ export function StudentObligationsTable({
                         <Info className="size-3.5 mr-1" />
                         Waiver Info
                       </Button>
+                    ) : item.status === "pending_verification" ? (
+                      <span className="text-xs text-muted-foreground">
+                        Transfer pending · Still payable
+                      </span>
                     ) : (
                       <span className="text-xs text-muted-foreground/60">—</span>
                     )}
