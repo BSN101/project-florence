@@ -1,0 +1,65 @@
+import type { CouncilClearanceCandidate } from "./contracts";
+
+export type RosterEntry = {
+  student_id: string;
+  university_id: string;
+  /** Already formatted by the caller (`displayName`), so this module has no runtime imports for `node --test`. */
+  name: string;
+  year_level: number;
+  academic_status: string;
+};
+
+export type ClearanceEntry = {
+  student_id: string;
+  confirmed_at: string;
+  confirmed_by: string;
+};
+
+/**
+ * Pure aggregation function for Council Clearance candidates (FL-040).
+ * Combines semester roster with:
+ * - Existing council clearance confirmations.
+ * - Current & carryover financial payable summaries.
+ * - Active council demerit counts.
+ * - Anti-self-clearance flag for the currently active officer.
+ */
+export function buildCouncilClearanceCandidates({
+  roster,
+  clearances,
+  financialSummaries,
+  councilDemeritCounts,
+  actorProfileId,
+}: {
+  roster: RosterEntry[];
+  clearances: ClearanceEntry[];
+  financialSummaries: Map<string, { totalOutstandingPayable: number }>;
+  councilDemeritCounts: Map<string, number>;
+  actorProfileId: string;
+}): CouncilClearanceCandidate[] {
+  const clearanceMap = new Map<string, ClearanceEntry>();
+  for (const c of clearances) {
+    clearanceMap.set(c.student_id, c);
+  }
+
+  return roster.map((student) => {
+    const clearance = clearanceMap.get(student.student_id);
+    const financial = financialSummaries.get(student.student_id);
+    const demerits = councilDemeritCounts.get(student.student_id) ?? 0;
+
+    return {
+      studentId: student.student_id,
+      studentNumber: student.university_id,
+      name: student.name,
+      yearLevel: student.year_level,
+      academicStatus: student.academic_status,
+      totalOutstandingPayable: financial?.totalOutstandingPayable ?? 0,
+      activeCouncilDemerits: demerits,
+      isSelf: student.student_id === actorProfileId,
+      status: {
+        cleared: Boolean(clearance),
+        confirmedAt: clearance?.confirmed_at ?? null,
+        confirmedBy: clearance?.confirmed_by ?? null,
+      },
+    };
+  });
+}
