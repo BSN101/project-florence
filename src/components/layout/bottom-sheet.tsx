@@ -7,7 +7,7 @@ export const sheetGroup = "overflow-hidden rounded-2xl bg-background divide-y di
 export const sheetRow = "flex min-h-12 w-full items-center gap-3 px-4 text-left text-[15px] transition-colors duration-150 [-webkit-tap-highlight-color:transparent] active:bg-muted focus-visible:bg-muted focus-visible:outline-none [@media(hover:hover)]:hover:bg-muted/60";
 export const sheetIconTile = "flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4";
 
-const ease = "ease-[cubic-bezier(0.32,0.72,0,1)]";
+const ease = "ease-glide";
 
 /** Bottom sheet with a grab handle, swipe-down to dismiss and the iOS sheet curve. Phones only. */
 export function BottomSheet({ open, onOpenChange, trigger, triggerLabel, triggerClassName, icon, title, description, children }: {
