@@ -34,6 +34,7 @@ Never do these without explicit instruction from the user:
   public variables, responses or logs.
 - Enable public signup or use it to bypass provisioning and invitation flows.
 - Edit generated database types by hand.
+- Break a rule in §4 (navigation, layout and caching).
 - Change the meaning of the academic policy extract. Product decisions do not
   amend institutional policy.
 
@@ -48,40 +49,6 @@ Never do these without explicit instruction from the user:
 - Reuse shared UI and utilities; do not duplicate business models across
   workspaces.
 
-### Rendering and navigation
-
-Details and reasons: architecture §3, "Rendering and navigation".
-
-- Navigate with `<Link>`. A clickable row may add `router.push`, but must
-  keep a real link inside it.
-- Put secondary or slow data behind `<Suspense>` so the page frame and
-  primary content are not held back by it.
-- Keep view-only state (tabs, open panels) on the client, using
-  `history.replaceState` when the URL should reflect it.
-- Show pending states inside the affected area. Do not cover the whole
-  screen while a page loads.
-- New workspace pages render `WorkspaceShell` (access gate and page frame).
-  The sidebar, header and tab bar come from the workspace layout; do not
-  render them in pages.
-- Pages and workspace layouts export `instant = false`; keep it on new pages.
-- Do not key layout wrappers by pathname. Next.js keeps recent routes alive
-  for instant Back navigation, and re-mounting discards them.
-
-### Caching
-
-Details: architecture §4, "Caching and authorization".
-
-- `"use cache"` cannot read cookies, so it never runs under the RLS user
-  client. Cache with it only data every signed-in user may see, after an
-  authorization review.
-- Per-user data may use `"use cache: private"` at most. A cached result is
-  never an authorization check.
-- Writes refresh affected data with `revalidatePath`, or `updateTag` for
-  tagged cache entries.
-- Link revisits within 30 s reuse the last render (`staleTimes.dynamic`).
-  Screens showing changes made by other people (payments, attendance,
-  clearance) include `RefreshButton`.
-
 ### Types and contracts
 
 - Parameterize both database clients with the generated `Database` type.
@@ -95,7 +62,82 @@ Details: architecture §4, "Caching and authorization".
 - Keep shared schemas and contracts free of secrets and server-only runtime
   dependencies.
 
-## 4. Authorization and privacy
+## 4. Navigation, layout and caching (required for new features)
+
+These rules keep navigation instant and app-like. Each one fixes a measured
+problem; breaking one silently brings it back. Reasons and details:
+architecture §3 "Rendering and navigation" and §4 "Caching and authorization".
+
+### Pages and layouts
+
+- A workspace page renders `WorkspaceShell` and nothing else from the shell.
+  It is the access gate (redirects, not-found, destination and `semester`
+  checks) and the page frame. Never skip it or copy its checks into a page.
+- The sidebar, header and phone tab bar come only from `WorkspaceChrome` in
+  the workspace `layout.tsx`. Never render them from a page.
+- A page that needs no chrome (full-screen tools such as the QR station)
+  goes in its own route group, like `council/(station)/`, not in a branch
+  inside the chrome.
+- Derive the current destination on the client with `usePathname()` against
+  the navigation list. Do not pass it down from pages.
+- Pages and workspace layouts export `instant = false`; keep it until
+  session reads move behind `<Suspense>` or a private cache.
+
+### Loading, errors and pending states
+
+- Workspace `loading.tsx` renders `ContentLoading` and `error.tsx` renders
+  `PortalError`, both inside the layout so the chrome stays on screen.
+- Write `loading.tsx`, `error.tsx` and other route files as plain function
+  components. `export { X as default } from "…"` breaks in Turbopack dev.
+- Never cover the whole screen while something loads. Show pending state in
+  the affected area: the clicked row, the control that changed, or the
+  content skeleton. Use `useTransition` to keep the current view visible.
+- Navigate with `<Link>`. A clickable row may add `router.push`, but keeps a
+  real link inside it for prefetching, new tabs and keyboard users.
+- Put secondary or slow data behind `<Suspense>`: start the read without
+  awaiting it, pass the promise down and read it with `use()`.
+- Keep view-only state (tabs, open panels) on the client, using
+  `history.replaceState` when the URL should reflect it.
+
+### Back navigation and preserved pages
+
+- Next.js keeps the last three visited routes alive (hidden with
+  `<Activity>`), so Back is instant. Never key a layout-level wrapper by
+  pathname or otherwise re-mount the routes: that discards them.
+- Page transitions go inside the page (`PageTransition` in `WorkspaceShell`),
+  not around the layout's children.
+- Hidden pages keep their state and stay in the DOM. Reset transient UI
+  explicitly (open menus, stale success messages, "tapped" highlights) when
+  the URL changes, and never rely on `document.getElementById` finding the
+  visible copy. Effects run cleanup when a page is hidden.
+- Sign-out must load `/sign-in` in full. Use `SignOutForm`; never sign out
+  with a soft redirect.
+
+### Caching and freshness
+
+- `staleTimes.dynamic` is 30 s: a link revisit within 30 s reuses the last
+  render. Every write action calls `revalidatePath` (or `updateTag`) for the
+  pages it changes, so the user's own changes show at once.
+- Screens that show changes made by other people (payment review,
+  attendance, clearance queues) include `RefreshButton` with the render time.
+- `"use cache"` cannot read cookies, so it never runs under the RLS user
+  client. Cache with it only data every signed-in user may see, after an
+  authorization review.
+- Per-user data may use `"use cache: private"` at most. A cached result is
+  never an authorization check; commands always read current state.
+- No service workers or disk caches for signed-in data.
+
+### Verify before finishing a navigation or layout change
+
+- In a production build (`next build && next start`): Back to a visited page
+  makes no server request and keeps the page; the sidebar never turns into
+  a skeleton; the page title, header title and active item match the URL.
+- Allow and deny checks for each affected role still pass (signed out,
+  wrong workspace, wrong destination, invalid `semester`).
+- On a phone width: the tab bar highlights the current page after Back, and
+  the header turns frosted when the title scrolls under it.
+
+## 5. Authorization and privacy
 
 - Resolve the actor from a verified session and a linked active profile.
 - Ordinary reads use the request-scoped user client, RLS and explicit fields.
@@ -110,7 +152,7 @@ Details: architecture §4, "Caching and authorization".
   business authority.
 - Preserve self-benefit restrictions and archived-profile denial.
 
-## 5. Database changes
+## 6. Database changes
 
 ### Writing migrations
 
@@ -142,7 +184,7 @@ Details: architecture §4, "Caching and authorization".
 - Migration-history repair changes recorded history, not database objects.
   Investigate mismatches before using it.
 
-## 6. Domain rules
+## 7. Domain rules
 
 - Council selects Office/RLE during event consequence generation. Retain the
   selection per event, including zero-demerit outcomes, and include it in
@@ -158,7 +200,7 @@ Details: architecture §4, "Caching and authorization".
 - Preserve received-money, refund, correction and permanent-clearance
   history according to the documented contracts.
 
-## 7. Documentation, verification and reporting
+## 8. Documentation, verification and reporting
 
 - Write concise, standalone current guidance. Do not describe proposed
   behavior as implemented.
