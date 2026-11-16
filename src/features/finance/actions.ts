@@ -819,19 +819,26 @@ export async function uploadTransferProof(
 
 /**
  * Get a short-lived signed URL to preview an uploaded transfer proof image.
- * Authorized for students (their own proof files).
+ * Authorized for students (their own proof files) and Council Executive/Operations viewers.
  */
 export async function getTransferProofUrl(
-  fileId: string
+  fileId: string,
+  options?: { isCouncilView?: boolean }
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
   try {
-    await requireWorkspace("student");
+    const workspace = options?.isCouncilView ? "council" : "student";
+    if (options?.isCouncilView) {
+      await assertAuthorizedCouncilManager();
+    } else {
+      await requireWorkspace("student");
+    }
+
     const parsedFileId = paymentProofFileIdSchema.safeParse(fileId);
     if (!parsedFileId.success) {
       return { success: false, error: "Invalid transfer proof file identifier." };
     }
 
-    const url = await getDownloadUrl(parsedFileId.data, "student");
+    const url = await getDownloadUrl(parsedFileId.data, workspace);
     if (!url) {
       return {
         success: false,

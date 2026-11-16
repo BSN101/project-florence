@@ -326,7 +326,7 @@ async function fetchStudentFinancialAccountData({
     client
       .from("payments")
       .select(
-        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, amount, submitted_at, decided_at, decision_reason"
+        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason"
       )
       .eq("student_id", studentId)
       .order("submitted_at", { ascending: false }),

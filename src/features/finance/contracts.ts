@@ -129,6 +129,7 @@ export type PaymentHistoryDTO = Pick<
   | "decided_at"
   | "decision_reason"
 > & {
+  proof_file_id?: Tables["payments"]["Row"]["proof_file_id"];
   semester_code?: string;
   is_refunded: boolean;
   refunded_at?: string | null;
