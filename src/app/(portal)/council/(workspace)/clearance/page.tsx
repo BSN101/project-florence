@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 
+import { RefreshButton } from "@/components/layout/refresh-button";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { isAuthorizedCouncilClearanceRole } from "@/features/clearance/authorization";
 import { CouncilClearanceView } from "@/features/clearance/components/council-clearance-view";
@@ -19,12 +20,8 @@ export default async function CouncilClearancePage({
   const access = await getAccessContext();
 
   if (access.status !== "ready" || !access.workspaces.includes("council")) {
-    return (
-      <WorkspaceShell workspace="council" destination="clearance" semester={semester} />
-    );
+    return <WorkspaceShell workspace="council" destination="clearance" semester={semester} />;
   }
-
-  const isAuthorized = isAuthorizedCouncilClearanceRole(access.councilRole);
 
   const filter = semesterFilterSchema.safeParse({ semester });
   const semesterId = !filter.success
@@ -33,19 +30,19 @@ export default async function CouncilClearancePage({
     ? access.semesters.find((item) => item.id === filter.data.semester)?.id
     : access.semesters.find((item) => item.is_current)?.id ?? access.semesters[0]?.id;
 
-  const candidates =
-    isAuthorized && semesterId ? await getCouncilClearanceCandidates(semesterId) : [];
+  // Skip the read for other roles; WorkspaceShell then 404s them (Clearance is not in their navigation).
+  const candidates = semesterId && isAuthorizedCouncilClearanceRole(access.councilRole)
+    ? await getCouncilClearanceCandidates(semesterId)
+    : null;
 
   return (
     <WorkspaceShell workspace="council" destination="clearance" semester={semester}>
-      {isAuthorized && semesterId ? (
-        <CouncilClearanceView candidates={candidates} semesterId={semesterId} />
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          {!isAuthorized
-            ? "Only Council Executive and Council Operations officers may access Council clearance."
-            : "No active semester selected."}
-        </div>
+      {semesterId && candidates && (
+        <>
+          {/* Other officers confirm clearances too; revisits may reuse a render up to 30 s old. */}
+          <div className="-mb-2 flex justify-end"><RefreshButton renderedAt={new Date().toISOString()} /></div>
+          <CouncilClearanceView candidates={candidates} semesterId={semesterId} />
+        </>
       )}
     </WorkspaceShell>
   );
