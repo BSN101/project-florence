@@ -2,9 +2,9 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, FileUp, Loader2, RefreshCw, ScanLine, Search } from "lucide-react";
+import { ArrowLeft, FileUp, Loader2, ScanLine, Search } from "lucide-react";
 
+import { RefreshButton } from "@/components/layout/refresh-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { recordAttendance } from "../actions";
@@ -19,8 +19,8 @@ import { Badge, PhaseBadge, StatusBadge, methodLabel } from "./event-badges";
 export type EventTab = "attendance" | "activity" | "details" | "consequences" | "feedback";
 
 const date = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" });
-const dateTime = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
 const time = new Intl.DateTimeFormat("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" });
+const dateTime = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" });
 const fmt = (value: string | null, f = time) => (value ? f.format(new Date(value)) : "—");
 const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
@@ -71,7 +71,6 @@ export function EventDetail({ event, rules, attendees, feedback, canManage, canV
   /** Server render time; Refresh and every capture re-render with fresh data. */
   now: string;
 }) {
-  const router = useRouter();
   const tabs: (readonly [EventTab, string])[] = [
     ...(canViewAttendance ? [["attendance", "Attendance"], ["activity", "Activity"]] as const : []),
     ["details", "Details"],
@@ -79,7 +78,6 @@ export function EventDetail({ event, rules, attendees, feedback, canManage, canV
   ];
   const [tab, setTab] = useState<EventTab>(tabs.some(([key]) => key === initialTab) ? initialTab : tabs[0][0]);
   const [importing, setImporting] = useState(false);
-  const [refreshing, startRefresh] = useTransition();
   const now = Date.parse(serverNow);
   const phase = eventPhase(event, now);
   const capturing = canCapture(event);
@@ -141,11 +139,7 @@ export function EventDetail({ event, rules, attendees, feedback, canManage, canV
             </button>
           ))}
         </nav>
-        <Button type="button" variant="ghost" size="sm" className="shrink-0 gap-1.5 text-xs" disabled={refreshing}
-          onClick={() => startRefresh(() => router.refresh())} title={`Last updated ${time.format(now)}`} aria-label="Refresh">
-          <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Refresh</span>
-        </Button>
+        <RefreshButton renderedAt={serverNow} />
       </div>
 
       {tab === "attendance" && (
