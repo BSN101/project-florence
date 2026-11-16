@@ -149,7 +149,10 @@ export function StudentFeesAndFinesView({
         {activeSection === "obligations" ? (
           <StudentObligationsTable obligations={data.obligations} />
         ) : (
-          <StudentPaymentHistoryTable payments={data.payments} />
+          <StudentPaymentHistoryTable
+            payments={data.payments}
+            isCouncilView={isCouncilView}
+          />
         )}
       </div>
 
