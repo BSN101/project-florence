@@ -52,6 +52,12 @@ export function MobileTabBar({ workspace, navigation }: { workspace: Workspace; 
   const [moreOpen, setMoreOpen] = useState(false);
   // Highlight a tapped tab at once; it falls back to the URL as soon as the pathname changes.
   const [tapped, setTapped] = useState<{ from: string; slug: string } | null>(null);
+  // Forget the tap once the URL changes; otherwise Back to the page it was tapped from re-highlights it.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    setTapped(null);
+  }
 
   const currentSlug = pathname.replace(new RegExp(`^/${workspace}/?`), "");
   // Off-menu routes (the full-screen QR station, not-found pages) get no tab bar.
