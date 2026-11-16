@@ -6,11 +6,13 @@ import { confirmCouncilClearanceSchema } from "./schemas.ts";
 describe("Task T-052 / FL-040: Council Clearance Schemas", () => {
   const validStudentId = "11111111-1111-4111-8111-111111111111";
   const validSemesterId = "22222222-2222-4222-8222-222222222222";
+  const requestKey = "33333333-3333-4333-8333-333333333333";
 
-  test("accepts valid student and semester UUIDs", () => {
+  test("accepts valid student, semester and request key UUIDs", () => {
     const parsed = confirmCouncilClearanceSchema.safeParse({
       studentId: validStudentId,
       semesterId: validSemesterId,
+      requestKey,
     });
     assert.equal(parsed.success, true);
     if (parsed.success) {
@@ -33,6 +35,14 @@ describe("Task T-052 / FL-040: Council Clearance Schemas", () => {
       semesterId: "not-a-uuid",
     });
     assert.equal(parsed.success, false);
+  });
+
+  test("rejects a missing or malformed request key", () => {
+    assert.equal(confirmCouncilClearanceSchema.safeParse({ studentId: validStudentId, semesterId: validSemesterId }).success, false);
+    assert.equal(
+      confirmCouncilClearanceSchema.safeParse({ studentId: validStudentId, semesterId: validSemesterId, requestKey: "x" }).success,
+      false
+    );
   });
 
   test("rejects missing fields", () => {
