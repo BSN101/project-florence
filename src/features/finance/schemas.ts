@@ -152,7 +152,11 @@ const transferReferenceNumber = z
   .string()
   .trim()
   .min(1, "Transfer reference number cannot be empty")
-  .max(120, "Transfer reference number cannot exceed 120 characters");
+  .max(120, "Transfer reference number cannot exceed 120 characters")
+  .refine(
+    (value) => value.replace(/[^a-zA-Z0-9]/g, "").length >= 6,
+    "Transfer reference number must contain at least 6 letters or digits"
+  );
 
 /**
  * Input validation for student transfer evidence submission (FL-023 / T-034).

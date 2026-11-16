@@ -385,6 +385,12 @@ export function StudentTransferWizardDialog({
       setError("Transfer reference number cannot exceed 120 characters.");
       return;
     }
+    if (trimmedRef.replace(/[^a-zA-Z0-9]/g, "").length < 6) {
+      setError(
+        "Transfer reference number must contain at least 6 letters or digits."
+      );
+      return;
+    }
     if (!proofFile) {
       setError("Upload a photo or screenshot of your transfer receipt.");
       return;
@@ -818,13 +824,14 @@ export function StudentTransferWizardDialog({
                   setSubmissionRequestKey(null);
                   setReferenceNumber(e.target.value);
                 }}
-                placeholder="e.g., GCash Ref # or bank transaction ID"
+                placeholder="e.g., 1234 567 890123 (GCash) or bank/InstaPay reference"
                 maxLength={120}
                 className="min-h-11 text-base md:text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                Enter the exact reference or trace number shown on your bank or
-                e-wallet receipt.
+                Enter the exact reference or trace number from your receipt
+                (e.g., 13-digit GCash 4-3-6 number, or Maya, BPI, BDO, RCBC,
+                BankCom, UnionBank / InstaPay reference).
               </p>
             </div>
 
