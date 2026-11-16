@@ -132,6 +132,18 @@ The student directory does not grant ordinary instructors access to another inst
 
 Platform Admin has no implied payment verification, clearance, merit-award or demerit-waiver access. Managing the catalog is not authority to amend institutional policy.
 
+## Phone navigation
+
+Below the `md` breakpoint, the Student and Council workspaces show a bottom tab bar instead of the sidebar. Tabs are a shortcut to existing destinations and grant nothing; the tab items are set by `shortLabel` in `src/features/access/workspace-navigation.ts`.
+
+| Workspace | Tabs | Everything else |
+|---|---|---|
+| Student | Home, Events, Fees, Merits, Clearance | Notifications through the header bell |
+| Council Executive and Operations | Students, Events, Payments, Clearance | A "More" sheet |
+| Council Representative | No tab bar | Only one destination is visible |
+
+Faculty, Platform administration and Representatives use the sidebar drawer on phones. In the Student and Council workspaces, the account menu moves to a header avatar on phones.
+
 ## Contextual navigation, not additional menu items
 
 - Open an event's attendance and feedback/results from that event, subject to role access.
