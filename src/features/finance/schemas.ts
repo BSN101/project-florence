@@ -141,3 +141,36 @@ export const councilStudentFinancialQuerySchema = z.object({
 export type CouncilStudentFinancialQueryInput = z.infer<
   typeof councilStudentFinancialQuerySchema
 >;
+
+export const PAYMENT_PROOF_MAX_BYTES = 4 * 1024 * 1024;
+
+export const paymentProofFileIdSchema = z
+  .string()
+  .uuid("Invalid payment proof file identifier");
+
+const transferReferenceNumber = z
+  .string()
+  .trim()
+  .min(1, "Transfer reference number cannot be empty")
+  .max(120, "Transfer reference number cannot exceed 120 characters");
+
+/**
+ * Input validation for student transfer evidence submission (FL-023 / T-034).
+ * Covers one semester and complete selected obligations only.
+ */
+export const submitTransferSchema = z.object({
+  semesterId: z.string().uuid("Invalid semester identifier"),
+  obligationIds: z
+    .array(z.string().uuid("Invalid obligation identifier"))
+    .min(1, "Select at least one obligation to pay")
+    .max(10000, "Too many obligations selected")
+    .refine((arr) => new Set(arr).size === arr.length, {
+      message: "Duplicate obligations are not permitted",
+    }),
+  paymentAccountId: z.string().uuid("Select a destination payment account"),
+  referenceNumber: transferReferenceNumber,
+  proofFileId: paymentProofFileIdSchema,
+  requestKey: z.string().uuid("Invalid request key").optional(),
+});
+
+export type SubmitTransferInput = z.infer<typeof submitTransferSchema>;

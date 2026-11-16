@@ -238,3 +238,92 @@ export type FeePublicationPreview = {
 export type PublishFeeResult =
   | { success: true; publicationId: string; count: number; message: string }
   | { success: false; error: string; issues?: Record<string, string[]> };
+
+/**
+ * Client-safe projection of active payment destination accounts for the student transfer wizard (FL-023 / T-034).
+ * Derived from payment_accounts; includes a short-lived signed QR URL when available.
+ */
+export type StudentPaymentAccountDTO = Pick<
+  Tables["payment_accounts"]["Row"],
+  | "id"
+  | "label"
+  | "account_name"
+  | "account_reference"
+  | "instructions"
+  | "qr_file_id"
+> & {
+  qr_url: string | null;
+};
+
+/**
+ * Standardized action result for student transfer evidence submission (FL-023 / T-034).
+ */
+export type SubmitTransferResult =
+  | {
+      success: true;
+      paymentId: string;
+      semesterId: string;
+      amount: number;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      issues?: Record<string, string[]>;
+    };
+
+/**
+ * Pure check enforcing the FL-023 same-semester rule across selected obligations.
+ */
+export function hasSameSemesterObligations(
+  obligations: ReadonlyArray<{ semester_id: string }>,
+  semesterId: string
+): boolean {
+  return (
+    obligations.length > 0 &&
+    obligations.every((obligation) => obligation.semester_id === semesterId)
+  );
+}
+
+/**
+ * Defensive error message sanitizer for student transfer submissions (FL-023 / T-034).
+ * Strips database internals while surfacing actionable guidance.
+ */
+export function sanitizeTransferSubmissionError(
+  error: unknown,
+  fallbackMessage = "Unable to submit transfer evidence. Please review your details and try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    const msg = err.message ?? "";
+    if (err.code === "42501") {
+      return "You are not authorized to submit transfer evidence for this account.";
+    }
+    if (
+      msg.includes("Active payment destination account required") ||
+      msg.includes("Active destination snapshot required")
+    ) {
+      return "The selected payment destination account is no longer active. Please choose another account.";
+    }
+    if (
+      msg.includes("Valid payment proof upload required") ||
+      msg.includes("Proof must be the student payment-proof file")
+    ) {
+      return "The uploaded transfer proof is invalid or unavailable. Please upload the receipt image again.";
+    }
+    if (msg.includes("Payment items must share beneficiary and semester")) {
+      return "All selected obligations must belong to the same semester.";
+    }
+    if (msg.includes("Selected obligation is waived or already settled")) {
+      return "One or more selected obligations have already been settled or waived. Refresh the page and try again.";
+    }
+    if (msg.includes("Student enrollment in the specified semester required")) {
+      return "You must be enrolled in the selected semester to submit a payment for it.";
+    }
+    if (msg.includes("Request key reused")) {
+      return "This submission request conflicted with a previous attempt. Please try again.";
+    }
+  }
+  return fallbackMessage;
+}
