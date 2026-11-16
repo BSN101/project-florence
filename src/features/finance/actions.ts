@@ -3,8 +3,9 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
-import { AccessDeniedError } from "@/server/auth/require-workspace";
+import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
+import { createUserClient } from "@/server/db/user-client";
 import { getDownloadUrl, uploadFile, UploadRejectedError } from "@/server/storage/files";
 
 import {
@@ -12,7 +13,10 @@ import {
   type FeePublicationPreview,
   type PaymentAccountActionResult,
   type PublishFeeResult,
+  type SubmitTransferResult,
+  hasSameSemesterObligations,
   sanitizePaymentAccountError,
+  sanitizeTransferSubmissionError,
 } from "./contracts";
 import {
   assertAuthorizedCouncilExecutive,
@@ -25,7 +29,9 @@ import {
   createDefinitionSchema,
   createPaymentAccountSchema,
   paymentAccountQrFileIdSchema,
+  paymentProofFileIdSchema,
   publishFeeObligationsSchema,
+  submitTransferSchema,
   updateDefinitionSchema,
   updatePaymentAccountSchema,
   type ArchiveDefinitionInput,
@@ -34,6 +40,7 @@ import {
   type CreatePaymentAccountInput,
   type PreviewFeeObligationsInput,
   type PublishFeeObligationsInput,
+  type SubmitTransferInput,
   type UpdateDefinitionInput,
   type UpdatePaymentAccountInput,
 } from "./schemas";
@@ -770,6 +777,194 @@ export async function getPaymentAccountQrUrl(
     return {
       success: false,
       error: "Failed to load QR code image. Please try again.",
+    };
+  }
+}
+
+/**
+ * Upload a transfer receipt image (JPEG, PNG, or WebP, max 4 MB) to private R2 storage.
+ * Authorized for students only (FL-023 / T-034).
+ */
+export async function uploadTransferProof(
+  formData: FormData
+): Promise<{ success: true; fileId: string } | { success: false; error: string }> {
+  try {
+    await requireWorkspace("student");
+    const file = formData.get("file");
+    if (!file || !(file instanceof File)) {
+      return { success: false, error: "Please select an image file to upload." };
+    }
+    const rawKey = formData.get("requestKey");
+    const requestKey =
+      typeof rawKey === "string" && rawKey.length > 0 ? rawKey : randomUUID();
+
+    const fileId = await uploadFile("payment_proof", file, requestKey);
+    return { success: true, fileId };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only students may upload transfer payment proof",
+      };
+    }
+    if (err instanceof UploadRejectedError) {
+      return { success: false, error: err.message };
+    }
+    return {
+      success: false,
+      error: "Failed to save transfer proof to storage. Please try again.",
+    };
+  }
+}
+
+/**
+ * Get a short-lived signed URL to preview an uploaded transfer proof image.
+ * Authorized for students (their own proof files).
+ */
+export async function getTransferProofUrl(
+  fileId: string
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    await requireWorkspace("student");
+    const parsedFileId = paymentProofFileIdSchema.safeParse(fileId);
+    if (!parsedFileId.success) {
+      return { success: false, error: "Invalid transfer proof file identifier." };
+    }
+
+    const url = await getDownloadUrl(parsedFileId.data, "student");
+    if (!url) {
+      return {
+        success: false,
+        error: "Transfer proof image not found or access expired.",
+      };
+    }
+    return { success: true, url };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return { success: false, error: "Unauthorized" };
+    }
+    return {
+      success: false,
+      error: "Failed to load transfer proof image. Please try again.",
+    };
+  }
+}
+
+/**
+ * Submit transfer payment evidence for complete selected obligations within one semester (FL-023 / T-034).
+ * Enforces student workspace authorization, same-semester obligation rules, private proof ownership,
+ * and active payment account destination snapshots via the submit_transfer_payment RPC.
+ */
+export async function submitTransferEvidence(
+  input: SubmitTransferInput
+): Promise<SubmitTransferResult> {
+  try {
+    const context = await requireWorkspace("student");
+    const parsed = submitTransferSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid transfer submission input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    const userClient = await createUserClient();
+    const { data: selectedObligations, error: obligationsError } = await userClient
+      .from("obligations")
+      .select("id, semester_id, waived_at")
+      .eq("student_id", context.profile.id)
+      .in("id", parsed.data.obligationIds);
+
+    if (obligationsError) {
+      return {
+        success: false,
+        error: "Unable to verify selected obligations. Please try again.",
+      };
+    }
+
+    const obligationsList = selectedObligations ?? [];
+    if (
+      obligationsList.some(
+        (obligation) => obligation.semester_id !== parsed.data.semesterId
+      )
+    ) {
+      return {
+        success: false,
+        error: "All selected obligations must belong to the same semester.",
+      };
+    }
+
+    if (obligationsList.length !== parsed.data.obligationIds.length) {
+      return {
+        success: false,
+        error: "One or more selected obligations could not be found for your account.",
+      };
+    }
+
+    if (!hasSameSemesterObligations(obligationsList, parsed.data.semesterId)) {
+      return {
+        success: false,
+        error: "All selected obligations must belong to the same semester.",
+      };
+    }
+
+    const requestKey = parsed.data.requestKey ?? randomUUID();
+    const commandClient = createCommandClient();
+
+    // Regenerate database.types.ts after applying the submit_transfer_payment migration.
+    const { data, error } = await commandClient.rpc(
+      "submit_transfer_payment" as never,
+      {
+        p_key: requestKey,
+        p_actor: context.profile.id,
+        p_semester: parsed.data.semesterId,
+        p_obligations: parsed.data.obligationIds,
+        p_payment_account: parsed.data.paymentAccountId,
+        p_reference_number: parsed.data.referenceNumber,
+        p_proof_file: parsed.data.proofFileId,
+      } as never
+    );
+
+    if (error) {
+      return {
+        success: false,
+        error: sanitizeTransferSubmissionError(error),
+      };
+    }
+
+    const result = data as {
+      payment_id: string;
+      semester_id: string;
+      amount: number;
+      status: string;
+    } | null;
+
+    if (!result?.payment_id) {
+      return {
+        success: false,
+        error: "Transfer submission returned no result. Please check your payment history before retrying.",
+      };
+    }
+
+    revalidatePath("/student/fees-and-fines");
+    return {
+      success: true,
+      paymentId: result.payment_id,
+      semesterId: result.semester_id,
+      amount: Number(result.amount),
+      message: "Transfer evidence submitted for Council verification.",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only students may submit transfer payment evidence",
+      };
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred",
     };
   }
 }
