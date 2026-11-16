@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileUp, Loader2, ScanLine, Search } from "lucide-react";
+import { ArrowLeft, FileUp, ScanLine, Search } from "lucide-react";
 
 import { RefreshButton } from "@/components/layout/refresh-button";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { recordAttendance } from "../actions";
 import type { AttendeeRow, EventDTO, EventRulesDTO, FeedbackRow } from "../contracts";
 import { FEEDBACK_WINDOW_DAYS } from "../feedback";
-import { activityEntries, attendeeSummary, canCapture, canGenerate, closesAt, eventPhase } from "../event-state";
+import { activityEntries, attendeeSummary, canCapture, canGenerate, closesAt, eventPhase, within } from "../event-state";
 import { AttendanceImportDialog } from "./attendance-import-dialog";
+import { ConfirmEventDialog } from "./confirm-event-dialog";
 import { ConsequencePanel } from "./consequence-panel";
 import { FeedbackPanel } from "./feedback-panel";
 import { Badge, PhaseBadge, StatusBadge, methodLabel } from "./event-badges";
@@ -35,11 +36,7 @@ const stripe: Record<string, string> = {
 const initials = (row: Pick<AttendeeRow, "first_name" | "last_name">) =>
   `${row.first_name[0] ?? ""}${row.last_name[0] ?? ""}`.toUpperCase();
 
-function within(from: string | null, until: string | null, at: number) {
-  return from !== null && until !== null && at >= Date.parse(from) && at <= Date.parse(until);
-}
-
-function Chips<T extends string>({ label, value, options, onChange }: {
+export function Chips<T extends string>({ label, value, options, onChange }: {
   label: string; value: T; options: readonly (readonly [T, string])[]; onChange: (value: T) => void;
 }) {
   return (
@@ -95,13 +92,13 @@ export function EventDetail({ event, rules, attendees, feedback, canManage, canV
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3">
-        <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} />}>
+        <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} transitionTypes={["nav-back"]} />}>
           <ArrowLeft className="size-4" /> All events
         </Button>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-bold tracking-tight text-foreground">{event.name}</h2>
+              <h2 className="section-title text-foreground">{event.name}</h2>
               <PhaseBadge phase={phase} event={event} />
             </div>
             <p className="text-sm text-muted-foreground">
@@ -171,37 +168,34 @@ function AttendanceTab({ event, attendees, viewerId, closed, timeInOpen, timeOut
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  // One request key per confirmation, so retrying after an error in the same dialog stays idempotent.
+  const [confirming, setConfirming] = useState<{ row: AttendeeRow; kind: "time_in" | "time_out"; requestKey: string } | null>(null);
   const live = capturing && (timeInOpen || timeOutOpen);
   const summary = useMemo(() => attendeeSummary(attendees), [attendees]);
   const missing = closed ? summary.absent : summary.not_in;
 
-  function handleRecord(student: AttendeeRow, kind: "time_in" | "time_out") {
+  function ask(row: AttendeeRow, kind: "time_in" | "time_out") {
     setMessage(null);
-    setBusy(`${student.student_id}:${kind}`);
-    startTransition(async () => {
-      const result = await recordAttendance({ eventId: event.id, studentId: student.student_id, kind, requestKey: crypto.randomUUID() });
-      setMessage(result.success
-        ? { tone: "success", text: `${result.message} for ${student.last_name}, ${student.first_name}` }
-        : { tone: "error", text: result.error });
-      setBusy(null);
-    });
+    setConfirming({ row, kind, requestKey: crypto.randomUUID() });
+  }
+
+  async function record({ row, kind, requestKey }: NonNullable<typeof confirming>) {
+    const result = await recordAttendance({ eventId: event.id, studentId: row.student_id, kind, requestKey });
+    if (result.success) setMessage({ tone: "success", text: `${result.message} for ${row.last_name}, ${row.first_name}` });
+    return result;
   }
 
   function captureButtons(row: AttendeeRow, self: boolean, width = "") {
     return (
       <>
-        <Button size="sm" className={width} disabled={isPending || self || row.time_in !== null || !timeInOpen}
-          onClick={() => handleRecord(row, "time_in")}>
-          {busy === `${row.student_id}:time_in` && <Loader2 className="size-4 animate-spin" />}
+        <Button size="sm" className={width} disabled={self || row.time_in !== null || !timeInOpen}
+          onClick={() => ask(row, "time_in")}>
           Time in
         </Button>
         <Button size="sm" variant="outline" className={width}
-          disabled={isPending || self || row.time_in === null || row.time_out !== null || !timeOutOpen}
-          onClick={() => handleRecord(row, "time_out")}>
-          {busy === `${row.student_id}:time_out` && <Loader2 className="size-4 animate-spin" />}
+          disabled={self || row.time_in === null || row.time_out !== null || !timeOutOpen}
+          onClick={() => ask(row, "time_out")}>
           Time out
         </Button>
       </>
@@ -229,9 +223,11 @@ function AttendanceTab({ event, attendees, viewerId, closed, timeInOpen, timeOut
 
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4 lg:grid-cols-7">
+      {/* Wrap and stretch so every row spans the full width. Min widths are tuned so 6 cards split
+          6 / 3+3 / 2+2+2, and 7 still fit one row on desktop. */}
+      <dl className="flex flex-wrap gap-2 text-center">
         {stats.map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-border bg-card p-2.5">
+          <div key={label} className={`${stats.length > 6 ? "min-w-28" : "min-w-32"} flex-1 rounded-lg border border-border bg-card p-2.5`}>
             <dt className="text-xs text-muted-foreground">{label}</dt>
             <dd className="text-base font-semibold text-foreground">{value}</dd>
           </div>
@@ -358,6 +354,16 @@ function AttendanceTab({ event, attendees, viewerId, closed, timeInOpen, timeOut
           </>
         )}
       </div>
+
+      {confirming && (
+        <ConfirmEventDialog
+          title={`Record ${confirming.kind === "time_in" ? "time-in" : "time-out"}?`}
+          description={`${confirming.row.last_name}, ${confirming.row.first_name} (${confirming.row.university_id}) will be marked as ${confirming.kind === "time_in" ? "timed in" : "timed out"} now.`}
+          confirmLabel={confirming.kind === "time_in" ? "Record time-in" : "Record time-out"}
+          onConfirm={() => record(confirming)}
+          onClose={() => setConfirming(null)}
+        />
+      )}
     </div>
   );
 }
