@@ -9,6 +9,7 @@ import type {
   CouncilDisciplinaryViewData,
   DisciplinaryLedger,
   FacultyDisciplinaryViewData,
+  FacultyMeritGroup,
   StudentDisciplinarySummary,
 } from "./contracts";
 
@@ -215,4 +216,55 @@ export async function getStudentDisciplinaryLedger(studentId: string): Promise<F
     access.roles.includes("Academic Coordinator") || access.roles.includes("RLE Coordinator");
   const ledger = await loadLedger(studentId, isCoordinator ? undefined : access.profile.id);
   return { isCoordinator, ...ledger };
+}
+
+/**
+ * Faculty workspace query (FL-030).
+ * Fetches direct merits issued by the authenticated instructor in the given semester,
+ * filtered to source = 'direct' and grouped by award_request_key to aggregate multi-unit awards cleanly.
+ */
+export async function getMyFacultyMerits(semesterId: string): Promise<FacultyMeritGroup[]> {
+  const access = await requireWorkspace("faculty");
+  const actorId = access.profile.id;
+  const client = await createUserClient();
+
+  const { data, error } = await client
+    .from("merits")
+    .select(
+      "id, student_id, semester_id, source, description, awarded_on, expires_on, awarded_by, created_at, award_request_key, award_unit_index"
+    )
+    .eq("awarded_by", actorId)
+    .eq("semester_id", semesterId)
+    .eq("source", "direct")
+    .order("awarded_on", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error("Unable to load faculty merit awards");
+  if (!data || data.length === 0) return [];
+
+  const names = await loadNames(client, data.map((m) => m.student_id));
+  const groupsMap = new Map<string, FacultyMeritGroup>();
+
+  for (const row of data) {
+    const groupKey = row.award_request_key ?? row.id;
+    const existing = groupsMap.get(groupKey);
+    if (!existing) {
+      groupsMap.set(groupKey, {
+        id: groupKey,
+        student_id: row.student_id,
+        student_name: nameOf(names, row.student_id),
+        student_university_id: names.get(row.student_id)?.university_id ?? null,
+        semester_id: row.semester_id,
+        description: row.description,
+        awarded_on: row.awarded_on,
+        expires_on: row.expires_on,
+        days: 1,
+        created_at: row.created_at,
+      });
+    } else {
+      existing.days += 1;
+    }
+  }
+
+  return Array.from(groupsMap.values());
 }

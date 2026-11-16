@@ -76,3 +76,16 @@ export type CouncilDisciplinaryViewData = {
   demerits: DemeritRecord[];
   endorsements: MeritEndorsementRecord[];
 };
+
+export type FacultyMeritGroup = {
+  id: string;
+  student_id: string;
+  student_name: string | null;
+  student_university_id: string | null;
+  semester_id: string;
+  description: string;
+  awarded_on: string;
+  expires_on: string;
+  days: number;
+  created_at: string;
+};

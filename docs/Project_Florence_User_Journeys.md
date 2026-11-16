@@ -180,3 +180,49 @@ Council Executive and Operations officers can inspect permitted student financia
 - Council Representatives and non-Council roles are denied access to student financial ledgers.
 - Financial figures, obligation standings, and payment histories match between the student view and the council ledger view.
 - Waiver details and refund records are accurately displayed.
+
+## Award direct merits to students
+
+- **Author:** Andrei Catigan
+- **Actors:** Academic Instructor, Clinical Instructor (including Coordinators in their instructor capacity).
+- **Starts at:** Faculty workspace > My merits and demerits (`/faculty/my-merits-and-demerits`); user must hold an active Academic Instructor or Clinical Instructor role.
+- **References:** FL-030, FL-044; Schema section 9.2 (`merits`), Schema section 12 (`notifications`).
+
+### Main flow
+
+1. The Instructor navigates to My merits and demerits in the Faculty workspace.
+2. The system verifies instructor access, loads the active semester context, and renders the instructor's direct merit award history alongside an "Award Merits" action.
+3. The Instructor clicks "Award Merits", opening the direct award dialog.
+4. The system presents a searchable multi-select candidate list populated from the current semester roster via `florence_roster`, excluding the issuing instructor to prevent self-selection.
+5. The Instructor selects one or more recipient students, specifies whole-day merit units (1–30 days), sets the award date (defaulting to current date in `Asia/Manila` and restricted to the active semester without future dates), and enters the commendation basis.
+6. The Instructor submits the award. The client passes a fresh `submissionKey` UUID for request-level idempotency.
+7. The system derives a deterministic request key per student, validates the input server-side, and executes `award_merits` via the command client.
+8. The database transaction inserts one row per whole-day unit into `public.merits` with `source = 'direct'`, sets `expires_on` to exactly 1 year from `awarded_on`, and automatically generates an in-app notice (`merit_received`) for each recipient student.
+9. The dialog closes, the page revalidates, and the new award entries appear in the instructor's Awarded Merits table.
+
+### System involvement
+
+- Table `merits`: inserts `p_days` whole-day rows per student with `award_request_key` and unit ordinal index `1..p_days`, `awarded_by = actor.profile.id`, and `expires_on = (awarded_on + interval '1 year')::date`.
+- Table `notifications`: atomically inserts in-app notification rows with `kind = 'merit_received'` for each awarded student via `f_cmd_notice`.
+- Procedure `award_merits`: enforces instructor role, non-self award (`p_student <> p_actor`), positive whole-day units, active semester enrollment, non-future date bounds, and request-level idempotency (`f_cmd_begin`/`f_cmd_finish`).
+- Server actions enforce faculty role authorization via `requireWorkspace("faculty")`.
+
+### Outcome
+
+The awarded merits appear immediately in the instructor's history, students receive an in-app notification, and the units become available in the students' disciplinary ledgers as bucket-agnostic merits valid for 1 year.
+
+### Important alternatives
+
+- **Non-Active or Historical Semester:** If viewing a historical semester, the "Award Merits" trigger is disabled with a notice that direct merits can only be awarded within the currently active semester context.
+- **Self-Award Prevention:** Instructors cannot award merits to themselves. The dialog filters out the instructor from the student candidates, and the action and database RPC strictly enforce `p_student <> p_actor`.
+- **Date Out of Range:** If an award date precedes the active semester's start date or is set in the future relative to `Asia/Manila`, the RPC rejects the submission with a clear error returned to the dialog.
+- **Double-Click or Retry:** The client-generated `submissionKey` ensures deterministic request keys across retries, preventing duplicate merit creation through `f_cmd_begin`.
+
+### Acceptance checks
+
+- Academic and Clinical Instructors can award whole-day direct merits to one or multiple enrolled students.
+- Multi-day awards create the corresponding number of 1-day merit rows in the database, attributed to `awarded_by` and `source = 'direct'`.
+- Awarded units expire exactly one year from `awarded_on` and remain bucket-agnostic until applied.
+- Recipient students receive an in-app notification upon award.
+- Self-awards, non-integer/negative units, future dates, and awards outside the active semester are prevented and return readable errors.
+
