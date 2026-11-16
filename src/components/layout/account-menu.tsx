@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Check, ChevronRight, ChevronUp, KeyRound, LogOut, UserRoundCog } from "lucide-react";
 
 import { BottomSheet, sheetGroup, sheetIconTile, sheetRow } from "@/components/layout/bottom-sheet";
-import { NavigationOverlay } from "@/components/layout/navigation-overlay";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -46,25 +44,17 @@ function identity(access: ReadyAccess, workspace: Workspace) {
   };
 }
 
-function useWorkspaceSwitch(workspace: Workspace) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  function switchWorkspace(event: React.MouseEvent<HTMLAnchorElement>, next: Workspace) {
-    event.preventDefault();
-    if (next === workspace || isPending) return;
-    startTransition(() => router.push(`/${next}`));
-  }
-  return { isPending, switchWorkspace };
+// Switching is a plain link: the new workspace's loading skeleton appears at once.
+function stayIfCurrent(event: React.MouseEvent, workspace: Workspace, next: Workspace) {
+  if (next === workspace) event.preventDefault();
 }
 
 /** Desktop account menu in the sidebar footer. */
 export function AccountMenu({ workspace, access }: Props) {
   const { fullName, initials, role } = identity(access, workspace);
-  const { isPending, switchWorkspace } = useWorkspaceSwitch(workspace);
 
   return (
     <>
-      <NavigationOverlay visible={isPending} label="Switching workspace…" />
       <DropdownMenu>
         <DropdownMenuTrigger render={<SidebarMenuButton size="lg" tooltip={fullName} />}>
           <Avatar className="size-8 rounded-lg">
@@ -93,7 +83,7 @@ export function AccountMenu({ workspace, access }: Props) {
             <DropdownMenuGroup>
               <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
               {access.workspaces.map((item) => (
-                <DropdownMenuItem key={item} render={<Link href={`/${item}`} onClick={(event) => switchWorkspace(event, item)} aria-disabled={item === workspace || isPending} />}>
+                <DropdownMenuItem key={item} render={<Link href={`/${item}`} onClick={(event) => stayIfCurrent(event, workspace, item)} aria-disabled={item === workspace} />}>
                   {item === workspace ? <Check /> : <span className="size-4" />}
                   {workspaceLabels[item]}
                 </DropdownMenuItem>
@@ -113,13 +103,11 @@ export function AccountMenu({ workspace, access }: Props) {
 /** Phone account menu: an avatar in the header that opens a bottom sheet. */
 export function AccountSheet({ workspace, access }: Props) {
   const { fullName, initials, role } = identity(access, workspace);
-  const { isPending, switchWorkspace } = useWorkspaceSwitch(workspace);
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
 
   return (
     <>
-      <NavigationOverlay visible={isPending} label="Switching workspace…" />
       <BottomSheet
         open={open}
         onOpenChange={setOpen}
@@ -137,7 +125,7 @@ export function AccountSheet({ workspace, access }: Props) {
               {access.workspaces.map((item) => (
                 <li key={item}>
                   <Link href={`/${item}`} className={sheetRow} aria-current={item === workspace ? "page" : undefined}
-                    onClick={(event) => { switchWorkspace(event, item); close(); }}>
+                    onClick={(event) => { stayIfCurrent(event, workspace, item); close(); }}>
                     <span className="flex-1">{workspaceLabels[item]}</span>
                     {item === workspace && <Check className="size-5 text-primary" />}
                   </Link>

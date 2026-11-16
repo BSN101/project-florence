@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { LoaderCircle } from "lucide-react";
 
 import {
   Select,
@@ -10,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { NavigationOverlay } from "@/components/layout/navigation-overlay";
 import type { SemesterOption } from "@/features/access/access-policy";
 
 function semesterLabel(semester: SemesterOption) {
@@ -40,7 +40,6 @@ export function SemesterFilter({ semesters, selectedId, enrollmentLimited = fals
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3" aria-busy={isPending}>
-      <NavigationOverlay visible={isPending} label="Switching semester…" />
       <label className="font-medium" htmlFor="semester-filter">View semester</label>
       <Select items={items} value={selectedId} onValueChange={selectSemester} disabled={isPending}>
         <SelectTrigger id="semester-filter" className="w-full sm:w-auto sm:min-w-64">
@@ -52,6 +51,11 @@ export function SemesterFilter({ semesters, selectedId, enrollmentLimited = fals
           ))}
         </SelectContent>
       </Select>
+      {isPending && (
+        <span role="status" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" /> Loading semester…
+        </span>
+      )}
       <p className="w-full text-xs text-muted-foreground">
         This filters this page only. It does not change the institutionally current semester.
         {enrollmentLimited ? " Only semesters in which you are enrolled are available here." : ""}

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 import { AccountMenu } from "@/components/layout/account-menu";
-import { LinkPendingIndicator } from "@/components/layout/navigation-overlay";
+import { LinkPendingIndicator } from "@/components/layout/link-pending-indicator";
 import { NotificationCount } from "@/components/layout/notification-count";
 import type { AccessContext } from "@/server/auth/access-context";
 import {
