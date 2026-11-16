@@ -68,16 +68,10 @@ export function CouncilClearanceView({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-          Council Clearance
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Confirm semester-level Council clearance for enrolled students. Officers have
-          discretion to grant clearance regardless of outstanding debts or demerits.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Outstanding balances and demerits don&apos;t block clearance, and clearing a student doesn&apos;t
+        change them.
+      </p>
 
       {/* Summary Stat Cards - 1 col mobile, 2 cols tablet (iPad mini), 4 cols desktop */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
