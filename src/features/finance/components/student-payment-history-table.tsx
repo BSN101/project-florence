@@ -6,7 +6,7 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  FileImage,
+  Eye,
   History,
   Loader2,
   Receipt,
@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -88,11 +89,10 @@ export function StudentPaymentHistoryTable({
           role="tab"
           aria-selected={activeTab === "all"}
           onClick={() => setActiveTab("all")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "all"
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "all"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           All Payments
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
@@ -105,11 +105,10 @@ export function StudentPaymentHistoryTable({
           role="tab"
           aria-selected={activeTab === "verified"}
           onClick={() => setActiveTab("verified")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "verified"
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "verified"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           Verified
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
@@ -122,11 +121,10 @@ export function StudentPaymentHistoryTable({
           role="tab"
           aria-selected={activeTab === "pending"}
           onClick={() => setActiveTab("pending")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "pending"
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "pending"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           Pending Review
           {pendingCount > 0 && (
@@ -141,11 +139,10 @@ export function StudentPaymentHistoryTable({
           role="tab"
           aria-selected={activeTab === "rejected"}
           onClick={() => setActiveTab("rejected")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "rejected"
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "rejected"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           Rejected
           {rejectedCount > 0 && (
@@ -160,11 +157,10 @@ export function StudentPaymentHistoryTable({
           role="tab"
           aria-selected={activeTab === "refunded"}
           onClick={() => setActiveTab("refunded")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "refunded"
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "refunded"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           Refunded
           {refundedCount > 0 && (
@@ -210,6 +206,9 @@ export function StudentPaymentHistoryTable({
                 </th>
                 <th scope="col" className="px-5 py-3">
                   Notes
+                </th>
+                <th scope="col" className="px-5 py-3 text-right">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -257,18 +256,6 @@ export function StudentPaymentHistoryTable({
                           <div className="text-[11px] font-mono text-muted-foreground">
                             Ref: {p.reference_number}
                           </div>
-                        )}
-                        {p.proof_file_id && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => void handleInspectProof(p)}
-                            className="mt-1 -ml-2 h-7 gap-1 px-2 text-[11px] font-medium text-primary hover:text-primary"
-                          >
-                            <FileImage className="size-3" />
-                            View Proof
-                          </Button>
                         )}
                       </div>
                     ) : (
@@ -334,6 +321,24 @@ export function StudentPaymentHistoryTable({
                       <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
+
+                  {/* Proof Action */}
+                  <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                    {p.proof_file_id ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleInspectProof(p)}
+                        className="h-8 cursor-pointer gap-1.5 rounded-lg border-primary/25 bg-primary/5 px-3 text-xs font-medium text-primary shadow-2xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:opacity-60"
+                      >
+                        <Eye className="size-3.5 shrink-0 text-primary" />
+                        <span>View Proof</span>
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/60">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -353,7 +358,7 @@ export function StudentPaymentHistoryTable({
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-md">
+          <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] grid-cols-1 overflow-x-hidden overflow-y-auto p-5 sm:max-w-lg sm:p-6">
             <DialogHeader>
               <DialogTitle>Transfer Receipt Proof</DialogTitle>
               <DialogDescription>
@@ -364,27 +369,63 @@ export function StudentPaymentHistoryTable({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex min-h-48 items-center justify-center rounded-xl border border-border bg-muted/20 p-4">
-              {isLoadingProof && (
-                <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-6 animate-spin text-primary" />
-                  <span>Loading receipt proof...</span>
+            <div className="min-w-0 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="font-medium text-foreground">
+                    {inspectingProof.destination_label || "Transfer"}
+                    {inspectingProof.destination_account_name
+                      ? ` · ${inspectingProof.destination_account_name}`
+                      : ""}
+                  </div>
+                  {inspectingProof.reference_number && (
+                    <div className="break-all font-mono text-muted-foreground">
+                      Ref: {inspectingProof.reference_number}
+                    </div>
+                  )}
                 </div>
-              )}
-              {proofError && !isLoadingProof && (
-                <p className="text-center text-sm text-destructive">
-                  {proofError}
-                </p>
-              )}
-              {proofUrl && !isLoadingProof && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={proofUrl}
-                  alt="Submitted transfer receipt proof"
-                  className="max-h-96 max-w-full rounded-lg border border-border object-contain shadow-xs"
-                />
-              )}
+                <div className="shrink-0 font-heading text-base font-semibold tabular-nums text-foreground">
+                  {formatPhp(inspectingProof.amount)}
+                </div>
+              </div>
+
+              <div className="flex min-h-48 items-center justify-center rounded-xl border border-border bg-muted/20 p-3">
+                {isLoadingProof && (
+                  <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="size-6 animate-spin text-primary" />
+                    <span>Loading receipt proof...</span>
+                  </div>
+                )}
+                {proofError && !isLoadingProof && (
+                  <p className="text-center text-sm text-destructive">
+                    {proofError}
+                  </p>
+                )}
+                {proofUrl && !isLoadingProof && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={proofUrl}
+                    alt="Submitted transfer receipt proof"
+                    className="mx-auto max-h-[60vh] w-full rounded-lg border border-border bg-background object-contain shadow-xs"
+                  />
+                )}
+              </div>
             </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setInspectingProof(null);
+                  setProofUrl(null);
+                  setProofError(null);
+                }}
+                className="min-h-11"
+              >
+                Close
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
