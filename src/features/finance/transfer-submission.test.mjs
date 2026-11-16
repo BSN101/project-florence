@@ -172,6 +172,50 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
         false
       );
     });
+
+    test("accepts GCash 4-3-6 and Philippine bank/InstaPay reference number formats", () => {
+      const validRefs = [
+        "1002 345 678901", // GCash 4-3-6 with spaces
+        "1002-345-678901", // GCash 4-3-6 with dashes
+        "1002345678901", // GCash continuous 13 digits
+        "MAYA9A8B7C6D", // Maya alphanumeric ref
+        "BPI202611170042", // BPI transfer ref
+        "BDO-88412904", // BDO transfer ref
+        "RCBC-20261117-991", // RCBC ref
+        "BC-90128374", // BankCom ref
+        "UBP9812736455", // UnionBank / InstaPay trace
+      ];
+
+      for (const referenceNumber of validRefs) {
+        const res = submitTransferSchema.safeParse({
+          semesterId: validSemesterId,
+          obligationIds: [validObligationId1],
+          paymentAccountId: validAccountId,
+          referenceNumber,
+          proofFileId: validProofFileId,
+        });
+        assert.equal(res.success, true, `Expected valid ref: ${referenceNumber}`);
+      }
+    });
+
+    test("rejects short or punctuation-only reference numbers under 6 alphanumeric characters", () => {
+      for (const referenceNumber of ["12345", "N/A", "--- ---", "1-2-3"]) {
+        const res = submitTransferSchema.safeParse({
+          semesterId: validSemesterId,
+          obligationIds: [validObligationId1],
+          paymentAccountId: validAccountId,
+          referenceNumber,
+          proofFileId: validProofFileId,
+        });
+        assert.equal(res.success, false, `Expected invalid ref: ${referenceNumber}`);
+        if (!res.success) {
+          assert.equal(
+            res.error.flatten().fieldErrors.referenceNumber?.[0],
+            "Transfer reference number must contain at least 6 letters or digits"
+          );
+        }
+      }
+    });
   });
 
   describe("Constants and proof schema", () => {
