@@ -60,9 +60,12 @@ Details and reasons: architecture §3, "Rendering and navigation".
   `history.replaceState` when the URL should reflect it.
 - Show pending states inside the affected area. Do not cover the whole
   screen while a page loads.
-- Pages currently export `instant = false` because each page renders its own
-  `WorkspaceShell`. Keep it on new pages until the shell moves into the
-  workspace layouts.
+- New workspace pages render `WorkspaceShell` (access gate and page frame).
+  The sidebar, header and tab bar come from the workspace layout; do not
+  render them in pages.
+- Pages and workspace layouts export `instant = false`; keep it on new pages.
+- Do not key layout wrappers by pathname. Next.js keeps recent routes alive
+  for instant Back navigation, and re-mounting discards them.
 
 ### Caching
 

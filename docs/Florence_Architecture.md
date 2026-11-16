@@ -106,13 +106,13 @@ The application root `README.md` covers setup, commands, environment configurati
 ### Routes and entry points
 
 - `src/proxy.ts` refreshes Supabase SSR cookies and performs early sign-in redirects. Validate authentication rather than trusting cookie presence. Skip static assets through its matcher.
-- Pages compose screens and call feature queries. Route groups and workspace names do not grant permissions. Workspace layouts hold the parts that must stay mounted between pages (the phone tab bar and page transition); each page currently renders its own `WorkspaceShell` because the shell reads the page's `semester` search parameter.
+- Pages compose screens and call feature queries. Route groups and workspace names do not grant permissions. Each workspace `layout.tsx` renders `WorkspaceChrome` (sidebar, header and phone tab bar), which stays mounted between pages and only shows links. Each page renders `WorkspaceShell`, the access gate and page frame: it redirects or returns not-found for the workspace, destination and `semester` parameter, then renders the title, semester controls and content. Pages that need no chrome, such as the full-screen Council QR station, sit in a separate route group (`council/(station)/`) with no chrome layout.
 - `src/app/(portal)/account/` is the shared protected account destination outside every workspace. It displays the signed-in user's permitted identity fields and owns no workspace authority; `src/features/account/` owns signed-in account actions such as current-password-confirmed password changes.
 - `src/app/(auth)/reset-password/` and its callback are public recovery entry points. Recovery uses a verified Supabase session plus a signed, short-lived, HTTP-only recovery-intent marker; it does not reuse the authenticated account password action.
 - `src/app/(auth)/invitation/accept/` is the public first-access entry point. The invitation token is the only credential. It is read from the URL fragment and posted to a Server Action that re-checks it in the database; opening the link changes nothing.
 - Server actions validate form input, resolve the actor and run an authorized command.
 - API route handlers support downloads or other actual HTTP integration needs. Do not create an endpoint for every feature or make server code fetch its own API.
-- Add loading, error and not-found screens where needed. `src/components/layout/portal-loading.tsx` and `portal-error.tsx` are the shared portal versions; the Student and Council workspaces re-export them inside their layouts so the phone tab bar stays mounted.
+- Add loading, error and not-found screens where needed. `src/components/layout/portal-loading.tsx` (full first-load skeleton and content-only `ContentLoading`) and `portal-error.tsx` are the shared versions. Each workspace re-exports `ContentLoading` and `PortalError` inside its layout, so the chrome stays mounted while a page loads or fails.
 
 | Need | Default entry point |
 |---|---|
@@ -129,7 +129,8 @@ The app runs Next.js with `cacheComponents` and `partialPrefetching`. A link pre
 - **Stream secondary data.** Await only what the page's main content needs. Start slower or secondary reads without awaiting them, pass the promise to the component that shows them, and read it with `use()` inside `<Suspense>` with a fallback the size of the real content. The Council events list streams its attendance counts this way.
 - **Keep view state on the client.** Tabs, open panels and in-table filters do not need a server round trip; update the URL with `history.replaceState` when it should be shareable, as event detail tabs do. Use a search parameter that the server reads only when the server must load different data.
 - **Show pending state where the change happens.** Prefer a dimmed row, a skeleton in the affected panel or the top progress bar over a full-screen overlay.
-- **`instant = false`.** Every page currently exports it, because each page renders its own `WorkspaceShell`, which awaits the session. Keep it on new pages until the shell moves into the workspace layouts.
+- **`instant = false`.** Every page and workspace layout currently exports it, because both await the session outside `<Suspense>`. Keep it on new pages until session reads move behind Suspense or a private cache.
+- **Preserved routes.** With Cache Components, Next.js keeps the last three visited routes alive, hidden with React `<Activity>`, and Back/Forward shows them without a server request. Do not key layout-level wrappers by pathname: re-mounting discards the preserved routes. Component state survives a return, so reset transient UI (open menus, stale success messages) explicitly. Sign-out loads `/sign-in` in full (`SignOutForm`) so no signed-in pages stay in memory.
 - **Motion** uses React `ViewTransition` and the values in [Design tokens](Florence_Design_Tokens.md). Respect `prefers-reduced-motion`.
 
 ### Features and shared code
