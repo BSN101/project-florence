@@ -185,20 +185,20 @@ Council Executive and Operations officers can inspect permitted student financia
 
 - **Author:** Andrei Catigan
 - **Actors:** Academic Instructor, Clinical Instructor (including Coordinators in their instructor capacity).
-- **Starts at:** Faculty workspace > My merits and demerits (`/faculty/my-merits-and-demerits`); user must hold an active Academic Instructor or Clinical Instructor role.
+- **Starts at:** Faculty workspace > My entries (`/faculty/my-merits-and-demerits`) or a student's details on the Students page; user must hold an active Academic Instructor or Clinical Instructor role.
 - **References:** FL-030, FL-044; Schema section 9.2 (`merits`), Schema section 12 (`notifications`).
 
 ### Main flow
 
-1. The Instructor navigates to My merits and demerits in the Faculty workspace.
-2. The system verifies instructor access, loads the active semester context, and renders the instructor's direct merit award history alongside an "Award Merits" action.
-3. The Instructor clicks "Award Merits", opening the direct award dialog.
-4. The system presents a searchable multi-select candidate list populated from the current semester roster via `florence_roster`, excluding the issuing instructor to prevent self-selection.
-5. The Instructor selects one or more recipient students, specifies whole-day merit units (1–30 days), sets the award date (defaulting to current date in `Asia/Manila` and restricted to the active semester without future dates), and enters the commendation basis.
-6. The Instructor submits the award. The client passes a fresh `submissionKey` UUID for request-level idempotency.
-7. The system derives a deterministic request key per student, validates the input server-side, and executes `award_merits` via the command client.
-8. The database transaction inserts one row per whole-day unit into `public.merits` with `source = 'direct'`, sets `expires_on` to exactly 1 year from `awarded_on`, and automatically generates an in-app notice (`merit_received`) for each recipient student.
-9. The dialog closes, the page revalidates, and the new award entries appear in the instructor's Awarded Merits table.
+1. The Instructor opens My entries in the Faculty workspace, or chooses "Award merits" in a student's details on the Students page.
+2. The system verifies instructor access and shows the instructor's direct awards for the selected semester with an "Award merits" action.
+3. The Instructor chooses "Award merits". The award page (`?award`) opens on the Students step, with the student already selected when started from that student's details.
+4. **Students:** the Instructor searches the current semester roster (`florence_roster`, excluding the instructor) and selects one or more students.
+5. **Details:** the Instructor enters whole days per student, the award date (default: today in `Asia/Manila`, limited to the current semester and not in the future) and the reason. The page shows the resulting expiry date.
+6. **Review:** the page lists every selected student, the days, award date, expiry and reason. The Instructor confirms with a button naming the total (for example, "Award 2 days to 3 students").
+7. The system validates the input server-side and runs `award_merits` once per student through the command client. Each student has its own request key, made when the student was selected.
+8. The database inserts one row per whole-day unit into `public.merits` with `source = 'direct'` and `expires_on` one year after `awarded_on`, and creates an in-app notice (`merit_received`) for each recipient.
+9. The result page lists the students awarded and any not recorded, with the reason. My entries is revalidated, so the new awards show at once.
 
 ### System involvement
 
@@ -213,10 +213,11 @@ The awarded merits appear immediately in the instructor's history, students rece
 
 ### Important alternatives
 
-- **Non-Active or Historical Semester:** If viewing a historical semester, the "Award Merits" trigger is disabled with a notice that direct merits can only be awarded within the currently active semester context.
-- **Self-Award Prevention:** Instructors cannot award merits to themselves. The dialog filters out the instructor from the student candidates, and the action and database RPC strictly enforce `p_student <> p_actor`.
-- **Date Out of Range:** If an award date precedes the active semester's start date or is set in the future relative to `Asia/Manila`, the RPC rejects the submission with a clear error returned to the dialog.
-- **Double-Click or Retry:** The client-generated `submissionKey` ensures deterministic request keys across retries, preventing duplicate merit creation through `f_cmd_begin`.
+- **Historical semester:** "Award merits" is disabled with a notice that merits can only be awarded in the current semester.
+- **Self-award:** the instructor is not offered as a recipient, and the action and `award_merits` reject `p_student = p_actor`.
+- **Date out of range:** the Details step and `award_merits` reject dates before the semester starts, after it ends or in the future.
+- **Some students fail:** awards already recorded stay recorded. The result page names each student not recorded and why, and the Instructor can review and confirm again for only those students.
+- **Double-click or lost connection:** each student's request key is kept until that student is awarded, so confirming again replays the recorded award through `f_cmd_begin` instead of repeating it. Changing the details for an already-recorded key is rejected with a message to check My entries.
 
 ### Acceptance checks
 
@@ -225,4 +226,5 @@ The awarded merits appear immediately in the instructor's history, students rece
 - Awarded units expire exactly one year from `awarded_on` and remain bucket-agnostic until applied.
 - Recipient students receive an in-app notification upon award.
 - Self-awards, non-integer/negative units, future dates, and awards outside the active semester are prevented and return readable errors.
+- When one of several students fails, the others are still awarded and the failed students are named; confirming again does not duplicate recorded awards.
 
