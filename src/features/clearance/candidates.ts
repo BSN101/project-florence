@@ -7,9 +7,11 @@ export type NameParts = {
   suffix?: string | null;
 };
 
-function formatDisplayName(p: NameParts): string {
+export function displayName(p: NameParts): string {
   return [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ") + (p.suffix ? `, ${p.suffix}` : "");
 }
+
+export const formatDisplayName = displayName;
 
 export type RosterEntry = NameParts & {
   student_id: string;
@@ -55,7 +57,7 @@ export function buildCouncilClearanceCandidates({
     const clearance = clearanceMap.get(student.student_id);
     const financial = financialSummaries.get(student.student_id);
     const demerits = councilDemeritCounts.get(student.student_id) ?? 0;
-    const name = student.student_name ?? formatDisplayName(student);
+    const name = student.student_name ?? displayName(student);
 
     return {
       studentId: student.student_id,
