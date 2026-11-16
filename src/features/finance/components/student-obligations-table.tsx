@@ -59,98 +59,67 @@ export function StudentObligationsTable({
       <div
         role="tablist"
         aria-label="Obligation status filter"
-        className="flex border-b border-border overflow-x-auto"
+        className="flex flex-wrap items-center gap-2 border-b border-border pb-2"
       >
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "all"}
+          variant={activeTab === "all" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("all")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "all"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className="gap-2 text-xs"
         >
-          All Dues
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
-            {obligations.length}
-          </span>
-        </button>
+          <span>All Dues ({obligations.length})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "unpaid"}
+          variant={activeTab === "unpaid" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("unpaid")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "unpaid"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className="gap-2 text-xs"
         >
-          Unpaid
-          {unpaidCount > 0 && (
-            <span className="rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 text-xs font-semibold">
-              {unpaidCount}
-            </span>
-          )}
-        </button>
+          <span>Unpaid ({unpaidCount})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "pending"}
+          variant={activeTab === "pending" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("pending")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "pending"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className="gap-2 text-xs"
         >
-          Under Review
-          {pendingCount > 0 && (
-            <span className="rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 text-xs font-semibold">
-              {pendingCount}
-            </span>
-          )}
-        </button>
+          <span>Under Review ({pendingCount})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "settled"}
+          variant={activeTab === "settled" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("settled")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "settled"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className="gap-2 text-xs"
         >
-          Settled
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
-            {settledCount}
-          </span>
-        </button>
+          <span>Settled ({settledCount})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "waived"}
+          variant={activeTab === "waived" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("waived")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${
-            activeTab === "waived"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className="gap-2 text-xs"
         >
-          Waived
-          {waivedCount > 0 && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
-              {waivedCount}
-            </span>
-          )}
-        </button>
+          <span>Waived ({waivedCount})</span>
+        </Button>
       </div>
 
       {/* Fixed Height Table Container with Sticky Header */}

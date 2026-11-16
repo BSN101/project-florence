@@ -82,93 +82,67 @@ export function StudentPaymentHistoryTable({
       <div
         role="tablist"
         aria-label="Payment outcome filter"
-        className="flex border-b border-border overflow-x-auto"
+        className="flex flex-wrap items-center gap-2 border-b border-border pb-2"
       >
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "all"}
+          variant={activeTab === "all" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("all")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "all"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className="gap-2 text-xs"
         >
-          All Payments
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
-            {payments.length}
-          </span>
-        </button>
+          <span>All Payments ({payments.length})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "verified"}
+          variant={activeTab === "verified" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("verified")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "verified"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className="gap-2 text-xs"
         >
-          Verified
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
-            {verifiedCount}
-          </span>
-        </button>
+          <span>Verified ({verifiedCount})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "pending"}
+          variant={activeTab === "pending" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("pending")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "pending"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className="gap-2 text-xs"
         >
-          Pending Review
-          {pendingCount > 0 && (
-            <span className="rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 text-xs font-semibold">
-              {pendingCount}
-            </span>
-          )}
-        </button>
+          <span>Pending Review ({pendingCount})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "rejected"}
+          variant={activeTab === "rejected" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("rejected")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "rejected"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className="gap-2 text-xs"
         >
-          Rejected
-          {rejectedCount > 0 && (
-            <span className="rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-xs font-semibold">
-              {rejectedCount}
-            </span>
-          )}
-        </button>
+          <span>Rejected ({rejectedCount})</span>
+        </Button>
 
-        <button
+        <Button
           type="button"
           role="tab"
           aria-selected={activeTab === "refunded"}
+          variant={activeTab === "refunded" ? "default" : "ghost"}
+          size="sm"
           onClick={() => setActiveTab("refunded")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer shrink-0 ${activeTab === "refunded"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+          className="gap-2 text-xs"
         >
-          Refunded
-          {refundedCount > 0 && (
-            <span className="rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 px-2 py-0.5 text-xs font-semibold">
-              {refundedCount}
-            </span>
-          )}
-        </button>
+          <span>Refunded ({refundedCount})</span>
+        </Button>
       </div>
 
       {/* Fixed Height Table Container with Sticky Header */}

@@ -87,62 +87,51 @@ export function StudentFeesAndFinesView({
       <StudentFinancialSummaryCards summary={data.summary} />
 
       {/* Main Content Tabs */}
-      <div className="space-y-4 pt-2">
-        <div className="flex flex-col gap-3 border-b border-border sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 border-b border-border pb-2 sm:flex-row sm:items-center sm:justify-between">
           <div
             role="tablist"
             aria-label="Student financial sections"
-            className="flex"
+            className="flex flex-wrap items-center gap-2"
           >
-            <button
+            <Button
               type="button"
               role="tab"
               aria-selected={activeSection === "obligations"}
+              variant={activeSection === "obligations" ? "default" : "ghost"}
+              size="sm"
               onClick={() => setActiveSection("obligations")}
-              className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors cursor-pointer ${
-                activeSection === "obligations"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+              className="gap-2 text-xs"
             >
-              <FileText className="size-4" />
-              Obligations &amp; Dues
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
-                {data.obligations.length}
-              </span>
-            </button>
+              <FileText className="size-3.5" />
+              <span>Obligations &amp; Dues ({data.obligations.length})</span>
+            </Button>
 
-            <button
+            <Button
               type="button"
               role="tab"
               aria-selected={activeSection === "payments"}
+              variant={activeSection === "payments" ? "default" : "ghost"}
+              size="sm"
               onClick={() => setActiveSection("payments")}
-              className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors cursor-pointer ${
-                activeSection === "payments"
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+              className="gap-2 text-xs"
             >
-              <History className="size-4" />
-              Payment History
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
-                {data.payments.length}
-              </span>
-            </button>
+              <History className="size-3.5" />
+              <span>Payment History ({data.payments.length})</span>
+            </Button>
           </div>
 
           {!isCouncilView && (
-            <div className="pb-3 sm:pb-2">
-              <Button
-                type="button"
-                onClick={() => setIsWizardOpen(true)}
-                disabled={wizardObligations.length === 0}
-                className="min-h-11 w-full gap-2 sm:min-h-9 sm:w-auto"
-              >
-                <Send className="size-4" />
-                Submit Transfer Evidence
-              </Button>
-            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setIsWizardOpen(true)}
+              disabled={wizardObligations.length === 0}
+              className="w-full gap-2 text-xs sm:w-auto"
+            >
+              <Send className="size-3.5" />
+              <span>Submit Transfer Evidence</span>
+            </Button>
           )}
         </div>
 
