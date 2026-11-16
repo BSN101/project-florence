@@ -42,15 +42,15 @@ export function FacultyMyDisciplineView({
       <div>
         {activeTab === "merits" && <FacultyMeritsTable merits={merits} />}
         {activeTab === "demerits" && (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/80 p-12 text-center">
+          // Same height as TableFrame so switching tabs does not resize the page.
+          <div className="flex h-[26rem] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/80 p-12 text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-muted">
               <FileWarning className="size-6 text-muted-foreground" />
             </div>
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold text-foreground">Faculty Demerit Logging</p>
               <p className="max-w-md text-xs text-muted-foreground">
-                Faculty demerit entry with misconduct catalog selection and whole-day incident units
-                will be available here (T-045).
+                Demerits you log, with misconduct catalog selection and whole-day units, will appear here.
               </p>
             </div>
           </div>
