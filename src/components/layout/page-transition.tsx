@@ -5,6 +5,24 @@ import { ViewTransition } from "react";
 const VIEW_TRANSITION_PATCHED = Symbol.for("florence.viewTransitionPatched");
 
 /**
+ * Suppresses harmless browser-level unhandled rejection overlays when a ViewTransition
+ * is aborted because the tab was hidden or backgrounded during navigation.
+ */
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    const err = event.reason;
+    if (
+      err &&
+      (err.name === "InvalidStateError" ||
+        (typeof err.message === "string" &&
+          err.message.includes("Transition was aborted because of invalid state")))
+    ) {
+      event.preventDefault();
+    }
+  });
+}
+
+/**
  * Normalizes browser-specific ViewTransition abort messages (e.g. Chrome appending
  * ". Document hidden" when tab is backgrounded) so that React 19's exact-match
  * error filter recognizes and cleanly suppresses the harmless hidden-document abort.
@@ -25,6 +43,8 @@ if (
     if (transition) {
       if (transition.ready) {
         const originalReady = transition.ready;
+        originalReady.catch(() => {});
+
         const patchedReady = originalReady.catch((err) => {
           if (
             err &&
@@ -43,6 +63,7 @@ if (
           }
           return Promise.reject(err);
         });
+        patchedReady.catch(() => {});
 
         try {
           Object.defineProperty(transition, "ready", {
@@ -55,7 +76,6 @@ if (
       }
 
       if (transition.finished) {
-        // Prevent unhandled promise rejection in the window if aborted while document is hidden
         transition.finished.catch(() => {});
       }
     }
