@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, use, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Archive, ChevronRight, Edit2, Eye, Gavel, Plus, Send } from "lucide-react";
@@ -25,6 +25,11 @@ function schedule(event: EventDTO) {
   };
 }
 
+function AttendanceCount({ counts, eventId }: { counts: Promise<Record<string, EventCounts>>; eventId: string }) {
+  const c = use(counts)[eventId];
+  return c ? `${c.timedIn}/${c.participants} in` : "—";
+}
+
 export function EventList({
   events,
   rules,
@@ -37,7 +42,8 @@ export function EventList({
   events: EventDTO[];
   rules: EventRulesDTO[];
   fines: FineDefinitionDTO[];
-  counts: Record<string, EventCounts>;
+  /** Streamed from the server; each attendance cell suspends until it resolves. */
+  counts: Promise<Record<string, EventCounts>>;
   semesterId: string;
   canManage: boolean;
   now: string;
@@ -65,8 +71,11 @@ export function EventList({
   const own = (e: React.MouseEvent) => e.stopPropagation();
 
   function attendance(event: EventDTO) {
-    const c = counts[event.id];
-    return c ? `${c.timedIn}/${c.participants} in` : "—";
+    return (
+      <Suspense fallback={<span className="inline-block h-3 w-12 animate-pulse rounded bg-muted align-middle" aria-hidden="true" />}>
+        <AttendanceCount counts={counts} eventId={event.id} />
+      </Suspense>
+    );
   }
 
   function title(event: EventDTO) {

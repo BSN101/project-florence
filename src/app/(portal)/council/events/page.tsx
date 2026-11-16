@@ -58,10 +58,9 @@ export default async function CouncilEventsPage({ searchParams }: {
       getEvents(semesterId),
       canManage ? getActiveFineDefinitions() : Promise.resolve([]),
     ]);
-    const [rules, counts] = await Promise.all([
-      canManage ? getEventRules(events.map((item) => item.id)) : Promise.resolve([]),
-      getAttendanceCounts(events.filter((item) => item.audience_frozen_at).map((item) => item.id)),
-    ]);
+    // Not awaited: the attendance column streams in, so the list does not wait on the counts.
+    const counts = getAttendanceCounts(events.filter((item) => item.audience_frozen_at).map((item) => item.id));
+    const rules = canManage ? await getEventRules(events.map((item) => item.id)) : [];
     content = (
       <EventList events={events} rules={rules} fines={fines} counts={counts} semesterId={semesterId}
         canManage={canManage} now={new Date().toISOString()} />
