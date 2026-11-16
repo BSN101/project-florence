@@ -1,17 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, GraduationCap, Search, Users } from "lucide-react";
+import { Award, GraduationCap, Search, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+  FilterSelect,
+  matches,
+  TableEmpty,
+  TableFrame,
+  THEAD_CLASS,
+  usePagedRows,
+} from "@/features/discipline/components/table-controls";
 import { sortName } from "@/lib/format-name";
 
 import type { StudentRosterItem } from "../contracts";
@@ -21,7 +24,32 @@ import { InvitationStatusBadge } from "./invitation-status-badge";
 import { StudentDetailDialog } from "./student-detail-dialog";
 import { StudentRowActions } from "./student-invitation-dialogs";
 
-const PAGE_SIZE = 25;
+const YEAR_OPTIONS = [
+  { value: "all", label: "All" },
+  ...[1, 2, 3, 4].map((year) => ({ value: String(year), label: `Year ${year}` })),
+];
+const STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "regular", label: "Regular" },
+  { value: "irregular", label: "Irregular" },
+];
+const ACCOUNT_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "linked", label: "Linked" },
+  { value: "pending", label: "Pending" },
+  { value: "uninvited", label: "Uninvited" },
+  { value: "no_email", label: "No email" },
+];
+
+const hasEmail = (student: StudentRosterItem) => Boolean(student.email && student.email.trim() !== "");
+
+function matchesAccount(filter: string, student: StudentRosterItem) {
+  if (filter === "linked") return student.has_account;
+  if (filter === "pending") return !student.has_account && student.invitation_state === "pending";
+  if (filter === "uninvited") return !student.has_account && student.invitation_state !== "pending" && hasEmail(student);
+  if (filter === "no_email") return !student.has_account && !hasEmail(student);
+  return true;
+}
 
 export function RosterTable({
   students,
@@ -32,76 +60,24 @@ export function RosterTable({
   canEdit: boolean;
   workspace?: "council" | "faculty";
 }) {
+  // Account and invitation state is Council's provisioning concern; faculty don't see it.
+  const accounts = workspace === "council";
   const [search, setSearch] = useState("");
-  const [yearFilter, setYearFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [accountFilter, setAccountFilter] = useState("all");
-  const [page, setPage] = useState(0);
+  const [year, setYear] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [account, setAccount] = useState("all");
 
-  const filteredStudents = useMemo(() => {
-    return students.filter((student) => {
-      // Search filter
-      if (search.trim() !== "") {
-        const q = search.trim().toLowerCase();
-        const num = student.university_id.toLowerCase();
-        const name = sortName(student).toLowerCase();
-        if (!num.includes(q) && !name.includes(q)) return false;
-      }
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return students.filter((student) =>
+      (!q || student.university_id.toLowerCase().includes(q) || sortName(student).toLowerCase().includes(q))
+      && matches(year, String(student.year_level))
+      && matches(status, student.academic_status)
+      && (!accounts || matchesAccount(account, student))
+    );
+  }, [students, search, year, status, account, accounts]);
 
-      // Year level filter
-      if (yearFilter !== "all" && student.year_level !== Number(yearFilter)) {
-        return false;
-      }
-
-      // Academic status filter
-      if (statusFilter !== "all" && student.academic_status !== statusFilter) {
-        return false;
-      }
-
-      // Account / Invitation status filter
-      if (accountFilter === "linked" && !student.has_account) {
-        return false;
-      }
-      if (accountFilter === "pending" && (student.has_account || student.invitation_state !== "pending")) {
-        return false;
-      }
-      if (accountFilter === "uninvited" && (student.has_account || student.invitation_state === "pending" || !student.email)) {
-        return false;
-      }
-      if (accountFilter === "no_email" && (student.has_account || Boolean(student.email && student.email.trim() !== ""))) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [students, search, yearFilter, statusFilter, accountFilter]);
-
-  const yearLabel =
-    yearFilter === "all" ? "Year: All Years" : `Year: Year ${yearFilter}`;
-
-  const statusLabel =
-    statusFilter === "all"
-      ? "Status: All Statuses"
-      : statusFilter === "regular"
-        ? "Status: Regular"
-        : "Status: Irregular";
-
-  const accountLabel =
-    accountFilter === "all"
-      ? "Account: All"
-      : accountFilter === "linked"
-        ? "Account: Linked"
-        : accountFilter === "pending"
-          ? "Account: Pending"
-          : accountFilter === "uninvited"
-            ? "Account: Uninvited"
-            : "Account: No Email";
-
-  // Clamped so a shrinking roster (e.g. after a refresh) never lands on an empty page.
-  const pageCount = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount - 1);
-  const firstIndex = currentPage * PAGE_SIZE;
-  const pageStudents = filteredStudents.slice(firstIndex, firstIndex + PAGE_SIZE);
+  const { pageRows, pager } = usePagedRows(rows, `${search}|${year}|${status}|${account}`);
 
   if (students.length === 0) {
     return (
@@ -123,212 +99,101 @@ export function RosterTable({
     );
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Search and Filters Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="relative min-w-0 flex-1 sm:min-w-[280px]">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-              placeholder="Search by student number or name..."
-              className="pl-9 text-xs sm:text-sm"
-            />
-          </div>
-
-          <div className="grid w-full grid-cols-1 gap-2.5 shrink-0 sm:grid-cols-3 xl:flex xl:w-auto xl:items-center xl:gap-2.5">
-            {/* Year Level Filter */}
-            <div className="w-full xl:w-[150px]">
-              <Select value={yearFilter} onValueChange={(val) => { setYearFilter(val ?? "all"); setPage(0); }}>
-                <SelectTrigger className="w-full text-xs">
-                  <span className="truncate">{yearLabel}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Years</SelectItem>
-                  <SelectItem value="1">Year 1</SelectItem>
-                  <SelectItem value="2">Year 2</SelectItem>
-                  <SelectItem value="3">Year 3</SelectItem>
-                  <SelectItem value="4">Year 4</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Academic Status Filter */}
-            <div className="w-full xl:w-[150px]">
-              <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? "all"); setPage(0); }}>
-                <SelectTrigger className="w-full text-xs">
-                  <span className="truncate">{statusLabel}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="regular">Regular</SelectItem>
-                  <SelectItem value="irregular">Irregular</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Account / Invitation Filter */}
-            <div className="w-full xl:w-[160px]">
-              <Select value={accountFilter} onValueChange={(val) => { setAccountFilter(val ?? "all"); setPage(0); }}>
-                <SelectTrigger className="w-full text-xs">
-                  <span className="truncate">{accountLabel}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Accounts</SelectItem>
-                  <SelectItem value="linked">Account Linked</SelectItem>
-                  <SelectItem value="pending">Invitation Pending</SelectItem>
-                  <SelectItem value="uninvited">Uninvited</SelectItem>
-                  <SelectItem value="no_email">No Email</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
+  const filters = (
+    <>
+      <div className="relative w-full sm:max-w-xs">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by student number or name..."
+          aria-label="Search students"
+          className="pl-8 text-xs"
+        />
       </div>
+      <FilterSelect label="Year" value={year} options={YEAR_OPTIONS} onChange={setYear} />
+      <FilterSelect label="Status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
+      {accounts && <FilterSelect label="Account" value={account} options={ACCOUNT_OPTIONS} onChange={setAccount} />}
+    </>
+  );
 
-      {/* Roster Counter */}
-      <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
-        <span>
-          {filteredStudents.length === 0
-            ? <>Showing <strong>0</strong> of {students.length} students</>
-            : <>Showing <strong>{firstIndex + 1}–{firstIndex + pageStudents.length}</strong> of {filteredStudents.length} students
-                {filteredStudents.length !== students.length && <> (filtered from {students.length})</>}</>}
-        </span>
-        {pageCount > 1 && (
-          <nav aria-label="Roster pages" className="flex items-center gap-2">
-            <Button variant="outline" size="sm" aria-label="Previous page"
-              disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span aria-live="polite">Page {currentPage + 1} of {pageCount}</span>
-            <Button variant="outline" size="sm" aria-label="Next page"
-              disabled={currentPage === pageCount - 1} onClick={() => setPage(currentPage + 1)}>
-              <ChevronRight className="size-4" />
-            </Button>
-          </nav>
+  function actions(student: StudentRosterItem) {
+    return (
+      <div className="flex shrink-0 items-center justify-end gap-1">
+        {workspace === "faculty" && (
+          <Button variant="ghost" size="sm" nativeButton={false}
+            className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+            render={<Link href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`} aria-label={`Award merits to ${sortName(student)}`} />}>
+            <Award className="size-3.5" />
+            <span>Award merits</span>
+          </Button>
         )}
+        <StudentRowActions student={student} canEdit={canEdit} />
+        <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
+        {canEdit && <EditStudentDialog student={student} />}
       </div>
+    );
+  }
 
-      {filteredStudents.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-          <Users className="size-8 text-muted-foreground/60" />
-          <p className="text-xs text-muted-foreground">
-            No students match your filter criteria. Try clearing or adjusting the search query.
-          </p>
-        </Card>
+  return (
+    <TableFrame filters={filters} pager={pager}>
+      {rows.length === 0 ? (
+        <TableEmpty icon={Users} title="No students" text="" filtered />
       ) : (
         <>
-          {/* Mobile & Tablet Card View (< lg) */}
-          <div className="pb-1 md:min-h-[360px] md:max-h-[600px] md:overflow-y-auto md:pr-1 lg:hidden">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {pageStudents.map((student) => {
-                const fullName = sortName(student);
+          {/* Phones and tablets: cards */}
+          <ul className="grid grid-cols-1 gap-3 p-3 md:grid-cols-2 lg:hidden">
+            {pageRows.map((student) => (
+              <li key={student.enrollment_id} className="flex flex-col gap-3 rounded-xl border border-border bg-background p-4">
+                <div className="min-w-0">
+                  <span className="font-mono text-xs font-semibold text-primary">{student.university_id}</span>
+                  <h4 className="break-words font-heading text-sm font-semibold text-foreground">{sortName(student)}</h4>
+                  {student.email && <p className="break-all text-[11px] text-muted-foreground">{student.email}</p>}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">Year {student.year_level}</span>
+                  <AcademicStatusBadge status={student.academic_status} size="sm" />
+                  {accounts && <InvitationStatusBadge student={student} size="sm" />}
+                </div>
+                <div className="border-t border-border/60 pt-2">{actions(student)}</div>
+              </li>
+            ))}
+          </ul>
 
-                return (
-                  <div
-                    key={student.enrollment_id}
-                    className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <span className="font-mono text-xs font-semibold text-primary">
-                          {student.university_id}
-                        </span>
-                        <h4 className="font-heading text-sm font-semibold text-foreground break-words">
-                          {fullName}
-                        </h4>
-                        {student.email && (
-                          <p className="text-[11px] text-muted-foreground break-all">
-                            {student.email}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <StudentRowActions student={student} canEdit={canEdit} />
-                        <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
-                        {canEdit && <EditStudentDialog student={student} />}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2.5 text-xs">
-                      <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
-                        Year {student.year_level}
+          {/* Desktop: table */}
+          <table className="hidden w-full text-left text-sm lg:table">
+            <thead className={`${THEAD_CLASS} text-xs`}>
+              <tr>
+                <th className="px-4 py-3">Student</th>
+                <th className="px-4 py-3">Year</th>
+                <th className="px-4 py-3">Status</th>
+                {accounts && <th className="px-4 py-3">Account / Invitation</th>}
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {pageRows.map((student) => (
+                <tr key={student.enrollment_id} className="transition-colors hover:bg-muted/40">
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col">
+                      <span className="font-medium text-foreground">{sortName(student)}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        <span className="font-mono">{student.university_id}</span>
+                        {student.email && <> · {student.email}</>}
                       </span>
-
-                      <AcademicStatusBadge status={student.academic_status} size="sm" />
-
-                      <InvitationStatusBadge student={student} size="sm" />
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Desktop Table View (>= lg) */}
-          <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:block shadow-xs">
-            <div className="overflow-auto min-h-[360px] max-h-[600px]">
-              <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 border-b border-border bg-muted/95 backdrop-blur-xs text-xs font-medium text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3.5">Student Number</th>
-                    <th className="px-4 py-3.5">Full Name</th>
-                    <th className="px-4 py-3.5">Year Level</th>
-                    <th className="px-4 py-3.5">Academic Status</th>
-                    <th className="px-4 py-3.5">Account / Invitation</th>
-                    <th className="px-4 py-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {pageStudents.map((student) => {
-                    const fullName = sortName(student);
-
-                    return (
-                      <tr
-                        key={student.enrollment_id}
-                        className="transition-colors hover:bg-muted/40"
-                      >
-                        <td className="px-4 py-3.5 font-mono text-xs font-semibold text-foreground">
-                          {student.university_id}
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-foreground">{fullName}</span>
-                            {student.email && (
-                              <span className="text-[11px] text-muted-foreground">
-                                {student.email}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5 text-xs text-foreground">
-                          Year {student.year_level}
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <AcademicStatusBadge status={student.academic_status} />
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <InvitationStatusBadge student={student} size="md" />
-                        </td>
-                        <td className="px-4 py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <StudentRowActions student={student} canEdit={canEdit} />
-                            <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
-                            {canEdit && <EditStudentDialog student={student} />}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-foreground">Year {student.year_level}</td>
+                  <td className="px-4 py-3"><AcademicStatusBadge status={student.academic_status} /></td>
+                  {accounts && <td className="px-4 py-3"><InvitationStatusBadge student={student} size="md" /></td>}
+                  <td className="px-4 py-3">{actions(student)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </>
       )}
-    </div>
+    </TableFrame>
   );
 }

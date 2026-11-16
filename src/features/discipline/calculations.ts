@@ -22,6 +22,16 @@ export function getTodayManila(now: Date = new Date()): string {
 }
 
 /**
+ * The expiry date `award_merits` stores: `(awarded_on + interval '1 year')::date`, so 29 Feb becomes 28 Feb.
+ */
+export function meritExpiryDate(awardedOn: string): string {
+  const [year, month, day] = awardedOn.split("-").map(Number);
+  const next = new Date(Date.UTC(year + 1, month - 1, day));
+  if (next.getUTCMonth() !== month - 1) next.setUTCDate(0);
+  return next.toISOString().slice(0, 10);
+}
+
+/**
  * Calculates a bucket balance (Office or RLE).
  * 100% consistent with PostgreSQL `public.f_cmd_balance` in 20261107050430_florence_commands.sql:
  *

@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { Check, Copy, Eye, GraduationCap, Mail, RefreshCw, User, XCircle } from "lucide-react";
+import { Award, Check, Copy, Eye, GraduationCap, Mail, RefreshCw, User, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -112,13 +113,16 @@ export function StudentDetailDialog({
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-0.5">
-                  <span className="text-[11px] font-medium text-muted-foreground">Account Status</span>
-                  <InvitationStatusBadge student={student} size="sm" />
-                </div>
+                {/* Account provisioning is Council's concern; faculty do not see it. */}
+                {workspace !== "faculty" && (
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span className="text-[11px] font-medium text-muted-foreground">Account Status</span>
+                    <InvitationStatusBadge student={student} size="sm" />
+                  </div>
+                )}
               </div>
 
-              {isPending && student.invitation_expires_at && (
+              {workspace !== "faculty" && isPending && student.invitation_expires_at && (
                 <div className="flex items-center justify-between rounded-lg bg-sky-50/70 p-2 text-[11px] text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
                   <span>Invitation expires:</span>
                   <span className="font-medium">
@@ -246,6 +250,13 @@ export function StudentDetailDialog({
           </div>
 
           <DialogFooter className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {workspace === "faculty" && (
+              // The award page checks the student against the current roster before preselecting them.
+              <Button variant="outline" nativeButton={false} className="w-full gap-1.5 sm:w-auto"
+                render={<Link href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`} onClick={() => setOpen(false)} />}>
+                <Award className="size-4" /> Award merits
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
