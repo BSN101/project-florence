@@ -174,7 +174,7 @@ export function BulkInviteDialog({
             <Users className="size-4 text-primary" />
             <span>Council Batch Provisioning</span>
           </div>
-          <DialogTitle className="font-heading text-lg font-semibold text-foreground">
+          <DialogTitle className="font-heading text-lg font-medium text-foreground">
             {stage === "review" && `Invite ${summary.eligibleCount} students`}
             {stage === "sending" && "Sending invitations…"}
             {stage === "done" && (run.stopped ? "Sending stopped" : "Invitations finished")}
@@ -193,7 +193,7 @@ export function BulkInviteDialog({
               <div className="flex flex-col gap-1 rounded-xl border border-primary/30 bg-primary/5 p-3.5">
                 <span className="text-[11px] font-medium text-primary">Eligible to Invite</span>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="font-heading text-2xl font-bold text-foreground">{summary.eligibleCount}</span>
+                  <span className="font-heading text-2xl font-semibold tabular-nums text-foreground">{summary.eligibleCount}</span>
                   <span className="text-xs text-muted-foreground">students</span>
                 </div>
                 <span className="text-[11px] text-muted-foreground">Uninvited with institutional email</span>
@@ -202,7 +202,7 @@ export function BulkInviteDialog({
               <div className="flex flex-col gap-1 rounded-xl border border-border bg-muted/40 p-3.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Ineligible / Skip</span>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="font-heading text-2xl font-bold text-foreground">{ineligibleCount}</span>
+                  <span className="font-heading text-2xl font-semibold tabular-nums text-foreground">{ineligibleCount}</span>
                   <span className="text-xs text-muted-foreground">students</span>
                 </div>
                 <span className="text-[11px] text-muted-foreground">Active account, pending, or no email</span>

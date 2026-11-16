@@ -43,7 +43,7 @@ export function FineDefinitionList({
       {/* Header and Action */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">Fine Definitions</h2>
+          <h2 className="section-title text-foreground">Fine Definitions</h2>
           <p className="text-sm text-muted-foreground">
             Manage reusable fine penalties for event attendance absences and lateness.
           </p>

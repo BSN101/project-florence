@@ -61,7 +61,7 @@ export function PaymentAccountList({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+          <h2 className="section-title text-foreground flex items-center gap-2">
             <CreditCard className="size-5 text-primary" />
             Payment Accounts
           </h2>

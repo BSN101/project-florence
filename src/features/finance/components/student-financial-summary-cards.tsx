@@ -41,7 +41,7 @@ export function StudentFinancialSummaryCards({
         </CardHeader>
         <CardContent>
           <div
-            className={`text-2xl font-bold tracking-tight ${
+            className={`font-heading text-2xl font-semibold tracking-tight tabular-nums ${
               isFullyCleared
                 ? "text-emerald-600 dark:text-emerald-400"
                 : "text-amber-600 dark:text-amber-400"
@@ -72,7 +72,7 @@ export function StudentFinancialSummaryCards({
           <Clock className="size-4 text-indigo-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             {formatPhp(summary.totalPendingVerificationAmount)}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -92,7 +92,7 @@ export function StudentFinancialSummaryCards({
           <Coins className="size-4 text-emerald-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             {formatPhp(summary.totalSettledAmount)}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -110,7 +110,7 @@ export function StudentFinancialSummaryCards({
           <ShieldCheck className="size-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             {formatPhp(summary.totalWaivedAmount)}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">

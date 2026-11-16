@@ -117,7 +117,7 @@ export function AddStudentDialog({ className }: { className?: string }) {
       />
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader className="text-left">
-          <DialogTitle className="font-heading text-lg font-semibold text-foreground">
+          <DialogTitle className="font-heading text-lg font-medium text-foreground">
             Add Student to Roster
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">

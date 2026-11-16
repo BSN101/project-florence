@@ -51,7 +51,7 @@ export default async function StudentPage({
       <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
         {/* Welcome Banner */}
         <div className="flex flex-col gap-1 text-center sm:text-left">
-          <h2 className="font-heading text-xl font-bold text-foreground sm:text-2xl">
+          <h2 className="section-title text-foreground">
             Welcome, {profile?.first_name ?? "Student"}
           </h2>
           <p className="text-xs text-muted-foreground sm:text-sm">

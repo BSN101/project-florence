@@ -29,7 +29,7 @@ export function FeePublicationList({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
+          <h3 className="font-heading text-lg font-medium text-foreground flex items-center gap-2">
             <History className="size-5 text-muted-foreground" />
             Publication History
           </h3>
