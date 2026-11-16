@@ -420,7 +420,7 @@ async function fetchStudentFinancialAccountData({
 }
 
 /** Reads every row past the API row cap; callers order by a unique column so pages never overlap. */
-async function allRows<T>(
+export async function allRows<T>(
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
   errorMessage: string
 ): Promise<T[]> {

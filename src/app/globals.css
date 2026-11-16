@@ -145,6 +145,35 @@
     line-height: 1.75rem;
     letter-spacing: -0.01em;
   }
+
+  /* Slim rounded scrollbar matching Florence warm brown theme */
+  .clearance-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--primary) 38%, transparent) transparent;
+  }
+
+  .clearance-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .clearance-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    margin-top: 4px;
+    margin-bottom: 8px; /* Keeps vertical thumb clear of card's rounded bottom corner */
+    margin-left: 8px;
+    margin-right: 8px; /* Keeps horizontal thumb clear of card's rounded corners */
+  }
+
+  .clearance-scrollbar::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--primary) 38%, transparent);
+    border-radius: 9999px;
+    transition: background-color 150ms ease;
+  }
+
+  .clearance-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--primary); /* Darkens to the Grant Clearance button color */
+  }
 }
 
 /* iOS Safari zooms the page when a focused text field is under 16px. Unlayered, so it wins over size utilities. */
