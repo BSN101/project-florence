@@ -73,7 +73,7 @@ export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
       />
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader className="text-left">
-          <DialogTitle className="font-heading text-lg font-semibold text-foreground">
+          <DialogTitle className="font-heading text-lg font-medium text-foreground">
             Edit Student Details
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">

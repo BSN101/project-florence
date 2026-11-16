@@ -1,134 +1,224 @@
 # Project Florence agent guidance
 
-## Start here
+Rules for agents working in this repository. Sections are ordered by when
+you need them: sources first, then hard limits, then rules per kind of change.
 
-- Before working, read `README.md`, then `docs/Florence_Architecture.md`
-  and any other relevant project instructions.
-- The function list defines agreed V1 scope and fixed roles.
-- The architecture defines code responsibilities and security boundaries.
-- The navigation map defines destinations, not permissions.
-- `docs/database/schema.dbml` is the canonical schema-documentation source;
-  dbdocs is its published view. The adjacent `schema.dbdiagram` is a diagram
-  artifact, not an independently maintained schema contract.
-- `supabase/migrations/` contains executable changes. Do not assume local
-  files establish the state of a deployed database.
-- Exclude archived specifications from routine searches. Consult them only
-  for an explicit historical question or targeted provenance check.
+## 1. Sources of truth
 
-## Scope and implementation
+Read `README.md`, then `docs/Florence_Architecture.md`, before working.
 
-- Ask before adding roles, workflows, automation or dependencies beyond
-  agreed requirements.
+| Source | Defines | Does not |
+|---|---|---|
+| `docs/Project_Florence_Function_List.md` | Agreed V1 scope and fixed roles | — |
+| `docs/Florence_Architecture.md` | Code responsibilities, security boundaries, rendering rules | — |
+| `docs/Project_Florence_Navigation_Map.md` | Destinations per workspace | Grant permissions |
+| `docs/database/schema.dbml` | Canonical schema documentation (dbdocs is its published view) | Apply SQL |
+| `docs/database/schema.dbdiagram` | Diagram artifact | Act as a separate schema contract |
+| `supabase/migrations/` | Executable database changes | Prove what is deployed |
+| `docs/Florence_Design_Tokens.md` | Colour, type and motion values | — |
+| `DESIGN.md` | Frontend principles: layout, placement, spacing, typography, materials, motion, transitions | Override §4 below |
+
+Read `DESIGN.md` before any UI change, and check the change against its
+review checklist (§11) before finishing.
+
+Exclude archived specifications from routine searches. Consult them only for
+an explicit historical question or a targeted provenance check.
+
+## 2. Hard limits
+
+Never do these without explicit instruction from the user:
+
+- Commit, publish documentation, push migrations or change deployed resources.
+- Add roles, workflows, automation or dependencies beyond agreed requirements.
+- Rewrite applied migrations, reset shared databases or discard retained history.
+- Disable a safeguard to make a migration or workflow succeed.
+- Trust a browser-provided actor ID, or attach user cookies/sessions to the
+  privileged client.
+- Expose privileged keys, provider credentials or signed URLs in browser code,
+  public variables, responses or logs.
+- Enable public signup or use it to bypass provisioning and invitation flows.
+- Edit generated database types by hand.
+- Break a rule in §4 (navigation, layout and caching).
+- Change the meaning of the academic policy extract. Product decisions do not
+  amend institutional policy.
+
+## 3. Writing application code
+
+### Scope and structure
+
 - Keep changes focused and preserve existing developer work.
-- Follow the feature-based architecture without requiring empty files,
+- Follow the feature-based architecture. Do not add empty files,
   forwarding-only layers or a generic repository framework.
 - Keep domain rules and calculations in their owning feature.
-- Reuse shared UI and utilities without duplicating business models across
+- Reuse shared UI and utilities; do not duplicate business models across
   workspaces.
-- Keep the academic policy extract unchanged in meaning. Product decisions
-  do not amend institutional policy.
 
-## Authorization and privacy
+### Types and contracts
 
-- Resolve the actor from a verified session and linked active profile.
-  Never trust a browser-provided actor ID.
-- Ordinary reads use the request-scoped user client, RLS and explicit fields.
-- Protected commands use a separate server-only service-role client after
-  actor/action authorization. Service-role access bypasses RLS.
-- Do not attach user cookies or sessions to the privileged client.
-- Keep privileged keys and provider credentials out of browser code, public
-  variables, responses and logs.
-- Expose storage keys only where explicitly authorized. Never treat a key
-  as permission to access an object or sign arbitrary submitted keys.
-- Do not log signed URLs or include private records in public assets.
-- RLS filters rows, not columns. Use permitted projections and restricted
-  query interfaces.
-- Auth accounts, navigation visibility and workspace names do not grant
-  business authority.
-- Preserve self-benefit restrictions and archived-profile denial.
-- Keep public signup disabled; use approved provisioning and invitation
-  flows. Do not substitute public signup to bypass those flows.
-
-## Database changes
-
-- Use new, versioned SQL migrations. Never rewrite applied migrations,
-  reset shared databases or discard retained history.
-- In RLS policies, call row-independent helpers as
-  `(select f_access_private.me())` so they run once per statement, not per
-  row. Helpers that take a row column, such as `event_visible(id)`, cannot be
-  wrapped this way.
-- Generated migration files start empty; populate and review them.
-- Confirm the linked target and inspect pending migrations before applying
-  changes. Do not push remote changes without explicit authorization.
-- Docker is not required for linked remote migration pushes.
-- This machine has no Docker or local Supabase stack. Pass `--remote` to
-  Supabase CLI commands that target a database, for example
-  `supabase migration list --remote`, `supabase db push --remote` and
-  `supabase gen types --remote`. `--remote` is the CLI 3.x flag; it replaces
-  `--linked`. Without it, those commands target the local database.
-- Preserve constraints, restricted RPC execution, immutable histories,
-  idempotency and shared locking protocols.
-- Use one real transaction or transactional RPC for coordinated operations.
-  Separate Supabase requests do not provide atomicity.
-- Never disable safeguards merely to make a migration or workflow succeed.
-- Migration-history repair changes recorded history, not database objects.
-  Investigate mismatches before using it.
-- Update `docs/database/schema.dbml` and regenerate
-  `src/server/db/database.types.ts` after relevant database-interface changes.
-- Keep executable changes in `supabase/migrations/`. Documentation changes
-  do not apply SQL, and publication does not verify deployment.
-- Do not expose private helper/configuration schemas through the Data API.
-- Provision real Auth identities through supported Auth APIs or approved
-  administration flows, not manual password/token inserts.
-
-## Domain distinctions
-
-- Council selects Office/RLE during event consequence generation. Retain
-  the selection per event, including zero-demerit outcomes, and include it
-  in retry identity. There is no global Council event bucket.
-- Institutional date-sensitive behavior uses `Asia/Manila`.
-- Any active Council Executive may waive eligible Council-generated
-  demerits regardless of original Council issuer. Operations and
-  Representatives cannot waive.
-- Faculty entries retain issuer-specific waiver restrictions. Coordinator
-  status does not override them. Self-waiver is prohibited.
-- Preserve both the actual issuer and waiver actor. Displaying “Council”
-  does not replace historical attribution.
-- Preserve received-money, refund, correction and permanent-clearance
-  history according to the documented contracts.
-
-## Types and contracts
-
-- Do not manually edit generated database types.
 - Parameterize both database clients with the generated `Database` type.
 - Extract database types where needed; share aliases only when useful.
 - A database-derived subset can itself be a shared contract. Do not
   duplicate identical shapes across model, DTO and response definitions.
 - Infer input types from runtime validation schemas.
 - Prefer query inference for selected fields and joins when sufficient.
-- Types do not replace validation, authorization or explicit response
-  field selection. A `Pick` annotation does not remove runtime fields.
-- Keep shared schemas/contracts free of secrets and server-only runtime
+- Types do not replace validation, authorization or explicit response field
+  selection. A `Pick` annotation does not remove runtime fields.
+- Keep shared schemas and contracts free of secrets and server-only runtime
   dependencies.
 
-## Documentation and verification
+## 4. Navigation, layout and caching (required for new features)
 
-- Write concise, standalone current guidance.
+These rules keep navigation instant and app-like. Each one fixes a measured
+problem; breaking one silently brings it back. Reasons and details:
+architecture §3 "Rendering and navigation" and §4 "Caching and authorization".
+
+### Pages and layouts
+
+- A workspace page renders `WorkspaceShell` and nothing else from the shell.
+  It is the access gate (redirects, not-found, destination and `semester`
+  checks) and the page frame. Never skip it or copy its checks into a page.
+- The sidebar, header and phone tab bar come only from `WorkspaceChrome` in
+  the workspace `layout.tsx`. Never render them from a page.
+- A page that needs no chrome (full-screen tools such as the QR station)
+  goes in its own route group, like `council/(station)/`, not in a branch
+  inside the chrome.
+- Derive the current destination on the client with `usePathname()` against
+  the navigation list. Do not pass it down from pages.
+- Pages and workspace layouts export `instant = false`; keep it until
+  session reads move behind `<Suspense>` or a private cache.
+
+### Loading, errors and pending states
+
+- Workspace `loading.tsx` renders `ContentLoading` and `error.tsx` renders
+  `PortalError`, both inside the layout so the chrome stays on screen.
+- Write `loading.tsx`, `error.tsx` and other route files as plain function
+  components. `export { X as default } from "…"` breaks in Turbopack dev.
+- Never cover the whole screen while something loads. Show pending state in
+  the affected area: the clicked row, the control that changed, or the
+  content skeleton. Use `useTransition` to keep the current view visible.
+- Navigate with `<Link>`. A clickable row may add `router.push`, but keeps a
+  real link inside it for prefetching, new tabs and keyboard users.
+- Put secondary or slow data behind `<Suspense>`: start the read without
+  awaiting it, pass the promise down and read it with `use()`.
+- Keep view-only state (tabs, open panels) on the client, using
+  `history.replaceState` when the URL should reflect it.
+
+### Back navigation and preserved pages
+
+- Next.js keeps the last three visited routes alive (hidden with
+  `<Activity>`), so Back is instant. Never key a layout-level wrapper by
+  pathname or otherwise re-mount the routes: that discards them.
+- Page transitions go inside the page (`PageTransition` in `WorkspaceShell`),
+  not around the layout's children.
+- Hidden pages keep their state and stay in the DOM. Reset transient UI
+  explicitly (open menus, stale success messages, "tapped" highlights) when
+  the URL changes, and never rely on `document.getElementById` finding the
+  visible copy. Effects run cleanup when a page is hidden.
+- Sign-out must load `/sign-in` in full. Use `SignOutForm`; never sign out
+  with a soft redirect.
+
+### Caching and freshness
+
+- `staleTimes.dynamic` is 30 s: a link revisit within 30 s reuses the last
+  render. Every write action calls `revalidatePath` (or `updateTag`) for the
+  pages it changes, so the user's own changes show at once.
+- Screens that show changes made by other people (payment review,
+  attendance, clearance queues) include `RefreshButton` with the render time.
+- `"use cache"` cannot read cookies, so it never runs under the RLS user
+  client. Cache with it only data every signed-in user may see, after an
+  authorization review.
+- Per-user data may use `"use cache: private"` at most. A cached result is
+  never an authorization check; commands always read current state.
+- No service workers or disk caches for signed-in data.
+
+### Verify before finishing a navigation or layout change
+
+- In a production build (`next build && next start`): Back to a visited page
+  makes no server request and keeps the page; the sidebar never turns into
+  a skeleton; the page title, header title and active item match the URL.
+- Allow and deny checks for each affected role still pass (signed out,
+  wrong workspace, wrong destination, invalid `semester`).
+- On a phone width: the tab bar highlights the current page after Back, and
+  the header turns frosted when the title scrolls under it.
+
+## 5. Authorization and privacy
+
+- Resolve the actor from a verified session and a linked active profile.
+- Ordinary reads use the request-scoped user client, RLS and explicit fields.
+- Protected commands use a separate server-only service-role client after
+  actor/action authorization. Service-role access bypasses RLS.
+- RLS filters rows, not columns. Use permitted projections and restricted
+  query interfaces.
+- Expose storage keys only where explicitly authorized. A key is never
+  permission to access an object; never sign arbitrary submitted keys.
+- Never include private records in public assets.
+- Auth accounts, navigation visibility and workspace names do not grant
+  business authority.
+- Preserve self-benefit restrictions and archived-profile denial.
+
+## 6. Database changes
+
+### Writing migrations
+
+- Use new, versioned SQL migrations in `supabase/migrations/`. Generated
+  migration files start empty; populate and review them.
+- In RLS policies, call row-independent helpers as
+  `(select f_access_private.me())` so they run once per statement, not per
+  row. Helpers that take a row column, such as `event_visible(id)`, cannot be
+  wrapped this way.
+- Preserve constraints, restricted RPC execution, immutable histories,
+  idempotency and shared locking protocols.
+- Use one real transaction or transactional RPC for coordinated operations.
+  Separate Supabase requests are not atomic.
+- Do not expose private helper/configuration schemas through the Data API.
+- Provision real Auth identities through supported Auth APIs or approved
+  administration flows, not manual password/token inserts.
+- After database-interface changes, update `docs/database/schema.dbml` and
+  regenerate `src/server/db/database.types.ts`.
+
+### Running the Supabase CLI
+
+- This machine has no Docker or local Supabase stack, and Docker is not
+  needed for remote pushes.
+- Pass `--remote` to commands that target a database, for example
+  `supabase migration list --remote`, `supabase db push --remote` and
+  `supabase gen types --remote`. `--remote` is the CLI 3.x flag that replaces
+  `--linked`; without it, commands target the local database.
+- Confirm the linked target and inspect pending migrations before applying.
+- Migration-history repair changes recorded history, not database objects.
+  Investigate mismatches before using it.
+
+## 7. Domain rules
+
+- Council selects Office/RLE during event consequence generation. Retain the
+  selection per event, including zero-demerit outcomes, and include it in
+  retry identity. There is no global Council event bucket.
+- Institutional date-sensitive behavior uses `Asia/Manila`.
+- Any active Council Executive may waive eligible Council-generated demerits
+  regardless of the original Council issuer. Operations and Representatives
+  cannot waive.
+- Faculty entries keep issuer-specific waiver restrictions. Coordinator
+  status does not override them. Self-waiver is prohibited.
+- Preserve both the actual issuer and the waiver actor. Displaying “Council”
+  does not replace historical attribution.
+- Preserve received-money, refund, correction and permanent-clearance
+  history according to the documented contracts.
+
+## 8. Documentation, verification and reporting
+
+- Write concise, standalone current guidance. Do not describe proposed
+  behavior as implemented.
 - Keep one canonical DBML source; publishing it does not migrate SQL.
-- Update affected current references when filenames or contracts change.
-- Record finalized user journeys using the documented format, including
-  the author. Do not describe proposed behavior as implemented.
-- Use existing checks and focused verification. Do not introduce a large
-  testing framework merely to begin scaffolding.
-- Verify critical permission and integrity behavior before releasing the
-  affected workflows. A comprehensive seed dataset is not a prerequisite
+- Update affected references when filenames or contracts change.
+- Record finalized user journeys in the documented format, including the author.
+- Use existing checks and focused verification. Do not add a large testing
+  framework just to start scaffolding. A full seed dataset is not required
   for every focused check.
+- Verify critical permission and integrity behavior before releasing the
+  affected workflows.
 - Report commands run, results and limitations honestly. Migration success
-  is not proof that every business workflow works.
-- Do not claim deployed resources were inspected or changed without
-  performing and verifying those operations.
-- Do not commit, publish documentation or change deployed resources unless
-  explicitly requested.
+  does not prove every business workflow works. Do not claim deployed
+  resources were inspected or changed without doing and verifying it.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

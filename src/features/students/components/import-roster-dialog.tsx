@@ -251,7 +251,7 @@ export function ImportRosterDialog({
               <FileSpreadsheet className="size-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">Import student roster</DialogTitle>
+              <DialogTitle className="font-heading text-lg font-medium text-foreground">Import student roster</DialogTitle>
               <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
                 Into {semesterLabel}. Nothing is saved until every row is ready, and then all rows are saved together.
               </DialogDescription>
@@ -457,7 +457,7 @@ export function ImportRosterDialog({
         {stage === "failed" && (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <XCircle className="size-10 text-destructive" />
-            <h3 className="font-heading text-lg font-semibold text-foreground">Nothing was imported</h3>
+            <h3 className="font-heading text-lg font-medium text-foreground">Nothing was imported</h3>
             <p className="max-w-md text-sm text-muted-foreground">{error}</p>
             <p className="max-w-md text-xs text-muted-foreground">
               The roster may have changed since your check. Check the file again to see its current state.
@@ -470,7 +470,7 @@ export function ImportRosterDialog({
             <div className="flex items-center gap-3">
               <CheckCircle2 className="size-9 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <div className="min-w-0">
-                <h3 className="font-heading text-lg font-semibold text-foreground">{plural(result.summary.total, "student")} imported</h3>
+                <h3 className="font-heading text-lg font-medium text-foreground">{plural(result.summary.total, "student")} imported</h3>
                 <p className="text-xs text-muted-foreground">{result.message}</p>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { activityEntries, attendeeSummary, canGenerate, consequenceTotals, eventPhase, sameTotals } from "./event-state.ts";
+import { activityEntries, attendeeSummary, byPriority, canGenerate, consequenceTotals, eventPhase, sameTotals } from "./event-state.ts";
 
 const event = {
   audience_frozen_at: "2026-11-20T00:00:00Z", archived_at: null, attendance_locked_at: null,
@@ -27,6 +27,17 @@ test("consequence totals count outcomes, fines and demerit days without float dr
   assert.deepEqual(totals, { absent: 1, late: 2, fines: 2, fineTotal: 70.3, demeritDays: 4 });
   assert.equal(sameTotals(totals, { ...totals }), true);
   assert.equal(sameTotals(totals, { ...totals, late: 1 }), false);
+});
+
+test("events sort open, upcoming, waiting, draft, done; finished ones newest first", () => {
+  const at = (day, extra = {}) => ({ ...event, starts_at: `2026-11-${day}T00:00:00Z`, time_in_from: `2026-11-${day}T00:00:00Z`,
+    ends_at: `2026-11-${day}T04:00:00Z`, time_in_until: `2026-11-${day}T04:00:00Z`, name: `${day}`, ...extra });
+  const now = Date.parse("2026-11-20T01:00:00Z");
+  const list = [
+    at("10", { attendance_locked_at: "x" }), at("15", { attendance_locked_at: "x" }), at("25", { audience_frozen_at: null }),
+    at("12"), at("18"), at("28"), at("22"), at("20"),
+  ];
+  assert.deepEqual(list.sort(byPriority(now)).map((e) => e.name), ["20", "22", "28", "18", "12", "25", "15", "10"]);
 });
 
 test("event phase follows publication, windows, generation and archiving", () => {

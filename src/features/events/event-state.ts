@@ -5,6 +5,11 @@ export function canCapture(event: EventDTO) {
   return event.audience_frozen_at !== null && event.archived_at === null && event.attendance_locked_at === null;
 }
 
+/** Whether `at` falls inside a capture window; a missing bound means the window is not set. */
+export function within(from: string | null, until: string | null, at: number) {
+  return from !== null && until !== null && at >= Date.parse(from) && at <= Date.parse(until);
+}
+
 /** When capture ends: the latest of the event end and both windows. */
 export function closesAt(event: Pick<EventDTO, "ends_at" | "time_in_until" | "time_out_until">) {
   return Math.max(...[event.ends_at, event.time_in_until, event.time_out_until]
@@ -24,6 +29,21 @@ export function eventPhase(event: EventDTO, now: number): EventPhase {
   if (!event.audience_frozen_at) return "draft";
   if (event.time_in_from && now < Date.parse(event.time_in_from)) return "upcoming";
   return now < closesAt(event) ? "open" : "closed";
+}
+
+// Work that needs attention first: live capture, then soon, then waiting for consequences.
+const phaseRank: Record<EventPhase, number> = { open: 0, upcoming: 1, closed: 2, draft: 3, generated: 4, archived: 5 };
+
+/** Sorts by phase rank; earliest first for open/upcoming/draft, most recent first once finished. */
+export function byPriority(now: number) {
+  const start = (event: EventDTO) => Date.parse(event.time_in_from ?? event.starts_at);
+  return (a: EventDTO, b: EventDTO) => {
+    const pa = eventPhase(a, now);
+    const pb = eventPhase(b, now);
+    if (pa !== pb) return phaseRank[pa] - phaseRank[pb];
+    const diff = start(a) - start(b);
+    return pa === "closed" || pa === "generated" || pa === "archived" ? -diff : diff;
+  };
 }
 
 export type AttendeeSummary = Record<AttendeeStatus, number> & { participants: number; timedIn: number; timedOut: number };

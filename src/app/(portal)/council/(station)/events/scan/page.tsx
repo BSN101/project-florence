@@ -11,10 +11,10 @@ export const instant = false;
 
 /** Full-screen QR station, outside the workspace shell. Same access as the capture page. */
 export default async function EventScanPage({ searchParams }: {
-  searchParams: Promise<{ event?: string | string[]; side?: string | string[] }>;
+  searchParams: Promise<{ event?: string | string[]; side?: string | string[]; mode?: string | string[] }>;
 }) {
   await connection();
-  const { event, side } = await searchParams;
+  const { event, side, mode } = await searchParams;
   const access = await getAccessContext();
   if (access.status === "unauthenticated") redirect("/sign-in?next=/council/events");
   if (access.status === "error") throw new Error("Unable to verify Florence access. Try again later.");
@@ -32,6 +32,7 @@ export default async function EventScanPage({ searchParams }: {
       event={selected}
       summary={summary}
       initialSide={side === "time_out" ? "time_out" : "time_in"}
+      initialMode={mode === "manual" ? "manual" : "qr"}
       backHref={`/council/events?semester=${selected.semester_id}&event=${selected.id}`}
       now={new Date().toISOString()}
     />

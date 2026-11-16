@@ -64,7 +64,7 @@ export function ActivateSemesterDialog({
       />
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader className="gap-1 text-left">
-          <DialogTitle className="font-heading text-lg font-semibold text-foreground">
+          <DialogTitle className="font-heading text-lg font-medium text-foreground">
             Activate {semester.term}?
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">

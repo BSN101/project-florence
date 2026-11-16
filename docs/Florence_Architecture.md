@@ -106,13 +106,13 @@ The application root `README.md` covers setup, commands, environment configurati
 ### Routes and entry points
 
 - `src/proxy.ts` refreshes Supabase SSR cookies and performs early sign-in redirects. Validate authentication rather than trusting cookie presence. Skip static assets through its matcher.
-- Pages compose screens and call feature queries. Layouts provide shared shells. Route groups and workspace names do not grant permissions.
+- Pages compose screens and call feature queries. Route groups and workspace names do not grant permissions. Each workspace `layout.tsx` renders `WorkspaceChrome` (sidebar, header and phone tab bar), which stays mounted between pages and only shows links. Each page renders `WorkspaceShell`, the access gate and page frame: it redirects or returns not-found for the workspace, destination and `semester` parameter, then renders the title, semester controls and content. Pages that need no chrome, such as the full-screen Council QR station, sit in a separate route group (`council/(station)/`) with no chrome layout.
 - `src/app/(portal)/account/` is the shared protected account destination outside every workspace. It displays the signed-in user's permitted identity fields and owns no workspace authority; `src/features/account/` owns signed-in account actions such as current-password-confirmed password changes.
 - `src/app/(auth)/reset-password/` and its callback are public recovery entry points. Recovery uses a verified Supabase session plus a signed, short-lived, HTTP-only recovery-intent marker; it does not reuse the authenticated account password action.
 - `src/app/(auth)/invitation/accept/` is the public first-access entry point. The invitation token is the only credential. It is read from the URL fragment and posted to a Server Action that re-checks it in the database; opening the link changes nothing.
 - Server actions validate form input, resolve the actor and run an authorized command.
 - API route handlers support downloads or other actual HTTP integration needs. Do not create an endpoint for every feature or make server code fetch its own API.
-- Add loading, error and not-found screens where needed.
+- Add loading, error and not-found screens where needed. `src/components/layout/portal-loading.tsx` (full first-load skeleton and content-only `ContentLoading`) and `portal-error.tsx` are the shared versions. Each workspace re-exports `ContentLoading` and `PortalError` inside its layout, so the chrome stays mounted while a page loads or fails.
 
 | Need | Default entry point |
 |---|---|
@@ -120,6 +120,19 @@ The application root `README.md` covers setup, commands, environment configurati
 | Form submission | Server Action → feature command/service |
 | Download | Route handler → domain export function |
 | Adopted external integration | Route handler → authorized feature workflow |
+
+### Rendering and navigation
+
+The app runs Next.js with `cacheComponents` and `partialPrefetching`. A link prefetches only the parts of a route that do not depend on the request, so how a page is structured decides how fast navigation feels.
+
+- **Navigate with `<Link>`.** A clickable table row or card may add `router.push`, but keeps a real `<Link>` inside it (usually on the name), so the target is prefetched and can be opened in a new tab or with the keyboard.
+- **Stream secondary data.** Await only what the page's main content needs. Start slower or secondary reads without awaiting them, pass the promise to the component that shows them, and read it with `use()` inside `<Suspense>` with a fallback the size of the real content. The Council events list streams its attendance counts this way.
+- **Keep view state on the client.** Tabs, open panels and in-table filters do not need a server round trip; update the URL with `history.replaceState` when it should be shareable, as event detail tabs do. Use a search parameter that the server reads only when the server must load different data.
+- **Show pending state where the change happens.** Prefer a dimmed row, a skeleton in the affected panel or the top progress bar over a full-screen overlay.
+- **`instant = false`.** Every page and workspace layout currently exports it, because both await the session outside `<Suspense>`. Keep it on new pages until session reads move behind Suspense or a private cache.
+- **Client cache window.** `staleTimes.dynamic` is 30 s (`next.config.ts`): returning to a page by link within 30 s reuses its last render without a server request. A user's own writes refresh it immediately through `revalidatePath`. Screens that show changes other people make (payment review, event attendance, clearance queues) render `RefreshButton` (`src/components/layout/refresh-button.tsx`) with the render time, so users can see the data's age and fetch fresh data. Add it to new screens of that kind.
+- **Preserved routes.** With Cache Components, Next.js keeps the last three visited routes alive, hidden with React `<Activity>`, and Back/Forward shows them without a server request. Do not key layout-level wrappers by pathname: re-mounting discards the preserved routes. Component state survives a return, so reset transient UI (open menus, stale success messages) explicitly. Sign-out loads `/sign-in` in full (`SignOutForm`) so no signed-in pages stay in memory.
+- **Motion** uses React `ViewTransition` for page changes (`PageTransition`, and `DrillTransition` for list → detail inside one page) and CSS transitions for selection indicators. Principles are in [`DESIGN.md`](../DESIGN.md) and values in [Design tokens](Florence_Design_Tokens.md). Respect `prefers-reduced-motion`.
 
 ### Features and shared code
 
@@ -153,6 +166,16 @@ Ordinary reads use explicit field lists and user-context RLS. RLS filters rows, 
 **Service-role access bypasses RLS.** Application authorization is the primary boundary for protected writes. Keep the privileged client server-only and separate from cookie/session handling; disable session persistence and token refresh and never replace its credentials with a user session. Do not expose its key through public environment variables, responses or logs.
 
 Do not use service-role access for ordinary directory or report reads. A narrow internal check, such as Council waiver eligibility, may inspect otherwise hidden records but returns only the permitted result—not the underlying ledger.
+
+### Caching and authorization
+
+Cached output is served without re-running the query, so it bypasses the checks the query would have made.
+
+- `"use cache"` cannot read cookies or the session, so it cannot use the RLS user client. Use it only for data every signed-in user may see, pass any identifying values in as arguments, and review the authorization of each cached read.
+- Per-user data may use `"use cache: private"` at most; it is kept in that user's browser, not on the server.
+- A cached result never replaces resolving the actor or checking an action. Commands always read current state.
+- Tag cached entries with `cacheTag` and refresh them from the write path with `updateTag`; untagged pages refresh with `revalidatePath`.
+- The attendance QR (`src/features/students/qr.ts`) is the only cached read today: it is derived from the university ID and contains no other record.
 
 Florence tables use PostgreSQL's `public` schema with explicit grants. Revoke direct authenticated-client writes on protected tables. Preserve database constraints even for privileged commands. Attribute changes to the resolved human actor, not the service-role identity.
 
@@ -242,7 +265,7 @@ This is guidance, not a rigid file requirement. Developers may combine small imp
 
 **Read:** page → feature query → actor/user client → scoped data → components.
 
-**Write:** form → server action → authorized feature command/service → command client → constrained write or transactional RPC → refresh affected data.
+**Write:** form → server action → authorized feature command/service → command client → constrained write or transactional RPC → refresh affected data (`revalidatePath` for the affected pages, or `updateTag` for tagged cache entries).
 
 An API handler reuses the same workflow rather than copying its rules. A service checks its own authorization requirements instead of assuming every caller already did so. Keep cross-feature calls explicit and avoid circular dependencies.
 

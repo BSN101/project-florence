@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 
-import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { StudentFeesAndFinesView } from "@/features/finance/components/student-fees-and-fines-view";
 import { getStudentFinancialAccount } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
@@ -37,7 +37,6 @@ export default async function StudentFeesAndFinesPage({
     ? enrolled.find((s) => s.id === filter.data.semester)?.id
     : enrolled.find((s) => s.is_current)?.id ?? enrolled[0]?.id;
 
-  preloadWorkspaceShell("student");
 
   let financialData = null;
   let errorNotice: string | null = null;

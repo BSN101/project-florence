@@ -43,7 +43,7 @@ export default async function CouncilPaymentAccountsPage({
       >
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 text-center max-w-lg mx-auto my-12">
           <ShieldAlert className="size-10 text-destructive mx-auto mb-3" />
-          <h2 className="text-lg font-semibold text-foreground mb-1">
+          <h2 className="font-heading text-lg font-medium text-foreground mb-1">
             Executive Access Required
           </h2>
           <p className="text-sm text-muted-foreground">

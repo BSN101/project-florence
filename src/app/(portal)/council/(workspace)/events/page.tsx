@@ -1,9 +1,11 @@
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 
+import { DrillTransition } from "@/components/layout/page-transition";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { EventDetail, type EventTab } from "@/features/events/components/event-detail";
 import { EventList } from "@/features/events/components/event-list";
+import { RepresentativeEvents } from "@/features/events/components/representative-events";
 import { canCapture } from "@/features/events/event-state";
 import { getAttendanceCounts, getEvent, getEventAttendance, getEventFeedback, getEventRules, getEvents } from "@/features/events/queries";
 import { eventIdSchema } from "@/features/events/schemas";
@@ -58,19 +60,21 @@ export default async function CouncilEventsPage({ searchParams }: {
       getEvents(semesterId),
       canManage ? getActiveFineDefinitions() : Promise.resolve([]),
     ]);
-    const [rules, counts] = await Promise.all([
-      canManage ? getEventRules(events.map((item) => item.id)) : Promise.resolve([]),
-      getAttendanceCounts(events.filter((item) => item.audience_frozen_at).map((item) => item.id)),
-    ]);
-    content = (
+    // Not awaited: the attendance column streams in, so the list does not wait on the counts.
+    const counts = getAttendanceCounts(events.filter((item) => item.audience_frozen_at).map((item) => item.id));
+    const rules = canManage ? await getEventRules(events.map((item) => item.id)) : [];
+    // Representatives get a focused screen built around capture; managers keep the full list.
+    content = canManage ? (
       <EventList events={events} rules={rules} fines={fines} counts={counts} semesterId={semesterId}
         canManage={canManage} now={new Date().toISOString()} />
+    ) : (
+      <RepresentativeEvents events={events} counts={counts} semesterId={semesterId} now={new Date().toISOString()} />
     );
   }
 
   return (
     <WorkspaceShell workspace="council" destination="events" semester={semester}>
-      {content}
+      <DrillTransition id={selected?.id ?? "list"}>{content}</DrillTransition>
     </WorkspaceShell>
   );
 }

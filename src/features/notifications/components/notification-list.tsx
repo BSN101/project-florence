@@ -95,7 +95,7 @@ export function NotificationList({
           >
             <span>Unread</span>
             {unreadCount > 0 ? (
-              <span className="rounded-full bg-primary/15 text-primary px-1.5 py-0.2 text-[10px] font-bold">
+              <span className="rounded-full bg-primary/15 text-primary px-1.5 py-0.2 text-[10px] font-semibold">
                 {unreadCount}
               </span>
             ) : (
@@ -125,7 +125,7 @@ export function NotificationList({
                 <CheckCircle2 className="size-8" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-heading text-lg font-semibold text-foreground">
+                <h3 className="font-heading text-lg font-medium text-foreground">
                   You&rsquo;re all caught up!
                 </h3>
                 <p className="max-w-sm text-xs text-muted-foreground leading-relaxed">
@@ -146,7 +146,7 @@ export function NotificationList({
                 <BellOff className="size-7" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-heading text-lg font-semibold text-foreground">
+                <h3 className="font-heading text-lg font-medium text-foreground">
                   No notifications yet
                 </h3>
                 <p className="max-w-sm text-xs text-muted-foreground leading-relaxed">

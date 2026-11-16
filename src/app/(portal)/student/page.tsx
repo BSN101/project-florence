@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { AttendanceQrCard } from "@/features/students/components/attendance-qr-card";
 import { generateAttendanceQrDataUrl } from "@/features/students/qr";
 import { displayName } from "@/lib/format-name";
@@ -24,7 +24,6 @@ export default async function StudentPage({
   const { semester } = await searchParams;
   const access = await getAccessContext();
   const ready = access.status === "ready" ? access : null;
-  if (ready) preloadWorkspaceShell("student");
 
   const profile = ready?.profile;
   const universityId = profile?.university_id;
@@ -52,7 +51,7 @@ export default async function StudentPage({
       <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
         {/* Welcome Banner */}
         <div className="flex flex-col gap-1 text-center sm:text-left">
-          <h2 className="font-heading text-xl font-bold text-foreground sm:text-2xl">
+          <h2 className="section-title text-foreground">
             Welcome, {profile?.first_name ?? "Student"}
           </h2>
           <p className="text-xs text-muted-foreground sm:text-sm">

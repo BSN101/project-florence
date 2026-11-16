@@ -58,7 +58,7 @@ export function InviteStudentDialog({
             {isReissue ? <RefreshCw className="size-4 text-primary" /> : <Mail className="size-4 text-primary" />}
             <span>Council Student Provisioning</span>
           </div>
-          <DialogTitle className="font-heading text-lg font-semibold text-foreground">
+          <DialogTitle className="font-heading text-lg font-medium text-foreground">
             {isReissue ? "Reissue Student Invitation" : "Invite Student"}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
@@ -166,7 +166,7 @@ export function CancelInvitationDialog({
             <AlertTriangle className="size-4" />
             <span>Cancel Pending Invitation</span>
           </div>
-          <DialogTitle className="font-heading text-lg font-semibold text-destructive">
+          <DialogTitle className="font-heading text-lg font-medium text-destructive">
             Cancel this invitation?
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">

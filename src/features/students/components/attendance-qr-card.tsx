@@ -31,7 +31,7 @@ export function AttendanceQrCard({
           <QrCode className="size-4" />
           <span>Attendance QR</span>
         </div>
-        <h2 className="font-heading text-xl font-bold text-foreground">
+        <h2 className="section-title text-foreground">
           {studentName}
         </h2>
         <div className="flex items-center gap-2">

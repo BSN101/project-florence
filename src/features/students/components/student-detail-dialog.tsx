@@ -79,7 +79,7 @@ export function StudentDetailDialog({
               <GraduationCap className="size-4 text-primary" />
               <span>Student Profile & Directory Record</span>
             </div>
-            <DialogTitle className="font-heading text-lg font-semibold text-foreground">
+            <DialogTitle className="font-heading text-lg font-medium text-foreground">
               {fullSorted}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -94,7 +94,7 @@ export function StudentDetailDialog({
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[11px] font-medium text-muted-foreground">Student Number</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-primary">
+                    <span className="font-mono text-sm font-semibold text-primary">
                       {student.university_id}
                     </span>
                     <button

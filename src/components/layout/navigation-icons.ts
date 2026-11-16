@@ -1,0 +1,58 @@
+import {
+  BadgeCheck,
+  Bell,
+  BookOpenCheck,
+  CalendarDays,
+  CircleDollarSign,
+  ClipboardCheck,
+  Ellipsis,
+  FileChartColumn,
+  FileText,
+  GraduationCap,
+  HandCoins,
+  HandHeart,
+  House,
+  Landmark,
+  Medal,
+  Scale,
+  School,
+  ShieldCheck,
+  Stethoscope,
+  UserRoundCog,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+
+import type { Workspace } from "@/features/access/access-policy";
+
+/** One icon per destination, shared by the sidebar and the phone tab bar so both show the same symbol. */
+const icons: Record<string, LucideIcon> = {
+  "student/": House,
+  "student/events": CalendarDays,
+  "student/fees-and-fines": CircleDollarSign,
+  "student/merits-demerits-and-services": Medal,
+  "student/clearance": ClipboardCheck,
+  "student/notifications": Bell,
+  "council/": Users,
+  "council/events": CalendarDays,
+  "council/fees-and-fines": CircleDollarSign,
+  "council/payments": HandCoins,
+  "council/merit-endorsements-and-council-demerits": Scale,
+  "council/clearance": ClipboardCheck,
+  "council/reports": FileChartColumn,
+  "council/semesters": School,
+  "council/council-members": ShieldCheck,
+  "council/payment-accounts": Landmark,
+  "faculty/": Users,
+  "faculty/my-merits-and-demerits": Medal,
+  "faculty/merit-endorsements": BadgeCheck,
+  "faculty/service-sessions": HandHeart,
+  "faculty/academic-clearance": GraduationCap,
+  "faculty/rle-clearance": Stethoscope,
+  "faculty/external-ci-records": FileText,
+  "admin/users/faculty": UserRoundCog,
+  "admin/users/executives": ShieldCheck,
+  "admin/misconduct-catalog": BookOpenCheck,
+};
+
+export const navigationIcon = (workspace: Workspace, slug: string) => icons[`${workspace}/${slug}`] ?? Ellipsis;

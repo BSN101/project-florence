@@ -3,9 +3,8 @@
 import { useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight, Search, User, Users, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, LoaderCircle, Search, User, Users, X } from "lucide-react";
 
-import { NavigationOverlay } from "@/components/layout/navigation-overlay";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -119,20 +118,24 @@ export function CouncilFinancialRosterTable({
   const pageStudents = filtered.slice(firstIndex, firstIndex + PAGE_SIZE);
   const href = (s: CouncilFinancialRosterItem) => `?semester=${semesterId}&student=${s.student_id}`;
   const [isOpening, startOpening] = useTransition();
+  // The table stays visible while the ledger loads; only the chosen row shows it is opening.
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const opening = isOpening ? openingId : null;
 
   function openStudent(event: React.MouseEvent, s: CouncilFinancialRosterItem) {
     event.stopPropagation();
     // Modifier clicks keep the link's native new-tab/window behaviour.
     if (event.metaKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();
-    if (!isOpening) startOpening(() => router.push(href(s)));
+    if (isOpening) return;
+    setOpeningId(s.student_id);
+    startOpening(() => router.push(href(s)));
   }
 
   const updateSearch = resetting(setSearch);
 
   return (
     <div className="space-y-4">
-      <NavigationOverlay visible={isOpening} label="Opening student ledger…" />
       <div className="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="font-heading text-lg font-medium text-foreground">
@@ -226,12 +229,13 @@ export function CouncilFinancialRosterTable({
                   <th className="px-4 py-3.5">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
+              <tbody className={`divide-y divide-border/60 ${opening ? "[&>tr:not([aria-busy=true])]:opacity-50" : ""}`}>
                 {pageStudents.map((s) => (
                   <tr
                     key={s.student_id}
                     onClick={(e) => openStudent(e, s)}
-                    className="cursor-pointer transition-colors hover:bg-muted/40"
+                    aria-busy={opening === s.student_id}
+                    className={`cursor-pointer transition-[background-color,opacity] hover:bg-muted/40 ${opening === s.student_id ? "bg-muted/60" : ""}`}
                   >
                     <td className="px-4 py-3.5 font-mono text-xs font-semibold text-foreground">{s.university_id}</td>
                     <td className="px-4 py-3.5">
@@ -241,6 +245,11 @@ export function CouncilFinancialRosterTable({
                           className="font-medium text-foreground underline-offset-4 hover:underline">
                           {sortName(s)}
                         </Link>
+                        {opening === s.student_id && (
+                          <span role="status" className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <LoaderCircle className="size-3 animate-spin" aria-hidden="true" /> Opening ledger…
+                          </span>
+                        )}
                         {s.email && <span className="text-[11px] text-muted-foreground">{s.email}</span>}
                       </div>
                     </td>

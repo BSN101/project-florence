@@ -11,7 +11,7 @@ A standalone reference for colour, typography, shape, spacing and accessibility.
 - Define runtime tokens once in `src/app/globals.css` as CSS custom properties; map them into the application styling system rather than repeat raw values in components.
 - Keep this document as the human-readable reference for values, usage and pending choices.
 - The base palette contains estimates and known contrast failures; it is not production-ready. Contrast figures below are recorded calculations, not newly measured results. Recheck final colour pairs and rendered focus/input states before release.
-- Hover colours, card-heading size and reduced-motion behavior are unspecified; no approved values are implied.
+- Hover colours and card-heading size are unspecified; no approved values are implied. Motion values in use are recorded under "Motion"; the principles behind them are in `DESIGN.md`.
 - Day-based disciplinary and service quantities use whole days; monetary amounts use PHP, not days.
 
 **Proposed token/theme setup:** Define light and dark CSS custom-property sets, mapped into the styling system without hard-coded component colours. Light is the proposed default; dark is recommended for dim venues such as event check-in, not an approved requirement. Any print-friendly output uses light colours and no gradients; this does not commit to new printable features.
@@ -75,9 +75,9 @@ Sizes are font size/line height in px; card-heading size remains unspecified.
 | Buttons | Inter | Medium, 14/20 |
 | Table headers | Inter | Medium, 11/16, uppercase optional |
 
-**Proposed font delivery:** Self-host through the framework's font optimization, with no runtime third-party font request. Limit weights to those above and provide a system-font fallback stack.
+**Font delivery:** Both faces are self-hosted through `next/font/google` in `src/app/layout.tsx`, with no runtime request to a font service. Be Vietnam Pro loads Medium and SemiBold only. Inter loads as a variable font. The fallback stack is `system-ui, -apple-system, "Segoe UI", Arial, sans-serif`.
 
-**Proposed glyph check:** Verify the peso sign (₱, U+20B1), en-dash (–) and middle-dot (·) in both fonts; supply missing glyphs through a fallback font.
+**Glyph check (2026-11-16):** Both faces include the `latin-ext` subset, which covers the peso sign (₱, U+20B1). In headless Chrome, the `latin-ext` file of each face loaded when ₱, – and · were rendered, so the glyphs come from the fonts, not the fallback. Not yet checked on a real iPhone.
 
 ## Shape, spacing and state
 - 8 px spacing grid.
@@ -87,6 +87,32 @@ Sizes are font size/line height in px; card-heading size remains unspecified.
 - Minimum tap target 44 px on mobile.
 - Ledger data shows no delete or trash affordance. Use the authorized action's label, such as "Waive" or "Revoke service credit"; do not imply a generic reversal workflow.
 - Day-based balances and quantities display in whole days (for example "3 days"), not fractional days or currency.
+
+## Motion
+
+These are the values currently implemented, listed so new motion matches them. They need design sign-off before they count as approved tokens.
+
+| Use | Duration | Easing | Where |
+|---|---|---|---|
+Two easing tokens live in `globals.css`: `--ease-glide` (`cubic-bezier(0.32, 0.72, 0, 1)`, the iOS sheet curve) and `--ease-out-soft` (`cubic-bezier(0.2, 0.8, 0.2, 1)`). Tailwind exposes them as `ease-glide` and `ease-out-soft`.
+
+| Use | Duration | Easing | Where |
+|---|---|---|---|
+| Page content fade-out (phones) | 90 ms | `ease-out` | `globals.css`, `.page-fade` |
+| Page content fade-in (phones) | 160 ms | `ease-out-soft` | `globals.css`, `.page-fade` |
+| Drill-down push, list → detail (phones) | 350 ms slide, 150/200 ms fade | `ease-glide` | `globals.css`, `.push-forward` / `.push-back` |
+| Sidebar selection pill | 300 ms | `ease-glide` | `app-sidebar.tsx` |
+| Tab bar selection lens | 350 ms | `ease-glide` | `mobile-tab-bar.tsx` |
+| Sidebar collapse to icon rail | 300 ms | `ease-glide` | `components/ui/sidebar.tsx` |
+| Bottom sheet open/close and backdrop | 450 ms | `ease-glide` | `bottom-sheet.tsx` |
+| Tab icon press | 100 ms, scale 0.94 | `ease-out` | `mobile-tab-bar.tsx` |
+| Tap feedback, colour changes | 150 ms | default | tab bar, sheet rows |
+| Compact header title on scroll | 200 ms | default | `workspace-header.tsx` |
+
+- Page transitions and the drill-down push run only below the `md` breakpoint.
+- The header, tab bar and sidebar stay still between pages. Only their selection indicator glides to the new item.
+- The floating tab bar is the one functional surface with a shadow besides sheets and menus.
+- `prefers-reduced-motion: reduce` turns off view transitions and shortens other animations and transitions to effectively zero (`globals.css`).
 
 ## Contrast and pending corrections
 
@@ -146,5 +172,7 @@ The Rose accent may sit beside Primary as an emphasis colour or replace it for h
 **Proposed decorative-colour rule:** Pink and apricot are decorative. Error, warning, and success keep their own hues and text labels in status chips, so decorative colour never carries status meaning. All pairs are re-audited when final values are chosen.
 
 ## Revision
+
+0.3 · 2026-11-16 — Fonts self-hosted and glyph check recorded. Motion table updated for the navigation revamp (selection pill, tab bar lens, drill-down push, easing tokens).
 
 0.2 · 2026-11-07 — Simplified into a standalone visual reference; preserved token values, pending choices and contrast warnings. No CSS changes or new contrast validation.

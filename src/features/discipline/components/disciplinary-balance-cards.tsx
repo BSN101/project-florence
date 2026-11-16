@@ -22,7 +22,7 @@ export function DisciplinaryBalanceCards({
         </CardHeader>
         <CardContent>
           <div className="flex items-baseline justify-between">
-            <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
+            <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
               {summary.office.balance > 0 ? formatDays(summary.office.balance) : "0 days"}
             </div>
             {summary.office.balance === 0 ? (
@@ -54,7 +54,7 @@ export function DisciplinaryBalanceCards({
         </CardHeader>
         <CardContent>
           <div className="flex items-baseline justify-between">
-            <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
+            <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
               {summary.rle.balance > 0 ? formatDays(summary.rle.balance) : "0 days"}
             </div>
             {summary.rle.balance === 0 ? (
@@ -86,7 +86,7 @@ export function DisciplinaryBalanceCards({
         </CardHeader>
         <CardContent>
           <div className="flex items-baseline justify-between">
-            <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
+            <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
               {formatDays(summary.merits.available)}
             </div>
             <span className="text-xs text-muted-foreground">
@@ -113,7 +113,7 @@ export function DisciplinaryBalanceCards({
         </CardHeader>
         <CardContent>
           <div className="flex items-baseline justify-between">
-            <div className="font-heading text-2xl font-bold tracking-tight text-foreground">
+            <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
               {summary.totalActiveBalance > 0 ? `${formatDays(summary.totalActiveBalance)} pending` : "In Good Standing"}
             </div>
           </div>

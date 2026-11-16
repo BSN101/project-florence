@@ -2,7 +2,8 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 
-import { preloadWorkspaceShell, WorkspaceShell } from "@/components/layout/workspace-shell";
+import { RefreshButton } from "@/components/layout/refresh-button";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
 import {
   CouncilFinancialRosterTable,
@@ -34,7 +35,6 @@ export default async function CouncilPaymentsPage({
     );
   }
 
-  preloadWorkspaceShell("council");
 
   // Verify Council officer privilege (Executive or Operations required for financial inspection)
   if (!isAuthorizedCouncilFinancialViewer(access.councilRole)) {
@@ -102,7 +102,11 @@ export default async function CouncilPaymentsPage({
         </div>
       )}
       {semesterId ? (
-        content
+        <>
+          {/* Students submit payments while officers work; revisits may reuse a render up to 30 s old. */}
+          <div className="-mb-2 flex justify-end"><RefreshButton renderedAt={new Date().toISOString()} /></div>
+          {content}
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">
           No semester is available. Select a semester to view student financial accounts.
