@@ -479,7 +479,7 @@ export function StudentTransferWizardDialog({
         if (!open && !isPending) handleClose();
       }}
     >
-      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto p-5 sm:max-w-xl sm:p-6">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] grid-cols-1 overflow-x-hidden overflow-y-auto p-5 sm:max-w-xl sm:p-6">
         <DialogHeader>
           <DialogTitle>
             {stage === "done"
@@ -507,7 +507,7 @@ export function StudentTransferWizardDialog({
 
         {/* Step 1: Semester & Complete Obligation Selection */}
         {stage === "obligations" && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {semesterGroups.length === 0 ? (
               <div className="rounded-xl border border-border bg-muted/30 p-5 text-center text-sm text-muted-foreground">
                 You have no unpaid obligations available to submit transfer
@@ -656,7 +656,7 @@ export function StudentTransferWizardDialog({
 
         {/* Step 2: Destination Payment Account */}
         {stage === "destination" && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {paymentAccounts.length === 0 ? (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900">
                 No active Council payment destination accounts are currently
@@ -791,7 +791,7 @@ export function StudentTransferWizardDialog({
 
         {/* Step 3: Transfer Reference & Evidence Upload */}
         {stage === "proof" && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {selectedAccount && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-xs">
                 <div>
@@ -857,7 +857,7 @@ export function StudentTransferWizardDialog({
                   </div>
                 </label>
               ) : (
-                <div className="space-y-3 rounded-xl border border-border bg-card p-3">
+                <div className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-border bg-card p-3">
                   {proofPreviewUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -866,10 +866,13 @@ export function StudentTransferWizardDialog({
                       className="mx-auto max-h-56 max-w-full rounded-lg border border-border object-contain"
                     />
                   )}
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                  <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-muted-foreground">
                       <FileImage className="size-4 shrink-0 text-primary" />
-                      <span className="truncate font-medium text-foreground">
+                      <span
+                        title={proofFile.name}
+                        className="block truncate font-medium text-foreground"
+                      >
                         {proofFile.name}
                       </span>
                     </div>
@@ -921,7 +924,7 @@ export function StudentTransferWizardDialog({
 
         {/* Step 4: Review & Confirm */}
         {stage === "review" && activeGroup && selectedAccount && proofFile && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm">
               <div className="flex items-center justify-between border-b border-border pb-2.5">
                 <span className="text-xs text-muted-foreground">
@@ -974,8 +977,10 @@ export function StudentTransferWizardDialog({
               </div>
 
               <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5 text-xs">
-                <span className="text-muted-foreground">Reference Number</span>
-                <span className="font-mono font-medium text-foreground">
+                <span className="shrink-0 text-muted-foreground">
+                  Reference Number
+                </span>
+                <span className="min-w-0 break-all text-right font-mono font-medium text-foreground">
                   {referenceNumber.trim()}
                 </span>
               </div>
@@ -986,8 +991,8 @@ export function StudentTransferWizardDialog({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={proofPreviewUrl}
-                    alt="Transfer receipt evidence thumbnail"
-                    className="max-h-36 rounded-lg border border-border object-contain"
+                    alt="Transfer receipt evidence preview"
+                    className="mx-auto max-h-80 w-full rounded-lg border border-border bg-muted/20 object-contain sm:max-h-96"
                   />
                 )}
               </div>
@@ -1026,7 +1031,7 @@ export function StudentTransferWizardDialog({
 
         {/* Confirmation Stage */}
         {stage === "done" && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-center">
               <CheckCircle2 className="size-8 text-emerald-600" />
               <div className="space-y-1">
