@@ -919,19 +919,15 @@ export async function submitTransferEvidence(
     const requestKey = parsed.data.requestKey ?? randomUUID();
     const commandClient = createCommandClient();
 
-    // Regenerate database.types.ts after applying the submit_transfer_payment migration.
-    const { data, error } = await commandClient.rpc(
-      "submit_transfer_payment" as never,
-      {
-        p_key: requestKey,
-        p_actor: context.profile.id,
-        p_semester: parsed.data.semesterId,
-        p_obligations: parsed.data.obligationIds,
-        p_payment_account: parsed.data.paymentAccountId,
-        p_reference_number: parsed.data.referenceNumber,
-        p_proof_file: parsed.data.proofFileId,
-      } as never
-    );
+    const { data, error } = await commandClient.rpc("submit_transfer_payment", {
+      p_key: requestKey,
+      p_actor: context.profile.id,
+      p_semester: parsed.data.semesterId,
+      p_obligations: parsed.data.obligationIds,
+      p_payment_account: parsed.data.paymentAccountId,
+      p_reference_number: parsed.data.referenceNumber,
+      p_proof_file: parsed.data.proofFileId,
+    });
 
     if (error) {
       return {
