@@ -11,7 +11,7 @@ A standalone reference for colour, typography, shape, spacing and accessibility.
 - Define runtime tokens once in `src/app/globals.css` as CSS custom properties; map them into the application styling system rather than repeat raw values in components.
 - Keep this document as the human-readable reference for values, usage and pending choices.
 - The base palette contains estimates and known contrast failures; it is not production-ready. Contrast figures below are recorded calculations, not newly measured results. Recheck final colour pairs and rendered focus/input states before release.
-- Hover colours, card-heading size and reduced-motion behavior are unspecified; no approved values are implied.
+- Hover colours and card-heading size are unspecified; no approved values are implied. Motion values in use are recorded under "Motion" but are not yet approved.
 - Day-based disciplinary and service quantities use whole days; monetary amounts use PHP, not days.
 
 **Proposed token/theme setup:** Define light and dark CSS custom-property sets, mapped into the styling system without hard-coded component colours. Light is the proposed default; dark is recommended for dim venues such as event check-in, not an approved requirement. Any print-friendly output uses light colours and no gradients; this does not commit to new printable features.
@@ -87,6 +87,21 @@ Sizes are font size/line height in px; card-heading size remains unspecified.
 - Minimum tap target 44 px on mobile.
 - Ledger data shows no delete or trash affordance. Use the authorized action's label, such as "Waive" or "Revoke service credit"; do not imply a generic reversal workflow.
 - Day-based balances and quantities display in whole days (for example "3 days"), not fractional days or currency.
+
+## Motion
+
+These are the values currently implemented, listed so new motion matches them. They need design sign-off before they count as approved tokens.
+
+| Use | Duration | Easing | Where |
+|---|---|---|---|
+| Page content fade-out (phones) | 90 ms | `ease-out` | `globals.css`, `.page-fade` |
+| Page content fade-in (phones) | 160 ms | `cubic-bezier(0.2, 0.8, 0.2, 1)` | `globals.css`, `.page-fade` |
+| Bottom sheet open/close and backdrop | 450 ms | `cubic-bezier(0.32, 0.72, 0, 1)` | `bottom-sheet.tsx` |
+| Tap feedback, colour changes | 150 ms | default | tab bar, sheet rows |
+| Compact header title on scroll | 200 ms | default | `workspace-header.tsx` |
+
+- Page transitions run only below the `md` breakpoint. The header, tab bar and sidebar never animate between pages.
+- `prefers-reduced-motion: reduce` turns off view transitions and shortens other animations and transitions to effectively zero (`globals.css`).
 
 ## Contrast and pending corrections
 
