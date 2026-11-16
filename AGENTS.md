@@ -16,6 +16,10 @@ Read `README.md`, then `docs/Florence_Architecture.md`, before working.
 | `docs/database/schema.dbdiagram` | Diagram artifact | Act as a separate schema contract |
 | `supabase/migrations/` | Executable database changes | Prove what is deployed |
 | `docs/Florence_Design_Tokens.md` | Colour, type and motion values | — |
+| `DESIGN.md` | Frontend principles: layout, placement, spacing, typography, materials, motion, transitions | Override §4 below |
+
+Read `DESIGN.md` before any UI change, and check the change against its
+review checklist (§11) before finishing.
 
 Exclude archived specifications from routine searches. Consult them only for
 an explicit historical question or a targeted provenance check.
