@@ -26,7 +26,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { compressImage, MAX_ORIGINAL_BYTES } from "@/lib/compress-image";
 import { cn } from "@/lib/utils";
-import { submitTransferEvidence, uploadTransferProof } from "../actions";
+import {
+  getStudentPaymentAccountQrUrl,
+  submitTransferEvidence,
+  uploadTransferProof,
+} from "../actions";
 import { formatPhp } from "../calculations";
 import {
   hasSameSemesterObligations,
@@ -35,23 +39,106 @@ import {
 } from "../contracts";
 import { PAYMENT_PROOF_MAX_BYTES } from "../schemas";
 
-type WizardStage = "obligations" | "destination" | "proof" | "review" | "done";
+type WizardStage =
+  | "obligations"
+  | "method"
+  | "payment"
+  | "proof"
+  | "review"
+  | "done";
 
-const STEPS = ["Obligations", "Destination", "Proof", "Review"] as const;
+const STEPS = ["Obligations", "Method", "Payment", "Proof", "Review"] as const;
 const stageIndex: Record<WizardStage, number> = {
   obligations: 0,
-  destination: 1,
-  proof: 2,
-  review: 3,
-  done: 4,
+  method: 1,
+  payment: 2,
+  proof: 3,
+  review: 4,
+  done: 5,
 };
 
 type SemesterGroup = {
   semesterId: string;
   label: string;
   isPastSemester: boolean;
+  /** Unpaid and pending items; pending ones are shown but cannot be selected. */
   obligations: ObligationWithStandingDTO[];
+  payableIds: string[];
+  payableTotal: number;
 };
+
+const isPayable = (item: ObligationWithStandingDTO) => item.status === "unpaid";
+
+type QrState =
+  | { status: "loading" }
+  | { status: "ready"; url: string }
+  | { status: "error"; message: string };
+
+/**
+ * The account's QR, signed when shown: links signed at page render expire (5 min)
+ * while the page stays open. A failed image (e.g. expired while on this step) gets one
+ * fresh link automatically; after that the student can retry.
+ */
+function AccountQr({ accountId, label }: { accountId: string; label: string }) {
+  const [state, setState] = useState<QrState>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const [autoRetried, setAutoRetried] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getStudentPaymentAccountQrUrl(accountId).then((res) => {
+      if (cancelled) return;
+      setState(
+        res.success
+          ? { status: "ready", url: res.url }
+          : { status: "error", message: res.error }
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, attempt]);
+
+  function retry() {
+    setState({ status: "loading" });
+    setAttempt((n) => n + 1);
+  }
+
+  // Fixed 256 px QR inside padding, so the frame is exactly the QR's size.
+  return (
+    <figure className="mx-auto w-fit rounded-xl border border-border bg-white p-3">
+      {state.status === "ready" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={state.url}
+          alt={`${label} payment QR code`}
+          className="block h-auto w-64 rounded-md"
+          onError={() => {
+            if (autoRetried) {
+              setState({ status: "error", message: "The QR code couldn't load." });
+            } else {
+              setAutoRetried(true);
+              retry();
+            }
+          }}
+        />
+      ) : (
+        <div className="flex size-64 flex-col items-center justify-center gap-3 text-center text-xs text-neutral-500">
+          {state.status === "loading" ? (
+            <Loader2 className="size-6 animate-spin" aria-label="Loading QR code" />
+          ) : (
+            <>
+              <span>{state.message}</span>
+              <Button type="button" variant="outline" size="sm" onClick={retry} className="min-h-11">
+                Retry
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </figure>
+  );
+}
 
 function StepTracker({ current }: { current: number }) {
   const clamped = Math.min(current, STEPS.length - 1);
@@ -129,24 +216,33 @@ export function StudentTransferWizardDialog({
     );
     const grouped = new Map<string, SemesterGroup>();
     for (const item of payable) {
-      const existing = grouped.get(item.semester_id);
-      if (existing) {
-        existing.obligations.push(item);
-      } else {
-        grouped.set(item.semester_id, {
+      let group = grouped.get(item.semester_id);
+      if (!group) {
+        group = {
           semesterId: item.semester_id,
           label: item.semester_code ?? "Academic Term",
           isPastSemester: Boolean(item.is_past_semester),
-          obligations: [item],
-        });
+          obligations: [],
+          payableIds: [],
+          payableTotal: 0,
+        };
+        grouped.set(item.semester_id, group);
+      }
+      group.obligations.push(item);
+      if (isPayable(item)) {
+        group.payableIds.push(item.id);
+        group.payableTotal += Number(item.amount);
       }
     }
-    return Array.from(grouped.values()).sort((a, b) => {
-      if (a.isPastSemester !== b.isPastSemester) {
-        return a.isPastSemester ? 1 : -1;
-      }
-      return b.label.localeCompare(a.label);
-    });
+    // Only terms with something left to pay; overdue prior terms first, oldest first.
+    return Array.from(grouped.values())
+      .filter((group) => group.payableIds.length > 0)
+      .sort((a, b) => {
+        if (a.isPastSemester !== b.isPastSemester) {
+          return a.isPastSemester ? -1 : 1;
+        }
+        return a.label.localeCompare(b.label);
+      });
   }, [obligations]);
 
   const defaultSemesterId = useMemo(() => {
@@ -174,7 +270,6 @@ export function StudentTransferWizardDialog({
   const [uploadedProofFileId, setUploadedProofFileId] = useState<string | null>(
     null
   );
-  const [uploadRequestKey, setUploadRequestKey] = useState<string | null>(null);
   const [submissionRequestKey, setSubmissionRequestKey] = useState<
     string | null
   >(null);
@@ -196,7 +291,6 @@ export function StudentTransferWizardDialog({
       setProofFile(null);
       setProofPreviewUrl(null);
       setUploadedProofFileId(null);
-      setUploadRequestKey(null);
       setSubmissionRequestKey(null);
       setCopiedAccountId(null);
       setSubmittedAmount(0);
@@ -259,6 +353,12 @@ export function StudentTransferWizardDialog({
     setSubmissionRequestKey(null);
   }
 
+  function handleSelectAccount(accountId: string) {
+    setError(null);
+    setSubmissionRequestKey(null);
+    setSelectedAccountId(accountId);
+  }
+
   function toggleObligation(obligationId: string) {
     setError(null);
     setSubmissionRequestKey(null);
@@ -273,7 +373,7 @@ export function StudentTransferWizardDialog({
     if (!activeGroup) return;
     setError(null);
     setSubmissionRequestKey(null);
-    const allIds = activeGroup.obligations.map((o) => o.id);
+    const allIds = activeGroup.payableIds;
     const allSelected =
       allIds.length > 0 && allIds.every((id) => selectedObligationIds.includes(id));
     setSelectedObligationIds(allSelected ? [] : allIds);
@@ -287,7 +387,6 @@ export function StudentTransferWizardDialog({
       setProofPreviewUrl(null);
     }
     setUploadedProofFileId(null);
-    setUploadRequestKey(null);
     setSubmissionRequestKey(null);
 
     if (!selected) {
@@ -327,7 +426,6 @@ export function StudentTransferWizardDialog({
     }
     setProofFile(null);
     setUploadedProofFileId(null);
-    setUploadRequestKey(null);
     setSubmissionRequestKey(null);
   }
 
@@ -362,16 +460,16 @@ export function StudentTransferWizardDialog({
       return;
     }
     setSelectedSemesterId(activeGroup.semesterId);
-    setStage("destination");
+    setStage("method");
   }
 
-  function handleNextFromDestination() {
+  function handleNextFromMethod() {
     setError(null);
     if (!selectedAccount) {
-      setError("Select an active destination account to continue.");
+      setError("Choose an active payment account to continue.");
       return;
     }
-    setStage("proof");
+    setStage("payment");
   }
 
   function handleNextFromProof() {
@@ -411,9 +509,6 @@ export function StudentTransferWizardDialog({
       return;
     }
 
-    const activeUploadKey = uploadRequestKey ?? crypto.randomUUID();
-    if (!uploadRequestKey) setUploadRequestKey(activeUploadKey);
-
     const activeSubmissionKey = submissionRequestKey ?? crypto.randomUUID();
     if (!submissionRequestKey) setSubmissionRequestKey(activeSubmissionKey);
 
@@ -442,7 +537,6 @@ export function StudentTransferWizardDialog({
 
         const formData = new FormData();
         formData.append("file", compressed);
-        formData.append("requestKey", activeUploadKey);
 
         const uploadRes = await uploadTransferProof(formData);
         if (!uploadRes.success) {
@@ -515,40 +609,69 @@ export function StudentTransferWizardDialog({
               </div>
             ) : (
               <>
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground">
-                    Academic Term (one semester per submission)
-                  </div>
-                  <div className="flex flex-wrap gap-2">
+                <fieldset className="min-w-0 space-y-2">
+                  <legend className="mb-2 text-xs font-medium text-muted-foreground">
+                    {semesterGroups.length > 1
+                      ? "Choose a term · one term per submission"
+                      : "Term"}
+                  </legend>
+                  <div className="overflow-hidden rounded-xl border border-border bg-card">
                     {semesterGroups.map((group) => {
                       const isSelected =
                         group.semesterId === activeGroup?.semesterId;
+                      const single = semesterGroups.length === 1;
                       return (
-                        <button
+                        <label
                           key={group.semesterId}
-                          type="button"
-                          onClick={() => handleSelectSemester(group.semesterId)}
                           className={cn(
-                            "inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-medium transition-colors cursor-pointer",
-                            isSelected
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border bg-background text-foreground hover:bg-muted/50"
+                            "flex min-h-14 items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-b-0",
+                            single ? "cursor-default" : "cursor-pointer",
+                            isSelected && !single
+                              ? "bg-primary/5"
+                              : !single && "hover:bg-muted/40"
                           )}
                         >
-                          <span>{group.label}</span>
-                          {group.isPastSemester && (
-                            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                              Prior Term
-                            </span>
+                          {!single && (
+                            <input
+                              type="radio"
+                              name="transfer-term"
+                              checked={isSelected}
+                              onChange={() =>
+                                handleSelectSemester(group.semesterId)
+                              }
+                              className="size-4 shrink-0 accent-primary"
+                            />
                           )}
-                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
-                            {group.obligations.length}
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-foreground">
+                                {group.label}
+                              </span>
+                              {group.isPastSemester && (
+                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                                  Prior term · overdue
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-muted-foreground">
+                              {group.payableIds.length}{" "}
+                              {group.payableIds.length === 1 ? "item" : "items"} to
+                              pay
+                            </span>
                           </span>
-                        </button>
+                          <span className="shrink-0 text-right">
+                            <span className="block text-sm font-semibold tabular-nums text-foreground">
+                              {formatPhp(group.payableTotal)}
+                            </span>
+                            <span className="block text-[11px] text-muted-foreground">
+                              outstanding
+                            </span>
+                          </span>
+                        </label>
                       );
                     })}
                   </div>
-                </div>
+                </fieldset>
 
                 {activeGroup && (
                   <div className="space-y-2">
@@ -563,8 +686,8 @@ export function StudentTransferWizardDialog({
                         onClick={handleToggleAllInSemester}
                         className="min-h-11 px-3 text-xs"
                       >
-                        {activeGroup.obligations.every((o) =>
-                          selectedObligationIds.includes(o.id)
+                        {activeGroup.payableIds.every((id) =>
+                          selectedObligationIds.includes(id)
                         )
                           ? "Clear all"
                           : "Select all"}
@@ -574,20 +697,24 @@ export function StudentTransferWizardDialog({
                     <div className="divide-y divide-border rounded-xl border border-border bg-card">
                       {activeGroup.obligations.map((item) => {
                         const checked = selectedObligationIds.includes(item.id);
+                        const locked = !isPayable(item);
                         return (
                           <label
                             key={item.id}
                             className={cn(
-                              "flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3.5 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl",
-                              checked
-                                ? "bg-primary/5"
-                                : "hover:bg-muted/40"
+                              "flex min-h-11 items-center justify-between gap-3 px-3.5 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl",
+                              locked
+                                ? "cursor-not-allowed opacity-60"
+                                : checked
+                                  ? "cursor-pointer bg-primary/5"
+                                  : "cursor-pointer hover:bg-muted/40"
                             )}
                           >
                             <div className="flex min-w-0 items-start gap-3">
                               <input
                                 type="checkbox"
                                 checked={checked}
+                                disabled={locked}
                                 onChange={() => toggleObligation(item.id)}
                                 className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
                               />
@@ -599,7 +726,7 @@ export function StudentTransferWizardDialog({
                                   <span className="capitalize">{item.kind}</span>
                                   {item.status === "pending_verification" && (
                                     <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
-                                      Pending Review
+                                      Pending review · already submitted
                                     </span>
                                   )}
                                 </div>
@@ -622,8 +749,8 @@ export function StudentTransferWizardDialog({
                       {selectedObligations.length === 1 ? "item" : "items"})
                     </div>
                     <div className="text-[11px] text-muted-foreground">
-                      Full obligation amounts only. Pending review does not settle
-                      dues.
+                      Full obligation amounts only. Items pending review can&apos;t be
+                      submitted again.
                     </div>
                   </div>
                   <div className="font-heading text-lg font-semibold tabular-nums text-foreground">
@@ -648,121 +775,62 @@ export function StudentTransferWizardDialog({
                 disabled={selectedObligations.length === 0}
                 className="min-h-11"
               >
-                Continue to Destination
+                Continue to Method
               </Button>
             </DialogFooter>
           </div>
         )}
 
-        {/* Step 2: Destination Payment Account */}
-        {stage === "destination" && (
+        {/* Step 2: Method — choose which Council account to pay into */}
+        {stage === "method" && (
           <div className="min-w-0 space-y-4">
             {paymentAccounts.length === 0 ? (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900">
-                No active Council payment destination accounts are currently
-                available. Please contact the Council before submitting a
-                transfer.
+                No active Council payment accounts are currently available.
+                Please contact the Council before submitting a transfer.
               </div>
             ) : (
-              <div
-                role="radiogroup"
-                aria-label="Destination payment accounts"
-                className="space-y-2.5"
-              >
-                {paymentAccounts.map((account) => {
-                  const isSelected = account.id === selectedAccountId;
-                  const isCopied = copiedAccountId === account.id;
-                  return (
-                    <div
-                      key={account.id}
-                      className={cn(
-                        "rounded-xl border p-3.5 transition-colors",
-                        isSelected
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card hover:bg-muted/30"
-                      )}
-                    >
-                      <label className="flex min-h-11 cursor-pointer items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <input
-                            type="radio"
-                            name="payment-account"
-                            checked={isSelected}
-                            onChange={() => {
-                              setError(null);
-                              setSelectedAccountId(account.id);
-                            }}
-                            className="mt-1 size-4 shrink-0 accent-primary"
-                          />
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-foreground">
-                                {account.label}
-                              </span>
-                              {account.qr_url && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                  <QrCode className="size-3" />
-                                  QR available
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {account.account_name}
-                            </div>
-                            <div className="font-mono text-xs font-medium text-foreground">
-                              {account.account_reference}
-                            </div>
-                            {account.instructions && (
-                              <p className="pt-1 text-xs leading-relaxed text-muted-foreground">
-                                {account.instructions}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            void handleCopyReference(account);
-                          }}
-                          className="min-h-11 shrink-0 gap-1.5 text-xs"
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="size-3.5 text-emerald-600" />
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="size-3.5" />
-                              Copy
-                            </>
-                          )}
-                        </Button>
-                      </label>
-
-                      {isSelected && account.qr_url && (
-                        <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-border bg-background p-3">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={account.qr_url}
-                            alt={`${account.label} payment QR code`}
-                            className="max-h-52 max-w-full rounded-md object-contain"
-                          />
-                          <span className="text-[11px] text-muted-foreground">
-                            Scan to transfer{" "}
-                            <strong className="font-semibold tabular-nums text-foreground">
-                              {formatPhp(selectedTotal)}
-                            </strong>
+              <fieldset className="min-w-0">
+                <legend className="mb-2 text-xs font-medium text-muted-foreground">
+                  How will you pay?
+                </legend>
+                <div className="overflow-hidden rounded-xl border border-border bg-card">
+                  {paymentAccounts.map((account) => {
+                    const isSelected = account.id === selectedAccountId;
+                    return (
+                      <label
+                        key={account.id}
+                        className={cn(
+                          "flex min-h-14 cursor-pointer items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-b-0",
+                          isSelected ? "bg-primary/5" : "hover:bg-muted/40"
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="payment-account"
+                          checked={isSelected}
+                          onChange={() => handleSelectAccount(account.id)}
+                          className="size-4 shrink-0 accent-primary"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold text-foreground">
+                            {account.label}
                           </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {account.account_name}
+                          </span>
+                        </span>
+                        {account.qr_file_id && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            <QrCode className="size-3" />
+                            QR
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
             )}
 
             <DialogFooter className="gap-2 pt-2">
@@ -779,8 +847,100 @@ export function StudentTransferWizardDialog({
               </Button>
               <Button
                 type="button"
-                onClick={handleNextFromDestination}
+                onClick={handleNextFromMethod}
                 disabled={!selectedAccount}
+                className="min-h-11"
+              >
+                Continue to Payment
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {/* Step 3: Payment — details of the chosen account */}
+        {stage === "payment" && selectedAccount && (
+          <div className="min-w-0 space-y-4">
+            <div className="flex items-baseline justify-between gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+              <span className="text-xs text-muted-foreground">
+                Amount to transfer
+              </span>
+              <span className="font-heading text-lg font-semibold tabular-nums text-foreground">
+                {formatPhp(selectedTotal)}
+              </span>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+              <div className="text-sm font-semibold text-foreground">
+                {selectedAccount.label}
+              </div>
+              <div className="space-y-0.5">
+                <div className="text-xs text-muted-foreground">Account name</div>
+                <div className="text-sm text-foreground">
+                  {selectedAccount.account_name}
+                </div>
+              </div>
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="text-xs text-muted-foreground">
+                    Account number
+                  </div>
+                  <div className="break-all font-mono text-sm font-medium text-foreground">
+                    {selectedAccount.account_reference}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleCopyReference(selectedAccount)}
+                  className="min-h-11 shrink-0 gap-1.5 text-xs"
+                >
+                  {copiedAccountId === selectedAccount.id ? (
+                    <>
+                      <Check className="size-3.5 text-emerald-600" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3.5" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+              {selectedAccount.instructions && (
+                <p className="border-t border-border pt-3 text-xs leading-relaxed text-muted-foreground">
+                  {selectedAccount.instructions}
+                </p>
+              )}
+            </div>
+
+            {selectedAccount.qr_file_id && (
+              <AccountQr
+                key={selectedAccount.id}
+                accountId={selectedAccount.id}
+                label={selectedAccount.label}
+              />
+            )}
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setError(null);
+                  setStage("method");
+                }}
+                className="min-h-11"
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setStage("proof");
+                }}
                 className="min-h-11"
               >
                 Continue to Proof
@@ -789,7 +949,7 @@ export function StudentTransferWizardDialog({
           </div>
         )}
 
-        {/* Step 3: Transfer Reference & Evidence Upload */}
+        {/* Step 4: Transfer Reference & Evidence Upload */}
         {stage === "proof" && (
           <div className="min-w-0 space-y-4">
             {selectedAccount && (
@@ -905,7 +1065,7 @@ export function StudentTransferWizardDialog({
                 variant="outline"
                 onClick={() => {
                   setError(null);
-                  setStage("destination");
+                  setStage("payment");
                 }}
                 className="min-h-11"
               >
@@ -922,7 +1082,7 @@ export function StudentTransferWizardDialog({
           </div>
         )}
 
-        {/* Step 4: Review & Confirm */}
+        {/* Step 5: Review & Confirm */}
         {stage === "review" && activeGroup && selectedAccount && proofFile && (
           <div className="min-w-0 space-y-4">
             <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm">
@@ -966,7 +1126,7 @@ export function StudentTransferWizardDialog({
 
               <div className="space-y-1 border-b border-border pb-2.5 text-xs">
                 <div className="text-muted-foreground">
-                  Destination Snapshot
+                  Paid to
                 </div>
                 <div className="font-medium text-foreground">
                   {selectedAccount.label} · {selectedAccount.account_name}
@@ -1044,8 +1204,8 @@ export function StudentTransferWizardDialog({
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Your transfer reference and proof have been saved. Council will
-                verify the transfer manually; your obligations remain payable
-                until verified.
+                verify the transfer manually; the covered dues stay unpaid until
+                verified.
               </p>
             </div>
 

@@ -5,7 +5,6 @@ import { getRoster } from "@/features/students/queries";
 import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
-import { getDownloadUrl } from "@/server/storage/files";
 import {
   calculateObligationsStanding,
   calculateStudentFinancialSummary,
@@ -396,6 +395,8 @@ async function fetchStudentFinancialAccountData({
     payments: rawPayments,
     refunds: rawRefunds,
     semesterCodeMap,
+    paymentItems: rawPaymentItems,
+    obligations: rawObligations,
   });
 
   const scoped = scopeFinancialRecordsForSemester({
@@ -596,33 +597,16 @@ export async function getActivePaymentAccountsForStudent(): Promise<
     throw new Error("Unable to load payment destination accounts.");
   }
 
-  const accounts = data ?? [];
-  return Promise.all(
-    accounts.map(async (account) => {
-      let qrUrl: string | null = null;
-      if (account.qr_file_id) {
-        qrUrl = await getDownloadUrl(account.qr_file_id, "student").catch(
-          () => null
-        );
-      }
-      return {
-        id: account.id,
-        label: account.label,
-        account_name: account.account_name,
-        account_reference: account.account_reference,
-        instructions: account.instructions,
-        qr_file_id: account.qr_file_id,
-        qr_url: qrUrl,
-      };
-    })
-  );
+  // QR links are signed later, when the wizard shows them (getStudentPaymentAccountQrUrl).
+  return data ?? [];
 }
 
 /**
  * Fetch all payable obligations across all semesters for the student transfer wizard (FL-023 / T-034).
  * Includes older unpaid semesters; excludes waived and already settled obligations.
- * Note: obligations with `pending_verification` remain payable because a pending submission
- * does not itself settle an obligation.
+ * Obligations with `pending_verification` are returned so the wizard can show them, but
+ * they cannot be submitted again until Council rejects the pending transfer
+ * (enforced by submit_transfer_payment).
  */
 export async function getStudentPayableObligations(): Promise<
   ObligationWithStandingDTO[]
