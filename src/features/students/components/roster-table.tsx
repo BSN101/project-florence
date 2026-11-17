@@ -136,7 +136,7 @@ export function RosterTable({
               }
             >
               <FileWarning className="size-3.5" />
-              <span>Log demerit</span>
+              <span className="max-sm:hidden">Log demerit</span>
             </Button>
             <Button
               variant="ghost"
@@ -151,7 +151,7 @@ export function RosterTable({
               }
             >
               <Award className="size-3.5" />
-              <span>Award merits</span>
+              <span className="max-sm:hidden">Award merits</span>
             </Button>
           </>
         )}
