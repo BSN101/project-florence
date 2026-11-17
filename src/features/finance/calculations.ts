@@ -366,10 +366,14 @@ export function mapPaymentHistory({
   payments,
   refunds,
   semesterCodeMap,
+  paymentItems = [],
+  obligations = [],
 }: {
-  payments: Array<Omit<PaymentHistoryDTO, "is_refunded" | "refunded_at" | "refund_reason" | "semester_code">>;
+  payments: Array<Omit<PaymentHistoryDTO, "is_refunded" | "refunded_at" | "refund_reason" | "semester_code" | "items">>;
   refunds: RefundStandingRecord[];
   semesterCodeMap?: Map<string, string>;
+  paymentItems?: ReadonlyArray<{ payment_id: string; obligation_id: string }>;
+  obligations?: ReadonlyArray<{ id: string; description: string; amount: number | string }>;
 }): PaymentHistoryDTO[] {
   const refundMap = new Map<string, RefundStandingRecord>();
   for (const r of refunds) {
@@ -378,12 +382,28 @@ export function mapPaymentHistory({
     }
   }
 
+  // Items always equal their obligation's full amount (enforced by the payment commands).
+  const obligationMap = new Map(obligations.map((o) => [o.id, o]));
+  const itemsByPayment = new Map<string, PaymentHistoryDTO["items"]>();
+  for (const item of paymentItems) {
+    const obligation = obligationMap.get(item.obligation_id);
+    if (!obligation) continue;
+    const list = itemsByPayment.get(item.payment_id) ?? [];
+    list.push({
+      obligation_id: obligation.id,
+      description: obligation.description,
+      amount: Number(obligation.amount),
+    });
+    itemsByPayment.set(item.payment_id, list);
+  }
+
   return payments.map((p) => {
     const refund = p.receipt_id ? refundMap.get(p.receipt_id) : undefined;
     const semesterCode = semesterCodeMap?.get(p.semester_id);
 
     return {
       ...p,
+      items: itemsByPayment.get(p.id) ?? [],
       is_refunded: Boolean(refund),
       refunded_at: refund?.refunded_at ?? null,
       refund_reason: refund?.reason ?? null,

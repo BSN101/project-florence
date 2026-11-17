@@ -25,12 +25,12 @@ export function StudentFinancialSummaryCards({
       <Card
         className={
           isFullyCleared
-            ? "border-emerald-500/30 bg-emerald-500/5 shadow-xs"
-            : "border-amber-500/40 bg-amber-500/5 shadow-xs"
+            ? "border border-emerald-500/30 bg-emerald-500/5 shadow-xs"
+            : "border border-amber-500/40 bg-amber-500/5 shadow-xs"
         }
       >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-foreground">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Total Payable Due
           </CardTitle>
           {isFullyCleared ? (
@@ -49,7 +49,7 @@ export function StudentFinancialSummaryCards({
           >
             {formatPhp(summary.totalOutstandingPayable)}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             {isFullyCleared
               ? "All active dues settled. Account is cleared."
               : summary.totalOutstandingPayable === 0
@@ -64,9 +64,9 @@ export function StudentFinancialSummaryCards({
       </Card>
 
       {/* 2. Payments Under Review */}
-      <Card className="shadow-xs">
+      <Card className="border border-border/70 shadow-xs">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-foreground">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Under Verification
           </CardTitle>
           <Clock className="size-4 text-indigo-500" />
@@ -75,7 +75,7 @@ export function StudentFinancialSummaryCards({
           <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             {formatPhp(summary.totalPendingVerificationAmount)}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             {hasPending
               ? "Transfers submitted, awaiting Council review."
               : "No payments currently pending review."}
@@ -84,9 +84,9 @@ export function StudentFinancialSummaryCards({
       </Card>
 
       {/* 3. Settled Amount */}
-      <Card className="shadow-xs">
+      <Card className="border border-border/70 shadow-xs">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-foreground">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Total Settled
           </CardTitle>
           <Coins className="size-4 text-emerald-600" />
@@ -95,16 +95,16 @@ export function StudentFinancialSummaryCards({
           <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             {formatPhp(summary.totalSettledAmount)}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             Verified payments credited to this account.
           </p>
         </CardContent>
       </Card>
 
       {/* 4. Waived Dues */}
-      <Card className="shadow-xs">
+      <Card className="border border-border/70 shadow-xs">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-foreground">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Officially Waived
           </CardTitle>
           <ShieldCheck className="size-4 text-muted-foreground" />
@@ -113,7 +113,7 @@ export function StudentFinancialSummaryCards({
           <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
             {formatPhp(summary.totalWaivedAmount)}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             {summary.totalWaivedAmount > 0
               ? "Excused through approved council waivers."
               : "No waived fees or fines recorded."}

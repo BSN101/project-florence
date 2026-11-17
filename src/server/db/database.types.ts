@@ -2823,6 +2823,18 @@ export type Database = {
         }
         Returns: Json
       }
+      submit_transfer_payment: {
+        Args: {
+          p_actor: string
+          p_key: string
+          p_obligations: string[]
+          p_payment_account: string
+          p_proof_file: string
+          p_reference_number: string
+          p_semester: string
+        }
+        Returns: Json
+      }
       update_faculty_identity: {
         Args: {
           p_actor: string

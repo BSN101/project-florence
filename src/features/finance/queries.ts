@@ -21,8 +21,10 @@ import {
   type FineDefinitionCatalogItem,
   type FineDefinitionDTO,
   type CouncilFinancialRosterItem,
+  type ObligationWithStandingDTO,
   type PaymentAccountDTO,
   type StudentFinancialAccountData,
+  type StudentPaymentAccountDTO,
   isAuthorizedCouncilFinancialViewer,
   isAuthorizedPaymentAccountManager,
 } from "./contracts";
@@ -323,7 +325,7 @@ async function fetchStudentFinancialAccountData({
     client
       .from("payments")
       .select(
-        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, amount, submitted_at, decided_at, decision_reason"
+        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason"
       )
       .eq("student_id", studentId)
       .order("submitted_at", { ascending: false }),
@@ -393,6 +395,8 @@ async function fetchStudentFinancialAccountData({
     payments: rawPayments,
     refunds: rawRefunds,
     semesterCodeMap,
+    paymentItems: rawPaymentItems,
+    obligations: rawObligations,
   });
 
   const scoped = scopeFinancialRecordsForSemester({
@@ -570,4 +574,114 @@ export async function getCouncilStudentFinancialAccount(
       fullName: displayName(matchedStudent),
     },
   };
+}
+
+/**
+ * Fetch active payment destination accounts for the student transfer wizard (FL-023 / T-034).
+ * Uses the request-scoped user client (RLS `accounts_read` permits active accounts for students)
+ * and resolves short-lived signed QR URLs when an account has a QR code attached.
+ */
+export async function getActivePaymentAccountsForStudent(): Promise<
+  StudentPaymentAccountDTO[]
+> {
+  await requireWorkspace("student");
+  const client = await createUserClient();
+
+  const { data, error } = await client
+    .from("payment_accounts")
+    .select("id, label, account_name, account_reference, instructions, qr_file_id")
+    .is("archived_at", null)
+    .order("label", { ascending: true });
+
+  if (error) {
+    throw new Error("Unable to load payment destination accounts.");
+  }
+
+  // QR links are signed later, when the wizard shows them (getStudentPaymentAccountQrUrl).
+  return data ?? [];
+}
+
+/**
+ * Fetch all payable obligations across all semesters for the student transfer wizard (FL-023 / T-034).
+ * Includes older unpaid semesters; excludes waived and already settled obligations.
+ * Obligations with `pending_verification` are returned so the wizard can show them, but
+ * they cannot be submitted again until Council rejects the pending transfer
+ * (enforced by submit_transfer_payment).
+ */
+export async function getStudentPayableObligations(): Promise<
+  ObligationWithStandingDTO[]
+> {
+  const context = await requireWorkspace("student");
+  const client = await createUserClient();
+  const studentId = context.profile.id;
+
+  const [obligationsRes, paymentItemsRes, paymentsRes] = await Promise.all([
+    client
+      .from("obligations")
+      .select(
+        "id, semester_id, kind, consequence_outcome, description, amount, waived_at, waiver_reason"
+      )
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false }),
+    client
+      .from("payment_items")
+      .select("payment_id, obligation_id")
+      .eq("student_id", studentId),
+    client
+      .from("payments")
+      .select("id, receipt_id, status, record_status, is_receipt_record")
+      .eq("student_id", studentId),
+  ]);
+
+  if (obligationsRes.error || paymentItemsRes.error || paymentsRes.error) {
+    throw new Error("Unable to load payable obligations.");
+  }
+
+  const rawPayments = paymentsRes.data ?? [];
+  const receiptIds = Array.from(
+    new Set(
+      rawPayments
+        .map((p) => p.receipt_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    )
+  );
+
+  let rawRefunds: Array<{ receipt_id: string }> = [];
+  if (receiptIds.length > 0) {
+    const { data: refundsData, error: refundError } = await client
+      .from("payment_refunds")
+      .select("receipt_id")
+      .in("receipt_id", receiptIds);
+
+    if (refundError) {
+      throw new Error("Unable to load payment refunds.");
+    }
+    rawRefunds = refundsData ?? [];
+  }
+
+  const semesterCodeMap = new Map<string, string>();
+  for (const s of context.semesters) {
+    semesterCodeMap.set(s.id, `${s.academic_year_start} · ${s.term}`);
+  }
+
+  const currentSemester =
+    context.semesters.find((s) => s.is_current) ?? context.semesters[0];
+  const priorSemesterIds = priorSemesterIdsFor(
+    context.semesters,
+    currentSemester?.id
+  );
+
+  const allWithStanding = calculateObligationsStanding({
+    obligations: obligationsRes.data ?? [],
+    paymentItems: paymentItemsRes.data ?? [],
+    payments: rawPayments,
+    refunds: rawRefunds,
+    targetSemesterId: currentSemester?.id,
+    priorSemesterIds,
+    semesterCodeMap,
+  });
+
+  return allWithStanding.filter(
+    (item) => item.status === "unpaid" || item.status === "pending_verification"
+  );
 }
