@@ -10,11 +10,26 @@ import { FacultyMeritsTable } from "./faculty-merits-table";
 export function FacultyMyDisciplineView({
   merits,
   demerits,
+  defaultTab = "merits",
 }: {
   merits: FacultyMeritGroup[];
   demerits: FacultyDemeritGroup[];
+  defaultTab?: "merits" | "demerits";
 }) {
-  const [activeTab, setActiveTab] = useState<"merits" | "demerits">("merits");
+  const [activeTab, setActiveTab] = useState<"merits" | "demerits">(defaultTab);
+
+  function handleTabChange(nextTab: "merits" | "demerits") {
+    setActiveTab(nextTab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (nextTab === "demerits") {
+        url.searchParams.set("tab", "demerits");
+      } else {
+        url.searchParams.delete("tab");
+      }
+      window.history.replaceState(null, "", url.toString());
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -23,7 +38,7 @@ export function FacultyMyDisciplineView({
           type="button"
           variant={activeTab === "merits" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveTab("merits")}
+          onClick={() => handleTabChange("merits")}
           className="gap-2 text-xs"
         >
           <Award className="size-3.5" />
@@ -34,7 +49,7 @@ export function FacultyMyDisciplineView({
           type="button"
           variant={activeTab === "demerits" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveTab("demerits")}
+          onClick={() => handleTabChange("demerits")}
           className="gap-2 text-xs"
         >
           <FileWarning className="size-3.5" />

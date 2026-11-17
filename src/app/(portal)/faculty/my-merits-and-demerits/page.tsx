@@ -27,10 +27,11 @@ export default async function FacultyMeritsAndDemeritsPage({
     award?: string | string[];
     demerit?: string | string[];
     student?: string | string[];
+    tab?: string | string[];
   }>;
 }) {
   await connection();
-  const { semester, award, demerit, student } = await searchParams;
+  const { semester, award, demerit, student, tab } = await searchParams;
   const access = await getAccessContext();
 
   if (access.status !== "ready" || !access.workspaces.includes("faculty")) {
@@ -45,8 +46,15 @@ export default async function FacultyMeritsAndDemeritsPage({
     : access.semesters.find((s) => s.is_current) ?? access.semesters[0];
   const canAct = Boolean(selected?.is_current);
   const semesterLabel = selected ? `${selected.term} (AY ${selected.academic_year_start}–${selected.academic_year_start + 1})` : "";
+  const tabValue = Array.isArray(tab) ? tab[0] : tab;
+  const defaultTab: "merits" | "demerits" = tabValue === "demerits" ? "demerits" : "merits";
   // The list keeps an explicit semester; entry forms always target the current one.
-  const listHref = filter.success && filter.data.semester ? `${path}?semester=${filter.data.semester}` : path;
+  const demeritListHref = filter.success && filter.data.semester
+    ? `${path}?semester=${filter.data.semester}&tab=demerits`
+    : `${path}?tab=demerits`;
+  const awardListHref = filter.success && filter.data.semester
+    ? `${path}?semester=${filter.data.semester}`
+    : path;
 
   const availableBuckets: DisciplinaryBucket[] = [];
   if (access.roles.includes("Academic Instructor")) availableBuckets.push("office");
@@ -84,7 +92,7 @@ export default async function FacultyMeritsAndDemeritsPage({
           startsOn={selected.starts_on}
           latestDate={selected.ends_on < today ? selected.ends_on : today}
           initialStudentId={students.some((s) => s.student_id === student) ? (student as string) : undefined}
-          listHref={listHref}
+          listHref={demeritListHref}
         />
       );
     }
@@ -105,7 +113,7 @@ export default async function FacultyMeritsAndDemeritsPage({
           startsOn={selected.starts_on}
           latestDate={selected.ends_on < today ? selected.ends_on : today}
           initialStudentId={students.some((s) => s.student_id === student) ? (student as string) : undefined}
-          listHref={listHref}
+          listHref={awardListHref}
         />
       );
     }
@@ -148,7 +156,7 @@ export default async function FacultyMeritsAndDemeritsPage({
             <span>You are viewing {semesterLabel}. Merits and demerits can only be issued in the current semester.</span>
           </p>
         )}
-        <FacultyMyDisciplineView merits={merits} demerits={demerits} />
+        <FacultyMyDisciplineView merits={merits} demerits={demerits} defaultTab={defaultTab} />
       </div>
     );
   }
