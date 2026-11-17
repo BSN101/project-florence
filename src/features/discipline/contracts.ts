@@ -100,3 +100,29 @@ export type FacultyMeritGroup = {
   days: number;
   created_at: string;
 };
+
+/** Grouped faculty-issued demerit incident for the instructor's own entries table. */
+export type FacultyDemeritGroup = {
+  /** `incident_group_id` from the database, shared by all units in the incident. */
+  id: string;
+  student_id: string;
+  student_name: string | null;
+  student_university_id: string | null;
+  semester_id: string;
+  bucket: DisciplinaryBucket;
+  misconduct_label: string | null;
+  description: string;
+  incident_on: string;
+  /** Total 1-day unit rows sharing this `incident_group_id`. */
+  days: number;
+  /** Units where `waived_at` is set. */
+  waivedDays: number;
+  created_at: string;
+};
+
+/** Active misconduct catalog option for the demerit-logging picker. */
+export type MisconductOption = {
+  id: string;
+  label: string;
+  is_other: boolean;
+};
