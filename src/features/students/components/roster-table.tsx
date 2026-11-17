@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Award, GraduationCap, Search, Users } from "lucide-react";
+import { Award, FileWarning, GraduationCap, Search, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -122,12 +122,38 @@ export function RosterTable({
     return (
       <div className="flex shrink-0 items-center justify-end gap-1">
         {workspace === "faculty" && (
-          <Button variant="ghost" size="sm" nativeButton={false}
-            className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-            render={<Link href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`} aria-label={`Award merits to ${sortName(student)}`} />}>
-            <Award className="size-3.5" />
-            <span>Award merits</span>
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+              render={
+                <Link
+                  href={`/faculty/my-merits-and-demerits?demerit&student=${student.student_id}`}
+                  aria-label={`Log demerit for ${sortName(student)}`}
+                />
+              }
+            >
+              <FileWarning className="size-3.5" />
+              <span>Log demerit</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+              render={
+                <Link
+                  href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`}
+                  aria-label={`Award merits to ${sortName(student)}`}
+                />
+              }
+            >
+              <Award className="size-3.5" />
+              <span>Award merits</span>
+            </Button>
+          </>
         )}
         <StudentRowActions student={student} canEdit={canEdit} />
         <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
