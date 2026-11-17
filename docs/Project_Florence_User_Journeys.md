@@ -276,3 +276,54 @@ The awarded merits appear immediately in the instructor's history, students rece
 - Recipient students receive an in-app notification upon award.
 - Self-awards, non-integer/negative units, future dates, and awards outside the active semester are prevented and return readable errors.
 - When one of several students fails, the others are still awarded and the failed students are named; confirming again does not duplicate recorded awards.
+
+## Log faculty demerits with misconduct catalog selection
+
+- **Author:** Andrei Catigan
+- **Actors:** Academic Instructor, Clinical Instructor (including Coordinators in their instructor capacity).
+- **Starts at:** Faculty workspace > My entries (`/faculty/my-merits-and-demerits`) or a student's row/details on the Students page; user must hold an active Academic Instructor or Clinical Instructor role.
+- **References:** FL-033, FL-044; Schema section 8.1 (`misconduct_catalog`), Schema section 8.2 (`demerits`), Schema section 12.1 (`notifications`).
+
+### Main flow
+
+1. The Instructor opens My entries in the Faculty workspace, or chooses "Log demerit" in a student's row or details on the Students page.
+2. The system verifies instructor access and shows the instructor's issued demerits and merits for the selected semester with "Log demerit" and "Award merits" actions.
+3. The Instructor chooses "Log demerit". The demerit page (`?demerit`) opens on the Students step, with the student already selected when started from that student's details or directory row.
+4. **Students:** the Instructor searches the current semester roster (`florence_roster`, excluding the instructor) and selects one or more students.
+5. **Details:** the page shows the bucket fixed by the instructor role (Office for Academic Instructors, RLE for Clinical Instructors); the Instructor selects an active catalog misconduct violation (standard options listed alphabetically, with "Other" listed last), enters whole-day units (defaulting to 1), sets the incident date (default: today in `Asia/Manila`, limited to the current semester and not in the future), and enters incident details (required for "Other", optional for standard catalog items).
+6. **Review:** the page lists the applicable bucket, violation, units, incident date, details, and every selected student. The Instructor confirms with a button naming the total (for example, "Log 2 days for 3 students").
+7. The system validates the input server-side and runs `log_demerits` once per student through the command client. Each student has its own request key, made when the student was selected.
+8. The database inserts one row per whole-day unit into `public.demerits` sharing the `incident_group_id` with `source = 'faculty'`, `incident_unit_index` 1..N, attributed to `issued_by`, and creates an in-app notice (`demerit_incurred`) for each recipient.
+9. The result page lists the students logged and any not recorded, with the reason. My entries is revalidated, so the new demerit entries show at once in the Issued Demerits table.
+
+### System involvement
+
+- Table `demerits`: inserts `p_days` whole-day rows per student sharing `incident_group_id = p_key` with unit ordinal index `1..p_days`, `issued_by = actor.profile.id`, `source = 'faculty'`, and `bucket = p_bucket`.
+- Table `misconduct_catalog`: verifies that the chosen misconduct option is active (`archived_at is null`) and enforces description requirements when `is_other = true`.
+- Table `notifications`: atomically inserts in-app notification rows with `kind = 'demerit_incurred'` for each recipient student via `f_cmd_notice`.
+- Procedure `log_demerits`: enforces instructor role to bucket matching (`f_cmd_instructor`), non-self sanction (`p_student <> p_actor`), positive whole-day units, active semester enrollment, non-future date bounds, and request-level idempotency (`f_cmd_begin`/`f_cmd_finish`).
+- The server action checks Faculty access via `requireWorkspace("faculty")` and derives the bucket from the instructor role; the browser does not choose it.
+
+### Outcome
+
+The issued demerits appear immediately in the instructor's history under the Demerits tab (with active vs. waived breakdown ready for waivers), recipient students receive an in-app notification, and the units are added to the students' disciplinary ledger in the designated bucket.
+
+### Important alternatives
+
+- **Historical semester:** "Log demerit" is disabled or hidden with an informative notice that demerits can only be logged in the current semester.
+- **Bucket-to-role mismatch:** an Academic-only instructor cannot log RLE demerits, and a Clinical-only instructor cannot log Office demerits.
+- **Other misconduct option:** selecting "Other" requires a specific description of the misconduct ($\ge 3$ characters); standard catalog items allow optional context.
+- **Self-sanction:** the instructor is excluded from the student picker, and the server action and `log_demerits` RPC reject `p_student = p_actor`.
+- **Date out of range:** the Details step and `log_demerits` reject dates before the semester starts, after it ends, or in the future.
+- **Some students fail:** demerits already recorded stay recorded. The result page names each student not recorded and why, and the Instructor can review and confirm again for only those students without repeating completed records. Details stay fixed after a confirm attempt; changing them means starting over.
+- **Double-click or lost connection:** each student's request key is kept until that student is recorded, so confirming again replays the recorded demerits through `f_cmd_begin` instead of duplicating them.
+
+### Acceptance checks
+
+- Academic Instructors can log Office demerits; Clinical Instructors can log RLE demerits.
+- Selecting "Other" strictly requires an incident description ($\ge 3$ characters); standard violations allow optional notes.
+- Multi-day incident sanctions create individual 1-day demerit records sharing `incident_group_id` with sequential `incident_unit_index` 1..N and `source = 'faculty'`.
+- Recipient students receive an in-app notification (`demerit_incurred`) upon logging.
+- Self-sanctions, non-integer/negative units, future dates, and incidents outside the active semester are prevented and return readable errors.
+- Deep-links from the student directory and student detail modal open the 4-step wizard with the selected student preselected.
+- Demerits table accurately reflects issued units, active vs. waived status, bucket badges, and violation details with zero layout shift.

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Award, Check, Copy, Eye, GraduationCap, Mail, RefreshCw, User, XCircle } from "lucide-react";
+import { Award, Check, Copy, Eye, FileWarning, GraduationCap, Mail, RefreshCw, User, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -251,11 +251,34 @@ export function StudentDetailDialog({
 
           <DialogFooter className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             {workspace === "faculty" && (
-              // The award page checks the student against the current roster before preselecting them.
-              <Button variant="outline" nativeButton={false} className="w-full gap-1.5 sm:w-auto"
-                render={<Link href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`} onClick={() => setOpen(false)} />}>
-                <Award className="size-4" /> Award merits
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  className="w-full gap-1.5 sm:w-auto"
+                  render={
+                    <Link
+                      href={`/faculty/my-merits-and-demerits?demerit&student=${student.student_id}`}
+                      onClick={() => setOpen(false)}
+                    />
+                  }
+                >
+                  <FileWarning className="size-4" /> Log demerit
+                </Button>
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  className="w-full gap-1.5 sm:w-auto"
+                  render={
+                    <Link
+                      href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`}
+                      onClick={() => setOpen(false)}
+                    />
+                  }
+                >
+                  <Award className="size-4" /> Award merits
+                </Button>
+              </>
             )}
             <Button
               type="button"

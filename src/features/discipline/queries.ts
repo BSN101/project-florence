@@ -8,8 +8,10 @@ import { calculateDisciplinarySummary, evaluateMeritState, getTodayManila } from
 import type {
   CouncilDisciplinaryViewData,
   DisciplinaryLedger,
+  FacultyDemeritGroup,
   FacultyDisciplinaryViewData,
   FacultyMeritGroup,
+  MisconductOption,
   StudentDisciplinarySummary,
 } from "./contracts";
 
@@ -263,6 +265,84 @@ export async function getMyFacultyMerits(semesterId: string): Promise<FacultyMer
       });
     } else {
       existing.days += 1;
+    }
+  }
+
+  return Array.from(groupsMap.values());
+}
+
+/**
+ * Active misconduct catalog options for Faculty demerit logging (FL-033).
+ * Standard options appear alphabetically first, and the required 'Other' option appears last.
+ */
+export async function getActiveMisconductCatalog(): Promise<MisconductOption[]> {
+  await requireWorkspace("faculty");
+  const client = await createUserClient();
+
+  const { data, error } = await client
+    .from("misconduct_catalog")
+    .select("id, label, is_other")
+    .is("archived_at", null)
+    .order("is_other", { ascending: true })
+    .order("label", { ascending: true });
+
+  if (error) throw new Error("Unable to load misconduct catalog");
+  return data ?? [];
+}
+
+/**
+ * Faculty workspace query (FL-033).
+ * Fetches demerits issued by the authenticated instructor in the given semester,
+ * strictly filtered to source = 'faculty' and issued_by = actor to keep future
+ * external-CI records (T-047) isolated.
+ * Grouped by incident_group_id with total units and waived units derived from waived_at.
+ */
+export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyDemeritGroup[]> {
+  const access = await requireWorkspace("faculty");
+  const actorId = access.profile.id;
+  const client = await createUserClient();
+
+  const { data, error } = await client
+    .from("demerits")
+    .select(
+      "id, incident_group_id, student_id, semester_id, bucket, description, incident_on, waived_at, created_at"
+    )
+    .eq("issued_by", actorId)
+    .eq("semester_id", semesterId)
+    .eq("source", "faculty")
+    .order("incident_on", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error("Unable to load faculty demerit records");
+  if (!data || data.length === 0) return [];
+
+  const names = await loadNames(client, data.map((d) => d.student_id));
+  const groupsMap = new Map<string, FacultyDemeritGroup>();
+
+  for (const row of data) {
+    const groupKey = row.incident_group_id;
+    const existing = groupsMap.get(groupKey);
+    const isWaived = Boolean(row.waived_at);
+
+    if (!existing) {
+      groupsMap.set(groupKey, {
+        id: groupKey,
+        student_id: row.student_id,
+        student_name: nameOf(names, row.student_id),
+        student_university_id: names.get(row.student_id)?.university_id ?? null,
+        semester_id: row.semester_id,
+        bucket: row.bucket,
+        description: row.description,
+        incident_on: row.incident_on,
+        days: 1,
+        waivedDays: isWaived ? 1 : 0,
+        created_at: row.created_at,
+      });
+    } else {
+      existing.days += 1;
+      if (isWaived) {
+        existing.waivedDays += 1;
+      }
     }
   }
 
