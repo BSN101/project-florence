@@ -305,7 +305,7 @@ export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyD
   const { data, error } = await client
     .from("demerits")
     .select(
-      "id, incident_group_id, student_id, semester_id, bucket, description, incident_on, waived_at, created_at, misconduct:misconduct_catalog(label)"
+      "id, incident_group_id, student_id, semester_id, bucket, description, incident_on, waived_at, created_at"
     )
     .eq("issued_by", actorId)
     .eq("semester_id", semesterId)
@@ -332,7 +332,6 @@ export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyD
         student_university_id: names.get(row.student_id)?.university_id ?? null,
         semester_id: row.semester_id,
         bucket: row.bucket,
-        misconduct_label: row.misconduct?.label ?? null,
         description: row.description,
         incident_on: row.incident_on,
         days: 1,

@@ -110,7 +110,7 @@ export type FacultyDemeritGroup = {
   student_university_id: string | null;
   semester_id: string;
   bucket: DisciplinaryBucket;
-  misconduct_label: string | null;
+  /** Frozen at logging as "<misconduct label>[: notes]". */
   description: string;
   incident_on: string;
   /** Total 1-day unit rows sharing this `incident_group_id`. */

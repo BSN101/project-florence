@@ -35,8 +35,7 @@ export function FacultyDemeritsTable({
       const name = (d.student_name ?? "").toLowerCase();
       const num = (d.student_university_id ?? "").toLowerCase();
       const desc = d.description.toLowerCase();
-      const label = (d.misconduct_label ?? "").toLowerCase();
-      const matchesSearch = !q || name.includes(q) || num.includes(q) || desc.includes(q) || label.includes(q);
+      const matchesSearch = !q || name.includes(q) || num.includes(q) || desc.includes(q);
       const matchesBucket = matches(bucket, d.bucket);
 
       const hasActive = d.days - d.waivedDays > 0;
@@ -95,7 +94,6 @@ export function FacultyDemeritsTable({
             <th className="px-4 py-3">Sanctioned Units</th>
             <th className="px-4 py-3">Violation</th>
             <th className="px-4 py-3">Incident Date</th>
-            <th className="px-4 py-3">Description / Details</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
@@ -155,16 +153,11 @@ export function FacultyDemeritsTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="font-medium text-foreground">
-                    {d.misconduct_label ?? "Misconduct"}
-                  </span>
+                <td className="px-4 py-3">
+                  <span className="font-medium text-foreground">{d.description}</span>
                 </td>
                 <td className="px-4 py-3 font-mono text-muted-foreground whitespace-nowrap">
                   {d.incident_on}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="font-medium text-foreground">{d.description}</span>
                 </td>
               </tr>
             );
