@@ -54,6 +54,8 @@ export function AwardMeritsFlow({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AwardDirectMeritsResult | null>(null);
+  // Request keys are bound to the details they were first sent with, so details lock after an attempt.
+  const [locked, setLocked] = useState(false);
   const [isPending, startTransition] = useTransition();
   const ids = { search: useId(), days: useId(), date: useId(), reason: useId() };
 
@@ -110,12 +112,14 @@ export function AwardMeritsFlow({
           setError(outcome.error);
           return;
         }
+        setLocked(true);
         // Awarded students leave the selection; failed ones keep their keys for a safe retry.
         setPicked((prev) => prev.filter((p) => !outcome.awardedIds.includes(p.studentId)));
         setResult(outcome);
         setStep("result");
         window.scrollTo({ top: 0 });
       } catch {
+        setLocked(true);
         setError("Unable to reach the server. Some awards may have been recorded; confirming again will not repeat them.");
       }
     });
@@ -129,6 +133,7 @@ export function AwardMeritsFlow({
     setDescription("");
     setError(null);
     setResult(null);
+    setLocked(false);
     setStep("students");
   }
 
@@ -284,9 +289,14 @@ export function AwardMeritsFlow({
               {picked.map((p) => <li key={p.studentId} className="px-3 py-2">{label(p.studentId)}</li>)}
             </ul>
           </div>
-          <p className="text-xs text-muted-foreground">Each student is notified in Florence. Awards cannot be edited after they are recorded.</p>
+          <p className="text-xs text-muted-foreground">
+            Each student is notified in Florence. Awards cannot be edited after they are recorded.
+            {locked && " Details stay fixed so confirming again cannot repeat recorded awards; start over to change them."}
+          </p>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-            <Button variant="outline" onClick={() => go("details")} disabled={isPending}>Back</Button>
+            {locked
+              ? <Button variant="outline" onClick={startOver} disabled={isPending}>Start over</Button>
+              : <Button variant="outline" onClick={() => go("details")} disabled={isPending}>Back</Button>}
             <Button onClick={confirm} disabled={isPending} className="gap-2">
               {isPending ? <Loader2 className="size-4 animate-spin" /> : <Award className="size-4" />}
               {isPending ? "Recording awards…" : awardLabel}
