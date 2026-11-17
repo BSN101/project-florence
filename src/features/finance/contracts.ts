@@ -130,6 +130,8 @@ export type PaymentHistoryDTO = Pick<
   | "decision_reason"
 > & {
   proof_file_id?: Tables["payments"]["Row"]["proof_file_id"];
+  /** Obligations this payment covers, for the payment record view. */
+  items: Array<{ obligation_id: string; description: string; amount: number }>;
   semester_code?: string;
   is_refunded: boolean;
   refunded_at?: string | null;
@@ -242,7 +244,7 @@ export type PublishFeeResult =
 
 /**
  * Client-safe projection of active payment destination accounts for the student transfer wizard (FL-023 / T-034).
- * Derived from payment_accounts; includes a short-lived signed QR URL when available.
+ * Derived from payment_accounts; the QR link is fetched when shown, since signed links expire.
  */
 export type StudentPaymentAccountDTO = Pick<
   Tables["payment_accounts"]["Row"],
@@ -252,9 +254,7 @@ export type StudentPaymentAccountDTO = Pick<
   | "account_reference"
   | "instructions"
   | "qr_file_id"
-> & {
-  qr_url: string | null;
-};
+>;
 
 /**
  * Standardized action result for student transfer evidence submission (FL-023 / T-034).
@@ -321,6 +321,12 @@ export function sanitizeTransferSubmissionError(
     }
     if (msg.includes("Student enrollment in the specified semester required")) {
       return "You must be enrolled in the selected semester to submit a payment for it.";
+    }
+    if (msg.includes("Selected obligation already has a pending transfer")) {
+      return "One or more selected obligations already have a transfer pending Council review.";
+    }
+    if (msg.includes("Transfer reference already submitted")) {
+      return "This reference number has already been submitted.";
     }
     if (msg.includes("Request key reused")) {
       return "This submission request conflicted with a previous attempt. Please try again.";

@@ -405,6 +405,36 @@ describe("Task T-033 / FL-022: Shared Financial Calculations", () => {
       assert.equal(cleanPayment.is_refunded, false);
       assert.equal(cleanPayment.refunded_at, null);
       assert.equal(cleanPayment.refund_reason, null);
+      assert.deepEqual(cleanPayment.items, []);
+    });
+
+    test("attaches covered obligation items to each payment", () => {
+      const mapped = mapPaymentHistory({
+        payments: [
+          { id: "pay-a", semester_id: semesterCurrent, receipt_id: null },
+          { id: "pay-b", semester_id: semesterCurrent, receipt_id: null },
+        ],
+        refunds: [],
+        paymentItems: [
+          { payment_id: "pay-a", obligation_id: "ob-1" },
+          { payment_id: "pay-a", obligation_id: "ob-2" },
+          { payment_id: "pay-b", obligation_id: "ob-1" },
+          { payment_id: "pay-b", obligation_id: "ob-missing" },
+        ],
+        obligations: [
+          { id: "ob-1", description: "Org fee", amount: "150.00" },
+          { id: "ob-2", description: "Late fine", amount: 50 },
+        ],
+      });
+
+      assert.deepEqual(mapped[0].items, [
+        { obligation_id: "ob-1", description: "Org fee", amount: 150 },
+        { obligation_id: "ob-2", description: "Late fine", amount: 50 },
+      ]);
+      // An obligation the reader cannot see is skipped rather than shown blank.
+      assert.deepEqual(mapped[1].items, [
+        { obligation_id: "ob-1", description: "Org fee", amount: 150 },
+      ]);
     });
   });
 
