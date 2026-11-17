@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
@@ -782,6 +783,42 @@ export async function getPaymentAccountQrUrl(
 }
 
 /**
+ * Fresh short-lived QR link for an active payment account, fetched when the student's
+ * wizard shows it (links signed at page render expire while the page stays open).
+ */
+export async function getStudentPaymentAccountQrUrl(
+  accountId: string
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    await requireWorkspace("student");
+    const parsedId = z.string().uuid().safeParse(accountId);
+    if (!parsedId.success) {
+      return { success: false, error: "Invalid payment account." };
+    }
+    const client = await createUserClient();
+    const { data: account, error } = await client
+      .from("payment_accounts")
+      .select("qr_file_id")
+      .eq("id", parsedId.data)
+      .is("archived_at", null)
+      .maybeSingle();
+    if (error) throw error;
+    const url = account?.qr_file_id
+      ? await getDownloadUrl(account.qr_file_id, "student")
+      : null;
+    if (!url) {
+      return { success: false, error: "This account has no QR code available." };
+    }
+    return { success: true, url };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return { success: false, error: "Unauthorized" };
+    }
+    return { success: false, error: "The QR code couldn't load. Please try again." };
+  }
+}
+
+/**
  * Upload a transfer receipt image (JPEG, PNG, or WebP, max 4 MB) to private R2 storage.
  * Authorized for students only (FL-023 / T-034).
  */
@@ -794,11 +831,8 @@ export async function uploadTransferProof(
     if (!file || !(file instanceof File)) {
       return { success: false, error: "Please select an image file to upload." };
     }
-    const rawKey = formData.get("requestKey");
-    const requestKey =
-      typeof rawKey === "string" && rawKey.length > 0 ? rawKey : randomUUID();
-
-    const fileId = await uploadFile("payment_proof", file, requestKey);
+    // Server-generated key: a client key could overwrite already submitted proof.
+    const fileId = await uploadFile("payment_proof", file, randomUUID());
     return { success: true, fileId };
   } catch (err) {
     if (err instanceof AccessDeniedError) {
@@ -891,17 +925,6 @@ export async function submitTransferEvidence(
     }
 
     const obligationsList = selectedObligations ?? [];
-    if (
-      obligationsList.some(
-        (obligation) => obligation.semester_id !== parsed.data.semesterId
-      )
-    ) {
-      return {
-        success: false,
-        error: "All selected obligations must belong to the same semester.",
-      };
-    }
-
     if (obligationsList.length !== parsed.data.obligationIds.length) {
       return {
         success: false,
@@ -916,11 +939,10 @@ export async function submitTransferEvidence(
       };
     }
 
-    const requestKey = parsed.data.requestKey ?? randomUUID();
     const commandClient = createCommandClient();
 
     const { data, error } = await commandClient.rpc("submit_transfer_payment", {
-      p_key: requestKey,
+      p_key: parsed.data.requestKey,
       p_actor: context.profile.id,
       p_semester: parsed.data.semesterId,
       p_obligations: parsed.data.obligationIds,
@@ -965,9 +987,6 @@ export async function submitTransferEvidence(
         error: "Unauthorized: Only students may submit transfer payment evidence",
       };
     }
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "An unexpected error occurred",
-    };
+    return { success: false, error: sanitizeTransferSubmissionError(null) };
   }
 }

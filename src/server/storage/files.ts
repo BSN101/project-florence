@@ -18,6 +18,8 @@ const uploaderWorkspace: Record<FilePurpose, Workspace> = {
  * Validates, compresses and stores one private file, then records it. Returns the file id
  * for the owning feature's own command (roster import, payment account, payment).
  * Reusing `requestKey` on retry targets the same object and replays the registration.
+ * The key must be server-generated: the object is written before registration, so a
+ * caller-chosen key could overwrite an already registered file (e.g. submitted proof).
  * Throws UploadRejectedError with a user-safe message for bad files or missing permission.
  */
 export async function uploadFile(purpose: FilePurpose, file: File, requestKey: string): Promise<string> {

@@ -174,7 +174,7 @@ export const submitTransferSchema = z.object({
   paymentAccountId: z.string().uuid("Select a destination payment account"),
   referenceNumber: transferReferenceNumber,
   proofFileId: paymentProofFileIdSchema,
-  requestKey: z.string().uuid("Invalid request key").optional(),
+  requestKey: z.string().uuid("Invalid request key"),
 });
 
 export type SubmitTransferInput = z.infer<typeof submitTransferSchema>;

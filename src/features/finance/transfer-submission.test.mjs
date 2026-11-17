@@ -38,20 +38,29 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
       }
     });
 
-    test("trims reference number and accepts submission without optional requestKey", () => {
+    test("trims reference number", () => {
       const res = submitTransferSchema.safeParse({
         semesterId: validSemesterId,
         obligationIds: [validObligationId1],
         paymentAccountId: validAccountId,
         referenceNumber: "   REF-123456   ",
         proofFileId: validProofFileId,
+        requestKey: validRequestKey,
       });
 
       assert.equal(res.success, true);
-      if (res.success) {
-        assert.equal(res.data.referenceNumber, "REF-123456");
-        assert.equal(res.data.requestKey, undefined);
-      }
+      if (res.success) assert.equal(res.data.referenceNumber, "REF-123456");
+    });
+
+    test("requires a requestKey so retries stay idempotent", () => {
+      const res = submitTransferSchema.safeParse({
+        semesterId: validSemesterId,
+        obligationIds: [validObligationId1],
+        paymentAccountId: validAccountId,
+        referenceNumber: "REF-123456",
+        proofFileId: validProofFileId,
+      });
+      assert.equal(res.success, false);
     });
 
     test("rejects empty obligations array", () => {
@@ -61,6 +70,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
         paymentAccountId: validAccountId,
         referenceNumber: "REF-123456",
         proofFileId: validProofFileId,
+        requestKey: validRequestKey,
       });
 
       assert.equal(res.success, false);
@@ -79,6 +89,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
         paymentAccountId: validAccountId,
         referenceNumber: "REF-123456",
         proofFileId: validProofFileId,
+        requestKey: validRequestKey,
       });
 
       assert.equal(res.success, false);
@@ -98,6 +109,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
           paymentAccountId: validAccountId,
           referenceNumber: "",
           proofFileId: validProofFileId,
+          requestKey: validRequestKey,
         }).success,
         false
       );
@@ -109,6 +121,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
           paymentAccountId: validAccountId,
           referenceNumber: "    ",
           proofFileId: validProofFileId,
+          requestKey: validRequestKey,
         }).success,
         false
       );
@@ -125,6 +138,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
           paymentAccountId: validAccountId,
           referenceNumber: exact120,
           proofFileId: validProofFileId,
+          requestKey: validRequestKey,
         }).success,
         true
       );
@@ -136,6 +150,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
           paymentAccountId: validAccountId,
           referenceNumber: over120,
           proofFileId: validProofFileId,
+          requestKey: validRequestKey,
         }).success,
         false
       );
@@ -193,6 +208,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
           paymentAccountId: validAccountId,
           referenceNumber,
           proofFileId: validProofFileId,
+          requestKey: validRequestKey,
         });
         assert.equal(res.success, true, `Expected valid ref: ${referenceNumber}`);
       }
@@ -206,6 +222,7 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
           paymentAccountId: validAccountId,
           referenceNumber,
           proofFileId: validProofFileId,
+          requestKey: validRequestKey,
         });
         assert.equal(res.success, false, `Expected invalid ref: ${referenceNumber}`);
         if (!res.success) {
@@ -286,6 +303,23 @@ describe("Task T-034 / FL-023: Student Transfer Submission Rules", () => {
         message: "Payment items must share beneficiary and semester",
       });
       assert.equal(msg, "All selected obligations must belong to the same semester.");
+    });
+
+    test("sanitizes obligation already pending review error", () => {
+      const msg = sanitizeTransferSubmissionError({
+        message: "Selected obligation already has a pending transfer",
+      });
+      assert.equal(
+        msg,
+        "One or more selected obligations already have a transfer pending Council review."
+      );
+    });
+
+    test("sanitizes duplicate reference number error", () => {
+      const msg = sanitizeTransferSubmissionError({
+        message: "Transfer reference already submitted",
+      });
+      assert.equal(msg, "This reference number has already been submitted.");
     });
 
     test("sanitizes waived or already-settled debt error", () => {
