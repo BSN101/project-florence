@@ -28,7 +28,7 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 export function LogDemeritsFlow({
   students,
   misconductOptions,
-  availableBuckets,
+  bucket,
   semesterLabel,
   startsOn,
   latestDate,
@@ -37,7 +37,8 @@ export function LogDemeritsFlow({
 }: {
   students: AwardRecipientOption[];
   misconductOptions: MisconductOption[];
-  availableBuckets: DisciplinaryBucket[];
+  /** Fixed by the instructor's role: Academic → Office, Clinical → RLE. */
+  bucket: DisciplinaryBucket;
   semesterLabel: string;
   startsOn: string;
   /** The earlier of today (Asia/Manila) and the semester's last day. */
@@ -50,18 +51,18 @@ export function LogDemeritsFlow({
     initialStudentId ? [{ studentId: initialStudentId, requestKey: crypto.randomUUID() }] : []
   );
   const [search, setSearch] = useState("");
-  const [bucket, setBucket] = useState<DisciplinaryBucket>(() => availableBuckets[0] ?? "office");
   const [misconductId, setMisconductId] = useState<string>(() => misconductOptions[0]?.id ?? "");
   const [days, setDays] = useState("1");
   const [incidentOn, setIncidentOn] = useState(latestDate);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LogFacultyDemeritsResult | null>(null);
+  // Request keys are bound to the details they were first sent with, so details lock after an attempt.
+  const [locked, setLocked] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const ids = {
     search: useId(),
-    bucket: useId(),
     misconduct: useId(),
     days: useId(),
     date: useId(),
@@ -103,7 +104,6 @@ export function LogDemeritsFlow({
   }
 
   function detailsError(): string | null {
-    if (!bucket) return "Select an applicable bucket.";
     if (!misconductId) return "Select a misconduct violation.";
     const daysCheck = demeritDaysSchema.safeParse(days);
     if (!daysCheck.success) return daysCheck.error.issues[0].message;
@@ -138,7 +138,6 @@ export function LogDemeritsFlow({
       try {
         const outcome = await logFacultyDemeritsAction({
           recipients: picked,
-          bucket,
           misconductId,
           isOther,
           days: Number(days),
@@ -151,12 +150,14 @@ export function LogDemeritsFlow({
           return;
         }
 
+        setLocked(true);
         // Successfully logged students leave the selection; failed ones keep their keys for a safe retry.
         setPicked((prev) => prev.filter((p) => !outcome.recordedIds.includes(p.studentId)));
         setResult(outcome);
         setStep("result");
         window.scrollTo({ top: 0 });
       } catch {
+        setLocked(true);
         setError(
           "Unable to reach the server. Some demerits may have been recorded; confirming again will not repeat them."
         );
@@ -172,6 +173,7 @@ export function LogDemeritsFlow({
     setNotes("");
     setError(null);
     setResult(null);
+    setLocked(false);
     setStep("students");
   }
 
@@ -334,28 +336,11 @@ export function LogDemeritsFlow({
         <Card className="flex flex-col gap-4 p-4 sm:p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor={ids.bucket} className="text-sm font-medium">
-                Applicable bucket
-              </label>
-              {availableBuckets.length > 1 ? (
-                <select
-                  id={ids.bucket}
-                  value={bucket}
-                  onChange={(e) => setBucket(e.target.value as DisciplinaryBucket)}
-                  className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-medium"
-                >
-                  {availableBuckets.map((b) => (
-                    <option key={b} value={b}>
-                      {b === "office" ? "Office" : "RLE"}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="flex h-10 items-center rounded-lg border border-input bg-muted/30 px-3 text-sm font-medium">
-                  <span className="uppercase">{bucket}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">(assigned instructor bucket)</span>
-                </div>
-              )}
+              <span className="text-sm font-medium">Applicable bucket</span>
+              <div className="flex h-10 items-center rounded-lg border border-input bg-muted/30 px-3 text-sm font-medium">
+                <span className="uppercase">{bucket}</span>
+                <span className="ml-2 text-xs text-muted-foreground">(assigned instructor bucket)</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -370,7 +355,7 @@ export function LogDemeritsFlow({
               >
                 {misconductOptions.map((opt) => (
                   <option key={opt.id} value={opt.id}>
-                    {opt.is_other ? `Other: ${opt.label}` : opt.label}
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -483,12 +468,19 @@ export function LogDemeritsFlow({
 
           <p className="text-xs text-muted-foreground">
             Each student is notified in Florence. Demerits cannot be edited after they are recorded.
+            {locked && " Details stay fixed so confirming again cannot repeat recorded demerits; start over to change them."}
           </p>
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-            <Button variant="outline" onClick={() => go("details")} disabled={isPending}>
-              Back
-            </Button>
+            {locked ? (
+              <Button variant="outline" onClick={startOver} disabled={isPending}>
+                Start over
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => go("details")} disabled={isPending}>
+                Back
+              </Button>
+            )}
             <Button onClick={confirm} disabled={isPending} className="gap-2">
               {isPending ? (
                 <Loader2 className="size-4 animate-spin" />

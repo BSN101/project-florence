@@ -38,10 +38,6 @@ export const demeritDaysSchema = z.coerce
   .int("Days must be a whole number.")
   .min(1, "Days must be at least 1.");
 
-export const demeritBucketSchema = z.enum(["office", "rle"], {
-  error: "Select Office or RLE.",
-});
-
 /**
  * Incident description: required when the catalog option is "Other"; optional
  * (but trimmed and length-capped) for standard catalog items.
@@ -69,7 +65,6 @@ export const logFacultyDemeritsSchema = z
         "Each student can be selected once."
       ),
     days: demeritDaysSchema,
-    bucket: demeritBucketSchema,
     misconductId: z.string().uuid("Select a misconduct option."),
     isOther: z.boolean(),
     incidentOn: z.iso.date("Incident date must be a valid date."),
@@ -78,7 +73,7 @@ export const logFacultyDemeritsSchema = z
   .superRefine((data, ctx) => {
     if (data.isOther && (!data.notes || data.notes.trim().length < 3)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["notes"],
         message: "Describe the specific misconduct when selecting Other (at least 3 characters).",
       });

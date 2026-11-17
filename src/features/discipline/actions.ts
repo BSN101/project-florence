@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
-import { getTodayManila } from "./calculations";
+import { getTodayManila, instructorBucket } from "./calculations";
 import { awardDirectMeritsSchema, logFacultyDemeritsSchema } from "./schemas";
 
 const RPC_MESSAGES: [string, string][] = [
@@ -12,7 +12,7 @@ const RPC_MESSAGES: [string, string][] = [
   ["Self disciplinary entry forbidden", "You cannot issue demerits to yourself."],
   ["Self award forbidden", "You cannot award merits to yourself."],
   ["Student enrollment in the specified semester required", "Not enrolled in the current semester."],
-  ["Matching instructor assignment required", "You are not assigned as an instructor for this bucket."],
+  ["Matching instructor assignment required", "Only Academic or Clinical Instructors can award merits or log demerits."],
   ["Active misconduct option required", "The selected misconduct option is no longer active."],
   ["Other requires a specific incident description", "A specific incident description is required when 'Other' is selected."],
   ["Positive unit count and incident date required", "Units and incident date are required."],
@@ -23,7 +23,7 @@ const RPC_MESSAGES: [string, string][] = [
 ];
 
 // Database messages are not shown as-is; unknown ones get a generic message.
-function formatRpcError(message: string, fallback = "Unable to record this entry. Try again."): string {
+function formatRpcError(message: string, fallback = "Unable to record this award. Try again."): string {
   return RPC_MESSAGES.find(([match]) => message.includes(match))?.[1] ?? fallback;
 }
 
@@ -116,20 +116,14 @@ export async function logFacultyDemeritsAction(rawInput: unknown): Promise<LogFa
   const parsed = logFacultyDemeritsSchema.safeParse(rawInput);
   if (!parsed.success) return rejectedDemerit(parsed.error.issues[0]?.message ?? "Check the demerit details.");
 
-  const { recipients, days, bucket, misconductId, incidentOn, notes } = parsed.data;
+  const { recipients, days, misconductId, incidentOn, notes } = parsed.data;
   const actorId = context.profile.id;
 
   if (incidentOn > getTodayManila()) return rejectedDemerit("Incident date cannot be in the future.");
   if (recipients.some((r) => r.studentId === actorId)) return rejectedDemerit("You cannot issue demerits to yourself.");
 
-  const hasAcademic = context.roles.includes("Academic Instructor");
-  const hasClinical = context.roles.includes("Clinical Instructor");
-  if (bucket === "office" && !hasAcademic) {
-    return rejectedDemerit("Only Academic Instructors can issue Office demerits.");
-  }
-  if (bucket === "rle" && !hasClinical) {
-    return rejectedDemerit("Only Clinical Instructors can issue RLE demerits.");
-  }
+  const bucket = instructorBucket(context.roles);
+  if (!bucket) return rejectedDemerit("Only Academic or Clinical Instructors can log demerits.");
 
   const client = createCommandClient();
   const recordedIds: string[] = [];

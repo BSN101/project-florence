@@ -5,11 +5,11 @@ import { AlertCircle, FileWarning, Info, Plus } from "lucide-react";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getTodayManila } from "@/features/discipline/calculations";
+import { getTodayManila, instructorBucket } from "@/features/discipline/calculations";
 import { AwardMeritsFlow } from "@/features/discipline/components/award-merits-flow";
 import { FacultyMyDisciplineView } from "@/features/discipline/components/faculty-my-discipline-view";
 import { LogDemeritsFlow } from "@/features/discipline/components/log-demerits-flow";
-import type { AwardRecipientOption, DisciplinaryBucket } from "@/features/discipline/contracts";
+import type { AwardRecipientOption } from "@/features/discipline/contracts";
 import { getActiveMisconductCatalog, getMyFacultyDemerits, getMyFacultyMerits } from "@/features/discipline/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getRoster } from "@/features/students/queries";
@@ -56,9 +56,7 @@ export default async function FacultyMeritsAndDemeritsPage({
     ? `${path}?semester=${filter.data.semester}`
     : path;
 
-  const availableBuckets: DisciplinaryBucket[] = [];
-  if (access.roles.includes("Academic Instructor")) availableBuckets.push("office");
-  if (access.roles.includes("Clinical Instructor")) availableBuckets.push("rle");
+  const bucket = instructorBucket(access.roles);
 
   let content: React.ReactNode = null;
   const loadError = (
@@ -75,7 +73,7 @@ export default async function FacultyMeritsAndDemeritsPage({
       getActiveMisconductCatalog().catch(() => null),
     ]);
 
-    if (!roster || !misconductOptions || availableBuckets.length === 0) {
+    if (!roster || !misconductOptions || !bucket) {
       content = loadError;
     } else {
       const students: AwardRecipientOption[] = roster
@@ -87,7 +85,7 @@ export default async function FacultyMeritsAndDemeritsPage({
         <LogDemeritsFlow
           students={students}
           misconductOptions={misconductOptions}
-          availableBuckets={availableBuckets}
+          bucket={bucket}
           semesterLabel={semesterLabel}
           startsOn={selected.starts_on}
           latestDate={selected.ends_on < today ? selected.ends_on : today}
@@ -126,13 +124,17 @@ export default async function FacultyMeritsAndDemeritsPage({
     content = !merits || !demerits ? loadError : (
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          {canAct && availableBuckets.length > 0 && (
+          {canAct ? (
             <Button
               variant="outline"
               nativeButton={false}
               render={<Link href={`${path}?demerit`} />}
               className="gap-2 max-sm:w-full"
             >
+              <FileWarning className="size-4" /> Log demerit
+            </Button>
+          ) : (
+            <Button variant="outline" disabled className="gap-2 max-sm:w-full">
               <FileWarning className="size-4" /> Log demerit
             </Button>
           )}

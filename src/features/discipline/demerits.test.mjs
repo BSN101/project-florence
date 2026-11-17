@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { logFacultyDemeritsSchema, demeritDaysSchema, demeritBucketSchema } from "./schemas.ts";
+import { instructorBucket } from "./calculations.ts";
+import { logFacultyDemeritsSchema, demeritDaysSchema } from "./schemas.ts";
 
 const KEY_1 = "11111111-1111-4111-8111-111111111111";
 const KEY_2 = "44444444-4444-4444-8444-444444444444";
@@ -15,7 +16,6 @@ const valid = {
     { studentId: STUDENT_2, requestKey: KEY_2 },
   ],
   days: 2,
-  bucket: "office",
   misconductId: MISCONDUCT_ID,
   isOther: false,
   incidentOn: "2026-11-16",
@@ -41,19 +41,6 @@ test("demeritDaysSchema rejects non-whole or non-positive values", () => {
   }
 });
 
-// --- demeritBucketSchema -----------------------------------------------
-
-test("demeritBucketSchema accepts office and rle", () => {
-  assert.equal(demeritBucketSchema.safeParse("office").success, true);
-  assert.equal(demeritBucketSchema.safeParse("rle").success, true);
-});
-
-test("demeritBucketSchema rejects invalid buckets", () => {
-  for (const bucket of ["", "academic", "clinical", "both", null, undefined]) {
-    assert.equal(demeritBucketSchema.safeParse(bucket).success, false, `bucket=${bucket}`);
-  }
-});
-
 // --- logFacultyDemeritsSchema (composite) ------------------------------
 
 test("logFacultyDemeritsSchema accepts a valid standard-catalog demerit with empty notes", () => {
@@ -61,7 +48,6 @@ test("logFacultyDemeritsSchema accepts a valid standard-catalog demerit with emp
   assert.equal(result.success, true);
   if (result.success) {
     assert.equal(result.data.days, 2);
-    assert.equal(result.data.bucket, "office");
     assert.equal(result.data.notes, "");
   }
 });
@@ -121,13 +107,14 @@ test("logFacultyDemeritsSchema rejects invalid misconduct UUIDs", () => {
   assert.equal(parse({ misconductId: "" }).success, false);
 });
 
-test("logFacultyDemeritsSchema rejects invalid bucket values", () => {
-  assert.equal(parse({ bucket: "academic" }).success, false);
-  assert.equal(parse({ bucket: "" }).success, false);
-});
-
 test("logFacultyDemeritsSchema coerces string days", () => {
   const result = parse({ days: "5" });
   assert.equal(result.success, true);
   if (result.success) assert.equal(result.data.days, 5);
+});
+
+test("instructorBucket maps the instructor role to its bucket", () => {
+  assert.equal(instructorBucket(["Academic Instructor", "Academic Coordinator"]), "office");
+  assert.equal(instructorBucket(["Clinical Instructor", "RLE Coordinator"]), "rle");
+  assert.equal(instructorBucket(["Platform Admin"]), null);
 });

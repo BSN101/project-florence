@@ -8,6 +8,13 @@ import type {
   StudentDisciplinarySummary,
 } from "./contracts";
 
+/** The bucket a faculty member logs demerits in; access policy allows only one instructor role. */
+export function instructorBucket(roles: readonly string[]): DisciplinaryBucket | null {
+  if (roles.includes("Academic Instructor")) return "office";
+  if (roles.includes("Clinical Instructor")) return "rle";
+  return null;
+}
+
 /**
  * Returns the current date in YYYY-MM-DD formatted for Asia/Manila.
  */
