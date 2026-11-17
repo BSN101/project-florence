@@ -1,11 +1,10 @@
 import { connection } from "next/server";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
-import { StudentFeesAndFinesView } from "@/features/finance/components/student-fees-and-fines-view";
-import type {
-  ObligationWithStandingDTO,
-  StudentPaymentAccountDTO,
-} from "@/features/finance/contracts";
+import {
+  StudentFeesAndFinesView,
+  type TransferWizardData,
+} from "@/features/finance/components/student-fees-and-fines-view";
 import {
   getActivePaymentAccountsForStudent,
   getStudentFinancialAccount,
@@ -47,19 +46,20 @@ export default async function StudentFeesAndFinesPage({
 
 
   let financialData = null;
-  let paymentAccounts: StudentPaymentAccountDTO[] = [];
-  let payableObligations: ObligationWithStandingDTO[] = [];
+  let wizardData: Promise<TransferWizardData> | undefined;
   let errorNotice: string | null = null;
 
   if (semesterId) {
+    // Wizard-only reads start now but are awaited behind the wizard's <Suspense>.
+    wizardData = Promise.all([
+      getActivePaymentAccountsForStudent(),
+      getStudentPayableObligations(),
+    ]).then(
+      ([paymentAccounts, obligations]) => ({ paymentAccounts, obligations }),
+      () => null
+    );
     try {
-      [financialData, paymentAccounts, payableObligations] = await Promise.all([
-        getStudentFinancialAccount({
-          semesterId,
-        }),
-        getActivePaymentAccountsForStudent(),
-        getStudentPayableObligations(),
-      ]);
+      financialData = await getStudentFinancialAccount({ semesterId });
     } catch {
       errorNotice =
         "Unable to load your financial records at this time. Please refresh the page.";
@@ -80,8 +80,7 @@ export default async function StudentFeesAndFinesPage({
       ) : financialData ? (
         <StudentFeesAndFinesView
           data={financialData}
-          paymentAccounts={paymentAccounts}
-          payableObligations={payableObligations}
+          wizardData={wizardData}
           currentSemesterId={semesterId}
         />
       ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   Banknote,
   CheckCircle2,
@@ -10,7 +11,6 @@ import {
   ExternalLink,
   Eye,
   History,
-  Loader2,
   Receipt,
   RotateCcw,
   XCircle,
@@ -18,22 +18,14 @@ import {
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { getTransferProofUrl } from "../actions";
 import { formatPhDate, formatPhp } from "../calculations";
 import type { PaymentHistoryDTO } from "../contracts";
+import { PaymentRecordDialog } from "./payment-record-dialog";
 
 const PAGE_SIZE = 25;
 
@@ -54,34 +46,23 @@ const OUTCOME_OPTIONS = [
 export function StudentPaymentHistoryTable({
   payments,
   isCouncilView = false,
+  studentLabel,
 }: {
   payments: PaymentHistoryDTO[];
   isCouncilView?: boolean;
+  /** Shown on the payment record in Council views. */
+  studentLabel?: string;
 }) {
   const [method, setMethod] = useState("all");
   const [outcome, setOutcome] = useState("all");
-  const [inspectingProof, setInspectingProof] =
-    useState<PaymentHistoryDTO | null>(null);
-  const [proofUrl, setProofUrl] = useState<string | null>(null);
-  const [proofError, setProofError] = useState<string | null>(null);
-  const [isLoadingProof, setIsLoadingProof] = useState(false);
+  const [inspecting, setInspecting] = useState<PaymentHistoryDTO | null>(null);
 
-  async function handleInspectProof(payment: PaymentHistoryDTO) {
-    if (!payment.proof_file_id) return;
-    setInspectingProof(payment);
-    setProofUrl(null);
-    setProofError(null);
-    setIsLoadingProof(true);
-
-    const res = await getTransferProofUrl(payment.proof_file_id, {
-      isCouncilView,
-    });
-    if (res.success) {
-      setProofUrl(res.url);
-    } else {
-      setProofError(res.error);
-    }
-    setIsLoadingProof(false);
+  // Preserved (hidden) pages keep state: close the record when the URL changes.
+  const pathname = usePathname();
+  const [seenPathname, setSeenPathname] = useState(pathname);
+  if (seenPathname !== pathname) {
+    setSeenPathname(pathname);
+    setInspecting(null);
   }
 
   // Superseded versions stay in "All" as correction history but never count toward an outcome.
@@ -319,7 +300,7 @@ export function StudentPaymentHistoryTable({
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => void handleInspectProof(p)}
+                        onClick={() => setInspecting(p)}
                         className="h-7 cursor-pointer gap-1 rounded-lg border-primary/25 bg-primary/5 px-2.5 text-[11px] font-medium text-primary shadow-2xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:opacity-60"
                       >
                         <Eye className="size-3 shrink-0 text-primary" />
@@ -377,88 +358,14 @@ export function StudentPaymentHistoryTable({
         </nav>
       </div>
 
-      {/* Transfer Receipt Proof Preview Dialog */}
-      {inspectingProof && (
-        <Dialog
-          open={Boolean(inspectingProof)}
-          onOpenChange={(open) => {
-            if (!open) {
-              setInspectingProof(null);
-              setProofUrl(null);
-              setProofError(null);
-            }
-          }}
-        >
-          <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] grid-cols-1 overflow-x-hidden overflow-y-auto p-5 sm:max-w-lg sm:p-6">
-            <DialogHeader>
-              <DialogTitle>Transfer Receipt Proof</DialogTitle>
-              <DialogDescription>
-                {inspectingProof.destination_label || "Transfer"}
-                {inspectingProof.reference_number
-                  ? ` · Ref: ${inspectingProof.reference_number}`
-                  : ""}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="min-w-0 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs">
-                <div className="min-w-0 space-y-0.5">
-                  <div className="font-medium text-foreground">
-                    {inspectingProof.destination_label || "Transfer"}
-                    {inspectingProof.destination_account_name
-                      ? ` · ${inspectingProof.destination_account_name}`
-                      : ""}
-                  </div>
-                  {inspectingProof.reference_number && (
-                    <div className="break-all font-mono text-muted-foreground">
-                      Ref: {inspectingProof.reference_number}
-                    </div>
-                  )}
-                </div>
-                <div className="shrink-0 font-heading text-base font-semibold tabular-nums text-foreground">
-                  {formatPhp(inspectingProof.amount)}
-                </div>
-              </div>
-
-              <div className="flex min-h-48 items-center justify-center rounded-xl border border-border bg-muted/20 p-3">
-                {isLoadingProof && (
-                  <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="size-6 animate-spin text-primary" />
-                    <span>Loading receipt proof...</span>
-                  </div>
-                )}
-                {proofError && !isLoadingProof && (
-                  <p className="text-center text-sm text-destructive">
-                    {proofError}
-                  </p>
-                )}
-                {proofUrl && !isLoadingProof && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={proofUrl}
-                    alt="Submitted transfer receipt proof"
-                    className="mx-auto max-h-[60vh] w-full rounded-lg border border-border bg-background object-contain shadow-xs"
-                  />
-                )}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setInspectingProof(null);
-                  setProofUrl(null);
-                  setProofError(null);
-                }}
-                className="min-h-11"
-              >
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {inspecting && (
+        <PaymentRecordDialog
+          key={inspecting.id}
+          payment={inspecting}
+          onClose={() => setInspecting(null)}
+          isCouncilView={isCouncilView}
+          studentLabel={studentLabel}
+        />
       )}
     </div>
   );

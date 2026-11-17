@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, use, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
@@ -9,7 +9,7 @@ import {
   Send,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button"; 
+import { Button } from "@/components/ui/button";
 import { formatPhp } from "../calculations";
 import type {
   ObligationWithStandingDTO,
@@ -23,17 +23,85 @@ import { StudentTransferWizardDialog } from "./student-transfer-wizard-dialog";
 
 type ViewSection = "obligations" | "payments";
 
+/** Wizard-only reads; null when they failed, so only the wizard is unavailable. */
+export type TransferWizardData = {
+  paymentAccounts: StudentPaymentAccountDTO[];
+  obligations: ObligationWithStandingDTO[];
+} | null;
+
+function SubmitTransferButton({
+  disabled,
+  onClick,
+  title,
+}: {
+  disabled?: boolean;
+  onClick?: () => void;
+  title?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="w-full gap-2 text-xs sm:w-auto"
+    >
+      <Send className="size-3.5" />
+      <span>Submit Transfer Evidence</span>
+    </Button>
+  );
+}
+
+function TransferWizardLauncher({
+  data,
+  isOpen,
+  onOpenChange,
+  initialSemesterId,
+  onViewPaymentHistory,
+}: {
+  data: Promise<TransferWizardData>;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialSemesterId?: string | null;
+  onViewPaymentHistory: () => void;
+}) {
+  const wizard = use(data);
+  if (!wizard) {
+    return (
+      <SubmitTransferButton
+        disabled
+        title="Transfer submission is unavailable right now. Refresh the page to try again."
+      />
+    );
+  }
+  return (
+    <>
+      <SubmitTransferButton
+        onClick={() => onOpenChange(true)}
+        disabled={!wizard.obligations.some((item) => item.status === "unpaid")}
+      />
+      <StudentTransferWizardDialog
+        isOpen={isOpen}
+        onClose={() => onOpenChange(false)}
+        obligations={wizard.obligations}
+        paymentAccounts={wizard.paymentAccounts}
+        initialSemesterId={initialSemesterId}
+        onViewPaymentHistory={onViewPaymentHistory}
+      />
+    </>
+  );
+}
+
 export function StudentFeesAndFinesView({
   data,
   isCouncilView = false,
-  paymentAccounts = [],
-  payableObligations,
+  wizardData,
   currentSemesterId,
 }: {
   data: StudentFinancialAccountData;
   isCouncilView?: boolean;
-  paymentAccounts?: StudentPaymentAccountDTO[];
-  payableObligations?: ObligationWithStandingDTO[];
+  wizardData?: Promise<TransferWizardData>;
   currentSemesterId?: string | null;
 }) {
   const pathname = usePathname();
@@ -47,13 +115,6 @@ export function StudentFeesAndFinesView({
     setSeenLocation(currentLocation);
     setIsWizardOpen(false);
   }
-
-  const wizardObligations =
-    payableObligations ??
-    data.obligations.filter(
-      (item) =>
-        item.status === "unpaid" || item.status === "pending_verification"
-    );
 
   const hasPriorOverdue = data.summary.priorSemestersOverduePayable > 0;
 
@@ -121,17 +182,16 @@ export function StudentFeesAndFinesView({
             </Button>
           </div>
 
-          {!isCouncilView && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setIsWizardOpen(true)}
-              disabled={wizardObligations.length === 0}
-              className="w-full gap-2 text-xs sm:w-auto"
-            >
-              <Send className="size-3.5" />
-              <span>Submit Transfer Evidence</span>
-            </Button>
+          {!isCouncilView && wizardData && (
+            <Suspense fallback={<SubmitTransferButton disabled />}>
+              <TransferWizardLauncher
+                data={wizardData}
+                isOpen={isWizardOpen}
+                onOpenChange={setIsWizardOpen}
+                initialSemesterId={currentSemesterId}
+                onViewPaymentHistory={() => setActiveSection("payments")}
+              />
+            </Suspense>
           )}
         </div>
 
@@ -141,20 +201,16 @@ export function StudentFeesAndFinesView({
           <StudentPaymentHistoryTable
             payments={data.payments}
             isCouncilView={isCouncilView}
+            studentLabel={
+              isCouncilView
+                ? [data.student.fullName, data.student.universityId]
+                    .filter(Boolean)
+                    .join(" · ")
+                : undefined
+            }
           />
         )}
       </div>
-
-      {!isCouncilView && (
-        <StudentTransferWizardDialog
-          isOpen={isWizardOpen}
-          onClose={() => setIsWizardOpen(false)}
-          obligations={wizardObligations}
-          paymentAccounts={paymentAccounts}
-          initialSemesterId={currentSemesterId}
-          onViewPaymentHistory={() => setActiveSection("payments")}
-        />
-      )}
     </div>
   );
 }
