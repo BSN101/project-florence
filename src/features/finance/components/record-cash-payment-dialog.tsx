@@ -326,15 +326,7 @@ export function RecordCashPaymentDialog({
     const candidateMs = Date.parse(candidateIso);
     if (!Number.isFinite(candidateMs)) return null;
 
-    const nowMs = Date.now();
-    const currentManilaMinute = isoToManilaInput(new Date(nowMs).toISOString());
-    if (candidateMs > nowMs) {
-      if (receivedAtInput === currentManilaMinute) {
-        return new Date(nowMs).toISOString();
-      }
-      return "FUTURE";
-    }
-    return candidateIso;
+    return candidateMs > Date.now() ? "FUTURE" : candidateIso;
   }
 
   function handleSubmit() {
