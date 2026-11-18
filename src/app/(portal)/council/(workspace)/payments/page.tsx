@@ -3,6 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 
 import { DrillTransition } from "@/components/layout/page-transition";
+import { RefreshButton } from "@/components/layout/refresh-button";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,9 +96,12 @@ export default async function CouncilPaymentsPage({
       errorNotice =
         "Unable to load the selected student's financial ledger. Please select another student or try again.";
       content = (
-        <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} transitionTypes={["nav-back"]} />}>
-          <ArrowLeft className="size-4" /> All students
-        </Button>
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} transitionTypes={["nav-back"]} />}>
+            <ArrowLeft className="size-4" /> All students
+          </Button>
+          <RefreshButton renderedAt={renderedAt} />
+        </div>
       );
     }
   } else if (semesterId) {
@@ -106,6 +110,11 @@ export default async function CouncilPaymentsPage({
       content = <CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />;
     } else {
       errorNotice = "Unable to load the semester's student accounts at this time. Please refresh the page.";
+      content = (
+        <div className="flex justify-end">
+          <RefreshButton renderedAt={renderedAt} />
+        </div>
+      );
     }
   }
 
