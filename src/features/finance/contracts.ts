@@ -130,6 +130,8 @@ export type PaymentHistoryDTO = Pick<
   | "decision_reason"
 > & {
   proof_file_id?: Tables["payments"]["Row"]["proof_file_id"];
+  /** Actual receipt time from `payment_receipts`; null until money is recognized. */
+  received_at?: string | null;
   /** Obligations this payment covers, for the payment record view. */
   items: Array<{ obligation_id: string; description: string; amount: number }>;
   semester_code?: string;

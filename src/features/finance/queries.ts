@@ -325,7 +325,7 @@ async function fetchStudentFinancialAccountData({
     client
       .from("payments")
       .select(
-        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason"
+        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason, receipt:payment_receipts(received_at)"
       )
       .eq("student_id", studentId)
       .order("submitted_at", { ascending: false }),
@@ -341,7 +341,11 @@ async function fetchStudentFinancialAccountData({
     throw new Error("Unable to load payment history.");
   }
 
-  const rawPayments = paymentsRes.data ?? [];
+  // Flatten the receipt join: the record view shows when the money was actually received.
+  const rawPayments = (paymentsRes.data ?? []).map(({ receipt, ...p }) => ({
+    ...p,
+    received_at: receipt?.received_at ?? null,
+  }));
   const receiptIds = Array.from(
     new Set(
       rawPayments
