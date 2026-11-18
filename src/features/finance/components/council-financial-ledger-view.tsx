@@ -191,6 +191,7 @@ export function CouncilFinancialRosterTable({
         {renderedAt && <RefreshButton renderedAt={renderedAt} />}
       </div>
 
+      <span role="status" className="sr-only">{opening ? "Opening ledger…" : ""}</span>
       <TableFrame pager={pager} filters={filters}>
         {filtered.length === 0 ? (
           <TableEmpty
