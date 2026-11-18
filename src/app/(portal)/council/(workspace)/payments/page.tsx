@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 
-import { RefreshButton } from "@/components/layout/refresh-button";
+import { DrillTransition } from "@/components/layout/page-transition";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,6 +70,7 @@ export default async function CouncilPaymentsPage({
 
   const studentId = typeof student === "string" ? student : undefined;
   const backHref = `?semester=${semesterId}`;
+  const renderedAt = new Date().toISOString();
 
   // Like events: a selected student shows their ledger, otherwise the semester's student table.
   let content: React.ReactNode = null;
@@ -87,13 +88,14 @@ export default async function CouncilPaymentsPage({
           cashWizardData={cashWizardData}
           actorProfileId={access.profile.id}
           currentSemesterId={semesterId}
+          renderedAt={renderedAt}
         />
       );
     } else {
       errorNotice =
         "Unable to load the selected student's financial ledger. Please select another student or try again.";
       content = (
-        <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} />}>
+        <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} transitionTypes={["nav-back"]} />}>
           <ArrowLeft className="size-4" /> All students
         </Button>
       );
@@ -101,7 +103,7 @@ export default async function CouncilPaymentsPage({
   } else if (semesterId) {
     const students = await getCouncilFinancialRoster(semesterId).catch(() => null);
     if (students) {
-      content = <CouncilFinancialRosterTable students={students} semesterId={semesterId} />;
+      content = <CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />;
     } else {
       errorNotice = "Unable to load the semester's student accounts at this time. Please refresh the page.";
     }
@@ -120,11 +122,7 @@ export default async function CouncilPaymentsPage({
         </div>
       )}
       {semesterId ? (
-        <>
-          {/* Students submit payments while officers work; revisits may reuse a render up to 30 s old. */}
-          <div className="-mb-2 flex justify-end"><RefreshButton renderedAt={new Date().toISOString()} /></div>
-          {content}
-        </>
+        <DrillTransition id={studentId ?? "list"}>{content}</DrillTransition>
       ) : (
         <p className="text-sm text-muted-foreground">
           No semester is available. Select a semester to view student financial accounts.
