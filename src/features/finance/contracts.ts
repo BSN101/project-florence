@@ -130,6 +130,8 @@ export type PaymentHistoryDTO = Pick<
   | "decision_reason"
 > & {
   proof_file_id?: Tables["payments"]["Row"]["proof_file_id"];
+  /** Actual receipt time from `payment_receipts`; null until money is recognized. */
+  received_at?: string | null;
   /** Obligations this payment covers, for the payment record view. */
   items: Array<{ obligation_id: string; description: string; amount: number }>;
   semester_code?: string;
@@ -274,7 +276,7 @@ export type SubmitTransferResult =
     };
 
 /**
- * Pure check enforcing the FL-023 same-semester rule across selected obligations.
+ * Pure check enforcing the FL-023 and FL-024 same-semester rule across selected obligations.
  */
 export function hasSameSemesterObligations(
   obligations: ReadonlyArray<{ semester_id: string }>,
@@ -330,6 +332,83 @@ export function sanitizeTransferSubmissionError(
     }
     if (msg.includes("Request key reused")) {
       return "This submission request conflicted with a previous attempt. Please try again.";
+    }
+  }
+  return fallbackMessage;
+}
+
+/**
+ * Standardized action result for recording an in-person cash payment (FL-024 / T-035).
+ */
+export type RecordCashPaymentResult =
+  | {
+      success: true;
+      paymentId: string;
+      receiptId: string;
+      semesterId: string;
+      amount: number;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      issues?: Record<string, string[]>;
+    };
+
+/**
+ * Pure self-benefit check for recording cash payments (FL-024 / T-035).
+ * Officers may not record their own cash payment.
+ */
+export function canRecordCashForStudent(
+  actorProfileId: string | null | undefined,
+  studentId: string | null | undefined
+): boolean {
+  return Boolean(
+    actorProfileId &&
+      studentId &&
+      actorProfileId !== studentId
+  );
+}
+
+/**
+ * Defensive error message sanitizer for cash payment recording (FL-024 / T-035).
+ * Strips database internals while surfacing actionable guidance.
+ */
+export function sanitizeCashPaymentError(
+  error: unknown,
+  fallbackMessage = "Unable to record cash payment. Please review the selected obligations and try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    const msg = err.message ?? "";
+    if (msg.includes("Self cash recording forbidden")) {
+      return "Officers are not permitted to record their own cash payments.";
+    }
+    if (err.code === "42501") {
+      return "You are not authorized to record cash payments.";
+    }
+    if (msg.includes("Actual receipt time required")) {
+      return "Enter a valid receipt date and time that is not in the future.";
+    }
+    if (msg.includes("Payment items must share beneficiary and semester")) {
+      return "All selected obligations must belong to the same student and semester.";
+    }
+    if (
+      msg.includes("Selected obligation is waived or already settled") ||
+      msg.includes("Double settlement forbidden") ||
+      msg.includes("Cannot settle waived debt")
+    ) {
+      return "One or more selected obligations have already been settled or waived. Refresh the page and try again.";
+    }
+    if (msg.includes("Unknown obligation")) {
+      return "One or more selected obligations could not be found. Refresh the page and try again.";
+    }
+    if (msg.includes("Student enrollment in the specified semester required")) {
+      return "The student must be enrolled in the selected semester to record a payment for it.";
+    }
+    if (msg.includes("Request key reused")) {
+      return "This payment request conflicted with a previous attempt. Please try again.";
     }
   }
   return fallbackMessage;

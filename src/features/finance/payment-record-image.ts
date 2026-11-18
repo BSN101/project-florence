@@ -45,7 +45,7 @@ function layout(
   ctx: CanvasRenderingContext2D,
   view: PaymentRecordView,
   fonts: { body: string; mono: string },
-  proof: ImageBitmap,
+  proof: ImageBitmap | null,
   draw: boolean
 ): number {
   const text = (value: string, x: number, y: number, font: string, color: string, align: CanvasTextAlign = "left") => {
@@ -121,6 +121,8 @@ function layout(
   text("Total", PAD, y + 36, `600 30px ${fonts.body}`, "#111827");
   text(view.total, WIDTH - PAD, y + 38, `700 40px ${fonts.body}`, "#111827", "right");
   y += 72;
+  // Cash records have no uploaded image: the photo ends at the total.
+  if (!proof) return y + PAD;
 
   rule(y);
   y += 32;
@@ -138,11 +140,17 @@ function layout(
   return y;
 }
 
-/** Fetches the receipt image from the same-origin proof route and returns the composed PNG. */
-export async function renderPaymentRecordImage(view: PaymentRecordView, proofFileId: string): Promise<Blob> {
-  const response = await fetch(`/student/fees-and-fines/proof/${proofFileId}`, { cache: "no-store" });
-  if (!response.ok) throw new Error("The receipt image could not be loaded.");
-  const proof = await createImageBitmap(await response.blob());
+/** Fetches the receipt image (if any) from the same-origin proof route and returns the composed PNG. */
+export async function renderPaymentRecordImage(
+  view: PaymentRecordView,
+  proofFileId: string | null
+): Promise<Blob> {
+  let proof: ImageBitmap | null = null;
+  if (proofFileId) {
+    const response = await fetch(`/student/fees-and-fines/proof/${proofFileId}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("The receipt image could not be loaded.");
+    proof = await createImageBitmap(await response.blob());
+  }
   try {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -163,7 +171,7 @@ export async function renderPaymentRecordImage(view: PaymentRecordView, proofFil
     if (!blob) throw new Error("The image could not be created.");
     return blob;
   } finally {
-    proof.close();
+    proof?.close();
   }
 }
 

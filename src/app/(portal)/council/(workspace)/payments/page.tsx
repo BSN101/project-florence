@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
 
+import { DrillTransition } from "@/components/layout/page-transition";
 import { RefreshButton } from "@/components/layout/refresh-button";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,15 @@ import {
   CouncilFinancialRosterTable,
   CouncilStudentLedger,
 } from "@/features/finance/components/council-financial-ledger-view";
-import { isAuthorizedCouncilFinancialViewer } from "@/features/finance/contracts";
-import { getCouncilFinancialRoster, getCouncilStudentFinancialAccount } from "@/features/finance/queries";
+import {
+  canRecordCashForStudent,
+  isAuthorizedCouncilFinancialViewer,
+} from "@/features/finance/contracts";
+import {
+  getCouncilFinancialRoster,
+  getCouncilStudentFinancialAccount,
+  getCouncilStudentPayableObligations,
+} from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 
@@ -63,29 +71,50 @@ export default async function CouncilPaymentsPage({
 
   const studentId = typeof student === "string" ? student : undefined;
   const backHref = `?semester=${semesterId}`;
+  const renderedAt = new Date().toISOString();
 
   // Like events: a selected student shows their ledger, otherwise the semester's student table.
   let content: React.ReactNode = null;
   let errorNotice: string | null = null;
   if (semesterId && studentId) {
+    const cashWizardData = canRecordCashForStudent(access.profile.id, studentId)
+      ? getCouncilStudentPayableObligations(studentId).catch(() => null)
+      : undefined;
     const data = await getCouncilStudentFinancialAccount({ studentId, semesterId }).catch(() => null);
     if (data) {
-      content = <CouncilStudentLedger data={data} backHref={backHref} />;
+      content = (
+        <CouncilStudentLedger
+          data={data}
+          backHref={backHref}
+          cashWizardData={cashWizardData}
+          actorProfileId={access.profile.id}
+          currentSemesterId={semesterId}
+          renderedAt={renderedAt}
+        />
+      );
     } else {
       errorNotice =
         "Unable to load the selected student's financial ledger. Please select another student or try again.";
       content = (
-        <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} />}>
-          <ArrowLeft className="size-4" /> All students
-        </Button>
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="ghost" size="sm" className="w-fit gap-1" nativeButton={false} render={<Link href={backHref} transitionTypes={["nav-back"]} />}>
+            <ArrowLeft className="size-4" /> All students
+          </Button>
+          <RefreshButton renderedAt={renderedAt} />
+        </div>
       );
     }
   } else if (semesterId) {
     const students = await getCouncilFinancialRoster(semesterId).catch(() => null);
     if (students) {
-      content = <CouncilFinancialRosterTable students={students} semesterId={semesterId} />;
+      content = <CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />;
     } else {
       errorNotice = "Unable to load the semester's student accounts at this time. Please refresh the page.";
+      content = (
+        <div className="flex justify-end">
+          <RefreshButton renderedAt={renderedAt} />
+        </div>
+      );
     }
   }
 
@@ -102,11 +131,7 @@ export default async function CouncilPaymentsPage({
         </div>
       )}
       {semesterId ? (
-        <>
-          {/* Students submit payments while officers work; revisits may reuse a render up to 30 s old. */}
-          <div className="-mb-2 flex justify-end"><RefreshButton renderedAt={new Date().toISOString()} /></div>
-          {content}
-        </>
+        <DrillTransition id={studentId ?? "list"}>{content}</DrillTransition>
       ) : (
         <p className="text-sm text-muted-foreground">
           No semester is available. Select a semester to view student financial accounts.

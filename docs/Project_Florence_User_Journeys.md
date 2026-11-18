@@ -327,3 +327,46 @@ The issued demerits appear immediately in the instructor's history under the Dem
 - Self-sanctions, non-integer/negative units, future dates, and incidents outside the active semester are prevented and return readable errors.
 - Deep-links from the student directory and student detail modal open the 4-step wizard with the selected student preselected.
 - Demerits table accurately reflects issued units, active vs. waived status, bucket badges, and violation details with zero layout shift.
+
+## Record student cash payment
+
+- **Author:** Reipoh Gabriel Arradaza
+- **Actors:** Council Executive, Council Operations, Student (beneficiary).
+- **Starts at:** Council workspace > Payments (`/council/payments`), inside a selected student's ledger; user must hold an active Council Executive or Operations role.
+- **References:** FL-024, FL-022, FL-044; database schema (`docs/database/schema.dbml`: `obligations`, `payment_receipts`, `payments`, `payment_items`, `notifications`).
+
+### Main flow
+
+1. The Council Executive or Operations officer navigates to Payments in the Council workspace, clicks "View" on a student in the roster table, and clicks "Record Cash Payment" in the student's ledger.
+2. In Step 1 (Obligations), the officer chooses a term from the student's unpaid semesters (when more than one term has unpaid dues) and selects one or more complete unpaid obligations from that single semester. The system enforces the same-semester rule and calculates the exact total payable amount.
+3. In Step 2 (Confirm), the officer reviews the student's identity, academic term, itemized obligations, and total cash amount, sets the actual receipt date and time (defaulting to current `Asia/Manila` time, not in the future), and checks the physical cash collection confirmation.
+4. The officer confirms the payment. The system validates the input server-side and executes the atomic `record_cash_payment` RPC with a generated idempotency request key.
+5. The database locks the selected obligations, verifies they belong to the same student and semester and remain unsettled and non-waived, creates a `payment_receipts` row, inserts a verified cash payment (`method = 'cash'`, `status = 'verified'`), links the covered items in `payment_items`, and creates an in-app `payment_verified` notification for the student.
+6. In Step 3 (Done), the dialog displays the verified payment result, including the student details, academic term, receipt timestamp, payment ID, receipt ID, covered obligations, and total amount collected, with buttons to view Payment History or close and see the refreshed ledger.
+
+### System involvement
+
+- Table `payment_receipts`: inserts the cash receipt record (`request_key`, `received_at`, `recognized_by = actor`).
+- Table `payments`: inserts a verified cash record (`method = 'cash'`, `status = 'verified'`, `record_status = 'current'`, `receipt_id`, `is_receipt_record = true`, `submitted_by = actor`, `decided_by = actor`) with `request_key`.
+- Table `payment_items`: inserts one settlement link per selected obligation, enforcing composite foreign keys (`student_id`, `semester_id`).
+- Table `notifications`: atomically inserts an in-app notification (`kind = 'payment_verified'`) for the student via `f_cmd_notice`.
+- Procedure `record_cash_payment`: enforces Executive or Operations authority (`f_cmd_council`), non-self recording (`p_student <> p_actor`), non-future collection timestamp (`p_received_at <= clock_timestamp()`), row-level obligation locking (`f_cmd_lock_obligations`), same-semester unpaid non-waived item validation (`f_cmd_item_total`), and request-level idempotency (`f_cmd_begin`/`f_cmd_finish`).
+
+### Outcome
+
+The selected obligations are immediately settled in full, the student's outstanding payable balance decreases by the recorded amount, the verified cash payment appears in both the Council and Student payment histories, and the student receives an in-app notification.
+
+### Important alternatives
+
+- **Self-Recording Blocked:** When an officer opens their own student financial ledger, the "Record Cash Payment" button is disabled with a self-recording restriction notice, and both the server action and `record_cash_payment` RPC reject `studentId === actor.profile.id`.
+- **Cross-Semester Selection Blocked:** Only obligations from one semester can be selected per cash payment; switching terms in the dialog clears selections from the previous semester, and the server action and RPC reject mixed-semester obligation sets.
+- **Obligation With Pending Transfer:** Because a pending transfer submission does not settle debt (FL-023), an obligation on an unverified transfer remains selectable for cash collection; once settled by cash, verifying the duplicate transfer cannot double-settle the debt.
+- **Duplicate Settlement or Concurrent Recording:** If another officer settles or waives a selected obligation before confirmation, the row-level lock and settlement check abort the transaction with an error message; retrying with the same `requestKey` replays the recorded result idempotently through `f_cmd_begin`/`f_cmd_finish`.
+
+### Acceptance checks
+
+- Council Executive and Operations officers can record full cash payments for complete obligations from a single semester and immediately see the verified payment result and updated ledger.
+- Partial amounts and cross-semester obligation selections are prevented in both the UI and server/database validation.
+- Officers cannot record cash payments for their own student account (blocked in the UI, server action, and database RPC).
+- Council Representatives and non-Council roles cannot access the cash recording workflow or invoke the server action.
+- Recording cash settles the selected obligations immediately, updates payable and settled totals, and creates a `payment_verified` in-app notification for the student.

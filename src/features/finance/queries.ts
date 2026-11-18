@@ -325,7 +325,7 @@ async function fetchStudentFinancialAccountData({
     client
       .from("payments")
       .select(
-        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason"
+        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason, receipt:payment_receipts(received_at)"
       )
       .eq("student_id", studentId)
       .order("submitted_at", { ascending: false }),
@@ -341,7 +341,11 @@ async function fetchStudentFinancialAccountData({
     throw new Error("Unable to load payment history.");
   }
 
-  const rawPayments = paymentsRes.data ?? [];
+  // Flatten the receipt join: the record view shows when the money was actually received.
+  const rawPayments = (paymentsRes.data ?? []).map(({ receipt, ...p }) => ({
+    ...p,
+    received_at: receipt?.received_at ?? null,
+  }));
   const receiptIds = Array.from(
     new Set(
       rawPayments
@@ -601,20 +605,15 @@ export async function getActivePaymentAccountsForStudent(): Promise<
   return data ?? [];
 }
 
-/**
- * Fetch all payable obligations across all semesters for the student transfer wizard (FL-023 / T-034).
- * Includes older unpaid semesters; excludes waived and already settled obligations.
- * Obligations with `pending_verification` are returned so the wizard can show them, but
- * they cannot be submitted again until Council rejects the pending transfer
- * (enforced by submit_transfer_payment).
- */
-export async function getStudentPayableObligations(): Promise<
-  ObligationWithStandingDTO[]
-> {
-  const context = await requireWorkspace("student");
-  const client = await createUserClient();
-  const studentId = context.profile.id;
-
+async function fetchStudentPayableObligations({
+  client,
+  studentId,
+  semesters,
+}: {
+  client: Awaited<ReturnType<typeof createUserClient>>;
+  studentId: string;
+  semesters: SemesterOption[];
+}): Promise<ObligationWithStandingDTO[]> {
   const [obligationsRes, paymentItemsRes, paymentsRes] = await Promise.all([
     client
       .from("obligations")
@@ -660,14 +659,14 @@ export async function getStudentPayableObligations(): Promise<
   }
 
   const semesterCodeMap = new Map<string, string>();
-  for (const s of context.semesters) {
+  for (const s of semesters) {
     semesterCodeMap.set(s.id, `${s.academic_year_start} · ${s.term}`);
   }
 
   const currentSemester =
-    context.semesters.find((s) => s.is_current) ?? context.semesters[0];
+    semesters.find((s) => s.is_current) ?? semesters[0];
   const priorSemesterIds = priorSemesterIdsFor(
-    context.semesters,
+    semesters,
     currentSemester?.id
   );
 
@@ -684,4 +683,41 @@ export async function getStudentPayableObligations(): Promise<
   return allWithStanding.filter(
     (item) => item.status === "unpaid" || item.status === "pending_verification"
   );
+}
+
+/**
+ * Fetch all payable obligations across all semesters for the student transfer wizard (FL-023 / T-034).
+ * Includes older unpaid semesters; excludes waived and already settled obligations.
+ * Obligations with `pending_verification` are returned so the wizard can show them, but
+ * they cannot be submitted again until Council rejects the pending transfer
+ * (enforced by submit_transfer_payment).
+ */
+export async function getStudentPayableObligations(): Promise<
+  ObligationWithStandingDTO[]
+> {
+  const context = await requireWorkspace("student");
+  const client = await createUserClient();
+  return fetchStudentPayableObligations({
+    client,
+    studentId: context.profile.id,
+    semesters: context.semesters,
+  });
+}
+
+/**
+ * Fetch all payable obligations across all semesters for a specific student when Council
+ * records an in-person cash payment (FL-024 / T-035).
+ * Strictly restricted to Council Executive and Operations; uses the request-scoped user client.
+ */
+export async function getCouncilStudentPayableObligations(
+  studentId: string
+): Promise<ObligationWithStandingDTO[]> {
+  const context = await assertAuthorizedCouncilManager();
+  const validStudentId = councilStudentFinancialQuerySchema.shape.studentId.parse(studentId);
+  const client = await createUserClient();
+  return fetchStudentPayableObligations({
+    client,
+    studentId: validStudentId,
+    semesters: context.semesters,
+  });
 }

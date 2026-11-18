@@ -66,7 +66,11 @@ export function describePaymentRecord(
   } else {
     rows.push({ label: "Method", value: "Cash" });
   }
-  rows.push({ label: "Submitted", value: formatPhDate(payment.submitted_at) });
+  if (payment.received_at) rows.push({ label: "Received", value: formatPhDate(payment.received_at) });
+  if (payment.method === "cash" && payment.receipt_id) {
+    rows.push({ label: "Receipt no.", value: payment.receipt_id, mono: true });
+  }
+  rows.push({ label: payment.method === "cash" ? "Recorded" : "Submitted", value: formatPhDate(payment.submitted_at) });
   if (payment.decided_at) rows.push({ label: "Decided", value: formatPhDate(payment.decided_at) });
   if (payment.status === "rejected" && payment.decision_reason) {
     rows.push({ label: "Reason", value: payment.decision_reason });

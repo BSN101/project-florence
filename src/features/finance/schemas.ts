@@ -158,19 +158,21 @@ const transferReferenceNumber = z
     "Transfer reference number must contain at least 6 letters or digits"
   );
 
+const selectedObligationIds = z
+  .array(z.string().uuid("Invalid obligation identifier"))
+  .min(1, "Select at least one obligation to pay")
+  .max(10000, "Too many obligations selected")
+  .refine((arr) => new Set(arr).size === arr.length, {
+    message: "Duplicate obligations are not permitted",
+  });
+
 /**
  * Input validation for student transfer evidence submission (FL-023 / T-034).
  * Covers one semester and complete selected obligations only.
  */
 export const submitTransferSchema = z.object({
   semesterId: z.string().uuid("Invalid semester identifier"),
-  obligationIds: z
-    .array(z.string().uuid("Invalid obligation identifier"))
-    .min(1, "Select at least one obligation to pay")
-    .max(10000, "Too many obligations selected")
-    .refine((arr) => new Set(arr).size === arr.length, {
-      message: "Duplicate obligations are not permitted",
-    }),
+  obligationIds: selectedObligationIds,
   paymentAccountId: z.string().uuid("Select a destination payment account"),
   referenceNumber: transferReferenceNumber,
   proofFileId: paymentProofFileIdSchema,
@@ -178,3 +180,23 @@ export const submitTransferSchema = z.object({
 });
 
 export type SubmitTransferInput = z.infer<typeof submitTransferSchema>;
+
+const cashReceivedAt = z.iso
+  .datetime({ offset: true, message: "Invalid receipt date and time" })
+  .refine((val) => Date.parse(val) <= Date.now(), {
+    message: "Receipt time cannot be in the future",
+  });
+
+/**
+ * Input validation for recording an in-person cash payment (FL-024 / T-035).
+ * Covers one student, one semester, complete selected obligations, and actual receipt time.
+ */
+export const recordCashPaymentSchema = z.object({
+  studentId: z.string().uuid("Invalid student identifier"),
+  semesterId: z.string().uuid("Invalid semester identifier"),
+  obligationIds: selectedObligationIds,
+  receivedAt: cashReceivedAt,
+  requestKey: z.string().uuid("Invalid request key"),
+});
+
+export type RecordCashPaymentInput = z.infer<typeof recordCashPaymentSchema>;
