@@ -11,7 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { displayName, sortName } from "@/lib/format-name";
 import { formatPhp } from "../calculations";
 import type { CouncilFinancialRosterItem, StudentFinancialAccountData, StudentFinancialSummaryDTO } from "../contracts";
-import { StudentFeesAndFinesView } from "./student-fees-and-fines-view";
+import {
+  type CashPaymentWizardData,
+  StudentFeesAndFinesView,
+} from "./student-fees-and-fines-view";
 
 const PAGE_SIZE = 25;
 
@@ -276,9 +279,15 @@ export function CouncilFinancialRosterTable({
 export function CouncilStudentLedger({
   data,
   backHref,
+  cashWizardData,
+  actorProfileId,
+  currentSemesterId,
 }: {
   data: StudentFinancialAccountData;
   backHref: string;
+  cashWizardData?: Promise<CashPaymentWizardData>;
+  actorProfileId?: string | null;
+  currentSemesterId?: string | null;
 }) {
   return (
     <div className="space-y-6">
@@ -296,7 +305,14 @@ export function CouncilStudentLedger({
           )}
         </div>
       </div>
-      <StudentFeesAndFinesView key={data.student.id} data={data} isCouncilView />
+      <StudentFeesAndFinesView
+        key={data.student.id}
+        data={data}
+        isCouncilView
+        cashWizardData={cashWizardData}
+        actorProfileId={actorProfileId}
+        currentSemesterId={currentSemesterId}
+      />
     </div>
   );
 }

@@ -9,8 +9,15 @@ import {
   CouncilFinancialRosterTable,
   CouncilStudentLedger,
 } from "@/features/finance/components/council-financial-ledger-view";
-import { isAuthorizedCouncilFinancialViewer } from "@/features/finance/contracts";
-import { getCouncilFinancialRoster, getCouncilStudentFinancialAccount } from "@/features/finance/queries";
+import {
+  canRecordCashForStudent,
+  isAuthorizedCouncilFinancialViewer,
+} from "@/features/finance/contracts";
+import {
+  getCouncilFinancialRoster,
+  getCouncilStudentFinancialAccount,
+  getCouncilStudentPayableObligations,
+} from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 
@@ -68,9 +75,20 @@ export default async function CouncilPaymentsPage({
   let content: React.ReactNode = null;
   let errorNotice: string | null = null;
   if (semesterId && studentId) {
+    const cashWizardData = canRecordCashForStudent(access.profile.id, studentId)
+      ? getCouncilStudentPayableObligations(studentId).catch(() => null)
+      : undefined;
     const data = await getCouncilStudentFinancialAccount({ studentId, semesterId }).catch(() => null);
     if (data) {
-      content = <CouncilStudentLedger data={data} backHref={backHref} />;
+      content = (
+        <CouncilStudentLedger
+          data={data}
+          backHref={backHref}
+          cashWizardData={cashWizardData}
+          actorProfileId={access.profile.id}
+          currentSemesterId={semesterId}
+        />
+      );
     } else {
       errorNotice =
         "Unable to load the selected student's financial ledger. Please select another student or try again.";

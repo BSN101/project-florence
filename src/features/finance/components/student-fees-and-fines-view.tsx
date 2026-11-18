@@ -4,6 +4,7 @@ import { Suspense, use, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
+  Banknote,
   FileText,
   History,
   Send,
@@ -11,11 +12,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { formatPhp } from "../calculations";
-import type {
-  ObligationWithStandingDTO,
-  StudentFinancialAccountData,
-  StudentPaymentAccountDTO,
+import {
+  canRecordCashForStudent,
+  type ObligationWithStandingDTO,
+  type StudentFinancialAccountData,
+  type StudentPaymentAccountDTO,
 } from "../contracts";
+import { RecordCashPaymentDialog } from "./record-cash-payment-dialog";
 import { StudentFinancialSummaryCards } from "./student-financial-summary-cards";
 import { StudentObligationsTable } from "./student-obligations-table";
 import { StudentPaymentHistoryTable } from "./student-payment-history-table";
@@ -28,6 +31,9 @@ export type TransferWizardData = {
   paymentAccounts: StudentPaymentAccountDTO[];
   obligations: ObligationWithStandingDTO[];
 } | null;
+
+/** Cash-dialog reads; null when they failed, so only cash recording is unavailable. */
+export type CashPaymentWizardData = ObligationWithStandingDTO[] | null;
 
 function SubmitTransferButton({
   disabled,
@@ -93,28 +99,112 @@ function TransferWizardLauncher({
   );
 }
 
+function RecordCashButton({
+  disabled,
+  onClick,
+  title,
+}: {
+  disabled?: boolean;
+  onClick?: () => void;
+  title?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="min-h-11 w-full gap-2 text-xs sm:min-h-8 sm:w-auto"
+    >
+      <Banknote className="size-3.5" />
+      <span>Record Cash Payment</span>
+    </Button>
+  );
+}
+
+function CashPaymentWizardLauncher({
+  data,
+  student,
+  isOpen,
+  onOpenChange,
+  initialSemesterId,
+  onViewPaymentHistory,
+}: {
+  data: Promise<CashPaymentWizardData>;
+  student: StudentFinancialAccountData["student"];
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialSemesterId?: string | null;
+  onViewPaymentHistory: () => void;
+}) {
+  const obligations = use(data);
+  if (!obligations) {
+    return (
+      <RecordCashButton
+        disabled
+        title="Cash recording is unavailable right now. Refresh the page to try again."
+      />
+    );
+  }
+  const hasPayable = obligations.some(
+    (item) => item.status === "unpaid" || item.status === "pending_verification"
+  );
+  return (
+    <>
+      <RecordCashButton
+        onClick={() => onOpenChange(true)}
+        disabled={!hasPayable}
+        title={
+          hasPayable
+            ? undefined
+            : "No unpaid obligations are available for cash collection."
+        }
+      />
+      <RecordCashPaymentDialog
+        isOpen={isOpen}
+        onClose={() => onOpenChange(false)}
+        student={student}
+        obligations={obligations}
+        initialSemesterId={initialSemesterId}
+        onViewPaymentHistory={onViewPaymentHistory}
+      />
+    </>
+  );
+}
+
 export function StudentFeesAndFinesView({
   data,
   isCouncilView = false,
   wizardData,
+  cashWizardData,
+  actorProfileId,
   currentSemesterId,
 }: {
   data: StudentFinancialAccountData;
   isCouncilView?: boolean;
   wizardData?: Promise<TransferWizardData>;
+  cashWizardData?: Promise<CashPaymentWizardData>;
+  actorProfileId?: string | null;
   currentSemesterId?: string | null;
 }) {
   const pathname = usePathname();
   const [activeSection, setActiveSection] = useState<ViewSection>("obligations");
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isCashDialogOpen, setIsCashDialogOpen] = useState(false);
 
-  // Reset transient modal state on route or semester navigation (preserved routes).
-  const currentLocation = `${pathname}:${currentSemesterId ?? ""}`;
+  // Reset transient modal state on route, semester, or student navigation (preserved routes).
+  const currentLocation = `${pathname}:${currentSemesterId ?? ""}:${data.student.id}`;
   const [seenLocation, setSeenLocation] = useState(currentLocation);
   if (seenLocation !== currentLocation) {
     setSeenLocation(currentLocation);
     setIsWizardOpen(false);
+    setIsCashDialogOpen(false);
   }
+
+  const isSelfStudent = Boolean(
+    actorProfileId && !canRecordCashForStudent(actorProfileId, data.student.id)
+  );
 
   const hasPriorOverdue = data.summary.priorSemestersOverduePayable > 0;
 
@@ -188,6 +278,31 @@ export function StudentFeesAndFinesView({
                 data={wizardData}
                 isOpen={isWizardOpen}
                 onOpenChange={setIsWizardOpen}
+                initialSemesterId={currentSemesterId}
+                onViewPaymentHistory={() => setActiveSection("payments")}
+              />
+            </Suspense>
+          )}
+
+          {isCouncilView && isSelfStudent && (
+            <div className="flex flex-col items-start gap-1 sm:items-end">
+              <RecordCashButton
+                disabled
+                title="Officers are not permitted to record their own cash payments."
+              />
+              <span className="text-xs text-muted-foreground">
+                Self-recording is not permitted
+              </span>
+            </div>
+          )}
+
+          {isCouncilView && !isSelfStudent && cashWizardData && (
+            <Suspense fallback={<RecordCashButton disabled />}>
+              <CashPaymentWizardLauncher
+                data={cashWizardData}
+                student={data.student}
+                isOpen={isCashDialogOpen}
+                onOpenChange={setIsCashDialogOpen}
                 initialSemesterId={currentSemesterId}
                 onViewPaymentHistory={() => setActiveSection("payments")}
               />
