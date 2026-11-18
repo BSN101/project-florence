@@ -1022,42 +1022,7 @@ export async function recordCashPayment(
       };
     }
 
-    const userClient = await createUserClient();
-    const { data: selectedObligations, error: obligationsError } = await userClient
-      .from("obligations")
-      .select("id, semester_id, waived_at")
-      .eq("student_id", parsed.data.studentId)
-      .in("id", parsed.data.obligationIds);
-
-    if (obligationsError) {
-      return {
-        success: false,
-        error: "Unable to verify selected obligations. Please try again.",
-      };
-    }
-
-    const obligationsList = selectedObligations ?? [];
-    if (obligationsList.length !== parsed.data.obligationIds.length) {
-      return {
-        success: false,
-        error: "One or more selected obligations could not be found for this student.",
-      };
-    }
-
-    if (!hasSameSemesterObligations(obligationsList, parsed.data.semesterId)) {
-      return {
-        success: false,
-        error: "All selected obligations must belong to the same student and semester.",
-      };
-    }
-
-    if (obligationsList.some((obligation) => obligation.waived_at !== null)) {
-      return {
-        success: false,
-        error: "One or more selected obligations have already been settled or waived. Refresh the page and try again.",
-      };
-    }
-
+    // record_cash_payment locks the obligations and checks owner, semester, waiver and settlement itself.
     const commandClient = createCommandClient();
 
     const { data, error } = await commandClient.rpc("record_cash_payment", {
