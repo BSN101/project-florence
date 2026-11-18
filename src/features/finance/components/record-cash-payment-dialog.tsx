@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Check,
@@ -126,6 +127,7 @@ export function RecordCashPaymentDialog({
   initialSemesterId?: string | null;
   onViewPaymentHistory?: () => void;
 }) {
+  const router = useRouter();
   const receivedAtInputId = useId();
   const confirmCheckboxId = useId();
 
@@ -383,6 +385,13 @@ export function RecordCashPaymentDialog({
 
       if (!res.success) {
         setError(res.error);
+        // Input validation runs before the RPC, so nothing was recorded: let the officer edit and resubmit.
+        if (res.issues) {
+          setSubmissionRequestKey(null);
+          setLockedReceivedAtIso(null);
+        }
+        // Reload obligations so items settled or waived elsewhere drop out of the list.
+        router.refresh();
         return;
       }
 
