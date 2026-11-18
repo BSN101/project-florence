@@ -1008,10 +1008,11 @@ export async function recordCashPayment(
     const context = await assertAuthorizedCouncilManager();
     const parsed = recordCashPaymentSchema.safeParse(input);
     if (!parsed.success) {
+      const issues = parsed.error.flatten().fieldErrors;
       return {
         success: false,
-        error: "Invalid cash payment input",
-        issues: parsed.error.flatten().fieldErrors,
+        error: Object.values(issues).flat()[0] ?? "Invalid cash payment input",
+        issues,
       };
     }
 
