@@ -14,8 +14,11 @@ import {
   type FeePublicationPreview,
   type PaymentAccountActionResult,
   type PublishFeeResult,
+  type RecordCashPaymentResult,
   type SubmitTransferResult,
+  canRecordCashForStudent,
   hasSameSemesterObligations,
+  sanitizeCashPaymentError,
   sanitizePaymentAccountError,
   sanitizeTransferSubmissionError,
 } from "./contracts";
@@ -32,6 +35,7 @@ import {
   paymentAccountQrFileIdSchema,
   paymentProofFileIdSchema,
   publishFeeObligationsSchema,
+  recordCashPaymentSchema,
   submitTransferSchema,
   updateDefinitionSchema,
   updatePaymentAccountSchema,
@@ -41,6 +45,7 @@ import {
   type CreatePaymentAccountInput,
   type PreviewFeeObligationsInput,
   type PublishFeeObligationsInput,
+  type RecordCashPaymentInput,
   type SubmitTransferInput,
   type UpdateDefinitionInput,
   type UpdatePaymentAccountInput,
@@ -988,5 +993,119 @@ export async function submitTransferEvidence(
       };
     }
     return { success: false, error: sanitizeTransferSubmissionError(null) };
+  }
+}
+
+/**
+ * Record an in-person cash payment against complete selected obligations within one semester (FL-024 / T-035).
+ * Enforces Council Executive/Operations authority, self-recording prohibition, same-semester obligation rules,
+ * and atomic settlement via the record_cash_payment RPC.
+ */
+export async function recordCashPayment(
+  input: RecordCashPaymentInput
+): Promise<RecordCashPaymentResult> {
+  try {
+    const context = await assertAuthorizedCouncilManager();
+    const parsed = recordCashPaymentSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Invalid cash payment input",
+        issues: parsed.error.flatten().fieldErrors,
+      };
+    }
+
+    if (!canRecordCashForStudent(context.profile.id, parsed.data.studentId)) {
+      return {
+        success: false,
+        error: "Officers are not permitted to record their own cash payments.",
+      };
+    }
+
+    const userClient = await createUserClient();
+    const { data: selectedObligations, error: obligationsError } = await userClient
+      .from("obligations")
+      .select("id, semester_id, waived_at")
+      .eq("student_id", parsed.data.studentId)
+      .in("id", parsed.data.obligationIds);
+
+    if (obligationsError) {
+      return {
+        success: false,
+        error: "Unable to verify selected obligations. Please try again.",
+      };
+    }
+
+    const obligationsList = selectedObligations ?? [];
+    if (obligationsList.length !== parsed.data.obligationIds.length) {
+      return {
+        success: false,
+        error: "One or more selected obligations could not be found for this student.",
+      };
+    }
+
+    if (!hasSameSemesterObligations(obligationsList, parsed.data.semesterId)) {
+      return {
+        success: false,
+        error: "All selected obligations must belong to the same student and semester.",
+      };
+    }
+
+    if (obligationsList.some((obligation) => obligation.waived_at !== null)) {
+      return {
+        success: false,
+        error: "One or more selected obligations have already been settled or waived. Refresh the page and try again.",
+      };
+    }
+
+    const commandClient = createCommandClient();
+
+    const { data, error } = await commandClient.rpc("record_cash_payment", {
+      p_key: parsed.data.requestKey,
+      p_actor: context.profile.id,
+      p_student: parsed.data.studentId,
+      p_semester: parsed.data.semesterId,
+      p_obligations: parsed.data.obligationIds,
+      p_received_at: parsed.data.receivedAt,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        error: sanitizeCashPaymentError(error),
+      };
+    }
+
+    const result = data as {
+      payment_id: string;
+      receipt_id: string;
+      amount: number;
+    } | null;
+
+    if (!result?.payment_id || !result?.receipt_id) {
+      return {
+        success: false,
+        error: "Cash payment recording returned no result. Check the payment history before retrying.",
+      };
+    }
+
+    revalidatePath("/council/payments");
+    revalidatePath("/student/fees-and-fines");
+    return {
+      success: true,
+      paymentId: result.payment_id,
+      receiptId: result.receipt_id,
+      semesterId: parsed.data.semesterId,
+      amount: Number(result.amount),
+      message: "Cash payment recorded and verified.",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may record cash payments",
+      };
+    }
+    return { success: false, error: sanitizeCashPaymentError(null) };
   }
 }
