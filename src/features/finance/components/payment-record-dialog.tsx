@@ -51,7 +51,8 @@ export function PaymentRecordDialog({
   const [proof, setProof] = useState<Loaded<string>>({ status: "loading" });
   const [photo, setPhoto] = useState<Loaded<Blob>>({ status: "loading" });
   const [isSaving, setIsSaving] = useState(false);
-  const canSavePhoto = !isCouncilView && Boolean(proofFileId);
+  // Cash records have no uploaded image but are still official receipts the student may keep.
+  const canSavePhoto = !isCouncilView && (Boolean(proofFileId) || payment.method === "cash");
 
   useEffect(() => {
     if (!proofFileId) return;
@@ -67,7 +68,7 @@ export function PaymentRecordDialog({
 
   // Built ahead of the tap: iOS only opens the share sheet straight from a user gesture.
   useEffect(() => {
-    if (!canSavePhoto || !proofFileId) return;
+    if (!canSavePhoto) return;
     let cancelled = false;
     renderPaymentRecordImage(describePaymentRecord(payment, studentLabel), proofFileId).then(
       (blob) => !cancelled && setPhoto({ status: "ready", value: blob }),
@@ -95,7 +96,7 @@ export function PaymentRecordDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] grid-cols-1 overflow-x-hidden overflow-y-auto p-5 sm:max-w-3xl sm:p-6">
+      <DialogContent className={cn("max-h-[90vh] w-[calc(100%-2rem)] grid-cols-1 overflow-x-hidden overflow-y-auto p-5 sm:p-6", proofFileId ? "sm:max-w-3xl" : "sm:max-w-lg")}>
         <DialogHeader>
           <DialogTitle>{view.title}</DialogTitle>
           <DialogDescription>
@@ -104,7 +105,7 @@ export function PaymentRecordDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid min-w-0 gap-4 md:grid-cols-2">
+        <div className={cn("grid min-w-0 gap-4", proofFileId && "md:grid-cols-2")}>
           {/* Record */}
           <section aria-label="Payment details" className="min-w-0 space-y-4 rounded-xl border border-border bg-card p-4">
             <div className="space-y-2">
@@ -151,30 +152,30 @@ export function PaymentRecordDialog({
           </section>
 
           {/* Receipt image */}
-          <section
-            aria-label="Receipt image"
-            className="flex min-h-48 min-w-0 items-center justify-center rounded-xl border border-border bg-muted/20 p-3"
-          >
-            {!proofFileId ? (
-              <p className="text-sm text-muted-foreground">No receipt image for this record.</p>
-            ) : proof.status === "loading" ? (
-              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-6 animate-spin text-primary" />
-                <span>Loading receipt image…</span>
-              </div>
-            ) : proof.status === "error" ? (
-              <p className="text-center text-sm text-destructive">{proof.message}</p>
-            ) : (
-              <a href={proof.value} target="_blank" rel="noreferrer" className="block" title="Open full size">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={proof.value}
-                  alt="Submitted transfer receipt"
-                  className="mx-auto max-h-[60vh] w-auto max-w-full rounded-lg border border-border bg-background object-contain"
-                />
-              </a>
-            )}
-          </section>
+          {proofFileId && (
+            <section
+              aria-label="Receipt image"
+              className="flex min-h-48 min-w-0 items-center justify-center rounded-xl border border-border bg-muted/20 p-3"
+            >
+              {proof.status === "loading" ? (
+                <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-6 animate-spin text-primary" />
+                  <span>Loading receipt image…</span>
+                </div>
+              ) : proof.status === "error" ? (
+                <p className="text-center text-sm text-destructive">{proof.message}</p>
+              ) : (
+                <a href={proof.value} target="_blank" rel="noreferrer" className="block" title="Open full size">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={proof.value}
+                    alt="Submitted transfer receipt"
+                    className="mx-auto max-h-[60vh] w-auto max-w-full rounded-lg border border-border bg-background object-contain"
+                  />
+                </a>
+              )}
+            </section>
+          )}
         </div>
 
         {photo.status === "error" && canSavePhoto && (

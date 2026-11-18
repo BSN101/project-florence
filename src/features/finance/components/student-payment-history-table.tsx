@@ -295,7 +295,7 @@ export function StudentPaymentHistoryTable({
 
                   {/* Proof Action */}
                   <td className="px-4 py-3 text-right whitespace-nowrap">
-                    {p.proof_file_id ? (
+                    {p.proof_file_id || p.method === "cash" ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -304,7 +304,7 @@ export function StudentPaymentHistoryTable({
                         className="h-7 cursor-pointer gap-1 rounded-lg border-primary/25 bg-primary/5 px-2.5 text-[11px] font-medium text-primary shadow-2xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:opacity-60"
                       >
                         <Eye className="size-3 shrink-0 text-primary" />
-                        <span>View Proof</span>
+                        <span>{p.method === "cash" ? "View Receipt" : "View Proof"}</span>
                       </Button>
                     ) : (
                       <span className="text-muted-foreground/60">—</span>
