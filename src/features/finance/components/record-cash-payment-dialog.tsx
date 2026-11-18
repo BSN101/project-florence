@@ -740,9 +740,10 @@ export function RecordCashPaymentDialog({
               (item) => item.status === "pending_verification"
             ) && (
               <p className="text-xs leading-relaxed text-amber-800">
-                One or more selected obligations currently have a transfer
-                pending review. Recording cash settles them immediately; reject
-                any duplicate transfer separately in Payment History.
+                One or more selected obligations have a transfer pending
+                review. Recording cash settles them now. The transfer stays
+                pending and must be rejected as a duplicate when Council
+                reviews it.
               </p>
             )}
 
