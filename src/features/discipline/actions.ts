@@ -30,9 +30,19 @@ const RPC_MESSAGES: [string, string][] = [
   ["Bucket required", "Select Office or RLE."],
 ];
 
+// In endorse_merit the instructor check is on the chosen reviewer, not the Council actor.
+const ENDORSEMENT_MESSAGES: [string, string][] = [
+  ["Matching instructor assignment required", "The selected instructor can no longer review endorsements. Choose another instructor."],
+  ...RPC_MESSAGES,
+];
+
 // Database messages are not shown as-is; unknown ones get a generic message.
-function formatRpcError(message: string, fallback = "Unable to record this award. Try again."): string {
-  return RPC_MESSAGES.find(([match]) => message.includes(match))?.[1] ?? fallback;
+function formatRpcError(
+  message: string,
+  fallback = "Unable to record this award. Try again.",
+  messages = RPC_MESSAGES,
+): string {
+  return messages.find(([match]) => message.includes(match))?.[1] ?? fallback;
 }
 
 export type AwardFailure = { studentId: string; error: string };
@@ -225,7 +235,7 @@ export async function submitMeritEndorsementsAction(rawInput: unknown): Promise<
       if (error) {
         failures.push({
           studentId,
-          error: formatRpcError(error.message, "Unable to submit this endorsement. Try again."),
+          error: formatRpcError(error.message, "Unable to submit this endorsement. Try again.", ENDORSEMENT_MESSAGES),
         });
       } else {
         endorsedIds.push(studentId);
