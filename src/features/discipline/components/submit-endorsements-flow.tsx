@@ -531,7 +531,7 @@ export function SubmitEndorsementsFlow({
                   {selectedInstructor
                     ? `${selectedInstructor.first_name} ${selectedInstructor.last_name}`
                     : "the assigned instructor"}
-                  . Recipient students will be notified once a decision is made.
+                  . Recipient students will be notified if it is approved.
                 </p>
               </div>
             </div>
