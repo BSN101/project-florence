@@ -24,8 +24,20 @@ import {
 import { updateStudentAction } from "../actions";
 import type { StudentActionResult, StudentRosterItem } from "../contracts";
 
-export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
-  const [open, setOpen] = useState(false);
+export function EditStudentDialog({
+  student,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: {
+  student: StudentRosterItem;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (controlledOnOpenChange ?? (() => {})) : setInternalOpen;
+
   const [lastName, setLastName] = useState(student.last_name);
   const [firstName, setFirstName] = useState(student.first_name);
   const [middleName, setMiddleName] = useState(student.middle_name ?? "");
@@ -36,17 +48,15 @@ export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
     student.academic_status,
   );
 
-  // Re-read the latest roster values each time the dialog opens.
+  // Re-read or reset the latest roster values when dialog opens or closes.
   const handleOpenChange = (next: boolean) => {
-    if (next) {
-      setLastName(student.last_name);
-      setFirstName(student.first_name);
-      setMiddleName(student.middle_name ?? "");
-      setSuffix(student.suffix ?? "");
-      setEmail(student.email ?? "");
-      setYearLevel(student.year_level.toString());
-      setAcademicStatus(student.academic_status);
-    }
+    setLastName(student.last_name);
+    setFirstName(student.first_name);
+    setMiddleName(student.middle_name ?? "");
+    setSuffix(student.suffix ?? "");
+    setEmail(student.email ?? "");
+    setYearLevel(student.year_level.toString());
+    setAcademicStatus(student.academic_status);
     setOpen(next);
   };
 
@@ -63,14 +73,16 @@ export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
-            <Pencil className="size-3.5 text-muted-foreground" />
-            Edit
-          </Button>
-        }
-      />
+      {!isControlled && (
+        <DialogTrigger
+          render={
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
+              <Pencil className="size-3.5 text-muted-foreground" />
+              Edit
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader className="text-left">
           <DialogTitle className="font-heading text-lg font-medium text-foreground">
