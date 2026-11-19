@@ -14,9 +14,12 @@ import { DecideTransferDialog } from "./decide-transfer-dialog";
 export function PendingTransferReviewSection({
   reviews,
   actorProfileId,
+  hideWhenEmpty = false,
 }: {
   reviews: Promise<PendingTransferReviewDTO[] | null>;
   actorProfileId: string;
+  /** Render nothing when no transfer is waiting (used inside a single student's ledger). */
+  hideWhenEmpty?: boolean;
 }) {
   const rows = use(reviews);
   // Holds the open review itself, so the dialog's result stays up after the row leaves the list.
@@ -30,6 +33,9 @@ export function PendingTransferReviewSection({
       </div>
     );
   }
+
+  // The open dialog lives in this section, so it stays mounted while a decision result is shown.
+  if (rows.length === 0 && hideWhenEmpty && !selected) return null;
 
   return (
     <section aria-labelledby="pending-transfers-title" className="space-y-3">

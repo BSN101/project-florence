@@ -333,7 +333,7 @@ export function CouncilStudentLedger({
       </div>
       {pendingReviews && actorProfileId && (
         <Suspense fallback={<Skeleton className="h-24 w-full rounded-xl" />}>
-          <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={actorProfileId} />
+          <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={actorProfileId} hideWhenEmpty />
         </Suspense>
       )}
       <StudentFeesAndFinesView
