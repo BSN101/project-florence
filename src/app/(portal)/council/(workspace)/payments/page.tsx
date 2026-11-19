@@ -1,15 +1,19 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
+import { Suspense } from "react";
 
 import { DrillTransition } from "@/components/layout/page-transition";
 import { RefreshButton } from "@/components/layout/refresh-button";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   CouncilFinancialRosterTable,
   CouncilStudentLedger,
 } from "@/features/finance/components/council-financial-ledger-view";
+import { PaymentsTabs } from "@/features/finance/components/payments-tabs";
+import { PendingTransferReviewSection } from "@/features/finance/components/pending-transfer-review-section";
 import {
   canRecordCashForStudent,
   isAuthorizedCouncilFinancialViewer,
@@ -18,6 +22,7 @@ import {
   getCouncilFinancialRoster,
   getCouncilStudentFinancialAccount,
   getCouncilStudentPayableObligations,
+  getPendingTransferReviews,
 } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -27,10 +32,10 @@ export const instant = false;
 export default async function CouncilPaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ semester?: string | string[]; student?: string | string[] }>;
+  searchParams: Promise<{ semester?: string | string[]; student?: string | string[]; tab?: string | string[] }>;
 }) {
   await connection();
-  const { semester, student } = await searchParams;
+  const { semester, student, tab } = await searchParams;
   const access = await getAccessContext();
 
   if (access.status !== "ready" || !access.workspaces.includes("council")) {
@@ -70,7 +75,8 @@ export default async function CouncilPaymentsPage({
     : access.semesters.find((item) => item.is_current)?.id ?? access.semesters[0]?.id;
 
   const studentId = typeof student === "string" ? student : undefined;
-  const backHref = `?semester=${semesterId}`;
+  // Ledgers open from the Accounts tab, so "All students" returns there.
+  const backHref = `?semester=${semesterId}&tab=accounts`;
   const renderedAt = new Date().toISOString();
 
   // Like events: a selected student shows their ledger, otherwise the semester's student table.
@@ -80,6 +86,8 @@ export default async function CouncilPaymentsPage({
     const cashWizardData = canRecordCashForStudent(access.profile.id, studentId)
       ? getCouncilStudentPayableObligations(studentId).catch(() => null)
       : undefined;
+    // Only this student's rows, read later behind Suspense.
+    const pendingReviews = getPendingTransferReviews(semesterId, studentId).catch(() => null);
     const data = await getCouncilStudentFinancialAccount({ studentId, semesterId }).catch(() => null);
     if (data) {
       content = (
@@ -90,6 +98,7 @@ export default async function CouncilPaymentsPage({
           actorProfileId={access.profile.id}
           currentSemesterId={semesterId}
           renderedAt={renderedAt}
+          pendingReviews={pendingReviews}
         />
       );
     } else {
@@ -105,9 +114,28 @@ export default async function CouncilPaymentsPage({
       );
     }
   } else if (semesterId) {
+    // Started now, read later behind Suspense, so the roster is not held back by the review queue.
+    const pendingReviews = getPendingTransferReviews(semesterId).catch(() => null);
     const students = await getCouncilFinancialRoster(semesterId).catch(() => null);
     if (students) {
-      content = <CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />;
+      content = (
+        <PaymentsTabs
+          initialTab={tab === "accounts" ? "accounts" : "transfers"}
+          pendingReviews={pendingReviews}
+          studentCount={students.length}
+          transfers={
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <RefreshButton renderedAt={renderedAt} />
+              </div>
+              <Suspense fallback={<Skeleton className="h-32 w-full rounded-xl" />}>
+                <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={access.profile.id} />
+              </Suspense>
+            </div>
+          }
+          accounts={<CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />}
+        />
+      );
     } else {
       errorNotice = "Unable to load the semester's student accounts at this time. Please refresh the page.";
       content = (
