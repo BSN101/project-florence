@@ -48,17 +48,21 @@ export function EditStudentDialog({
     student.academic_status,
   );
 
-  // Re-read or reset the latest roster values when dialog opens or closes.
-  const handleOpenChange = (next: boolean) => {
-    setLastName(student.last_name);
-    setFirstName(student.first_name);
-    setMiddleName(student.middle_name ?? "");
-    setSuffix(student.suffix ?? "");
-    setEmail(student.email ?? "");
-    setYearLevel(student.year_level.toString());
-    setAcademicStatus(student.academic_status);
-    setOpen(next);
-  };
+  // Re-read the latest roster values on every open, including opens from a
+  // controlling parent, so cancelled edits and stale data never come back.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setLastName(student.last_name);
+      setFirstName(student.first_name);
+      setMiddleName(student.middle_name ?? "");
+      setSuffix(student.suffix ?? "");
+      setEmail(student.email ?? "");
+      setYearLevel(student.year_level.toString());
+      setAcademicStatus(student.academic_status);
+    }
+  }
 
   const [state, formAction, isPending] = useActionState(
     async (prev: StudentActionResult | null, formData: FormData) => {
@@ -72,7 +76,7 @@ export function EditStudentDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => setOpen(next)}>
       {!isControlled && (
         <DialogTrigger
           render={
