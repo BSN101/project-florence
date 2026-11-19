@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState, useTransition } from "react";
+import { Suspense, useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, LoaderCircle, Search, User, Users, X } from "lucide-react";
@@ -8,6 +8,7 @@ import { ArrowLeft, Eye, LoaderCircle, Search, User, Users, X } from "lucide-rea
 import { RefreshButton } from "@/components/layout/refresh-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   FilterSelect,
   TableEmpty,
@@ -17,7 +18,13 @@ import {
 } from "@/features/discipline/components/table-controls";
 import { displayName, sortName } from "@/lib/format-name";
 import { formatPhp } from "../calculations";
-import type { CouncilFinancialRosterItem, StudentFinancialAccountData, StudentFinancialSummaryDTO } from "../contracts";
+import type {
+  CouncilFinancialRosterItem,
+  PendingTransferReviewDTO,
+  StudentFinancialAccountData,
+  StudentFinancialSummaryDTO,
+} from "../contracts";
+import { PendingTransferReviewSection } from "./pending-transfer-review-section";
 import {
   type CashPaymentWizardData,
   StudentFeesAndFinesView,
@@ -288,6 +295,7 @@ export function CouncilStudentLedger({
   actorProfileId,
   currentSemesterId,
   renderedAt,
+  pendingReviews,
 }: {
   data: StudentFinancialAccountData;
   backHref: string;
@@ -295,6 +303,8 @@ export function CouncilStudentLedger({
   actorProfileId?: string | null;
   currentSemesterId?: string | null;
   renderedAt?: string;
+  /** This student's transfers awaiting review (FL-025 / T-036). */
+  pendingReviews?: Promise<PendingTransferReviewDTO[] | null>;
 }) {
   return (
     <div className="space-y-6">
@@ -321,6 +331,11 @@ export function CouncilStudentLedger({
           )}
         </div>
       </div>
+      {pendingReviews && actorProfileId && (
+        <Suspense fallback={<Skeleton className="h-24 w-full rounded-xl" />}>
+          <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={actorProfileId} />
+        </Suspense>
+      )}
       <StudentFeesAndFinesView
         key={data.student.id}
         data={data}
