@@ -429,6 +429,8 @@ export type TransferDecisionResult =
       success: false;
       error: string;
       issues?: Record<string, string[]>;
+      /** Nothing was committed, so the next attempt must use a new request key. */
+      retryWithNewKey?: boolean;
     };
 
 /**

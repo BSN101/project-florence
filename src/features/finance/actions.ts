@@ -1136,7 +1136,8 @@ export async function decideTransfer(
     });
 
     if (error) {
-      return { success: false, error: sanitizeTransferDecisionError(error) };
+      // A raised RPC error rolls back the whole command, including its request key.
+      return { success: false, error: sanitizeTransferDecisionError(error), retryWithNewKey: true };
     }
 
     const result = data as {

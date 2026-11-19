@@ -174,8 +174,8 @@ export function DecideTransferDialog({
       const res = await decideTransfer(input);
       if (!res.success) {
         setError(res.error);
-        // Validation failures never reached the database, so the next attempt can use a new key.
-        if (res.issues) setRequestKey(null);
+        // Nothing was committed (validation or a rolled-back RPC), so the next attempt can use a new key.
+        if (res.issues || res.retryWithNewKey) setRequestKey(null);
         return;
       }
       setDoneMessage(res.message);
