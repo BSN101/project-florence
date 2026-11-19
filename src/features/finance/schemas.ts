@@ -200,3 +200,66 @@ export const recordCashPaymentSchema = z.object({
 });
 
 export type RecordCashPaymentInput = z.infer<typeof recordCashPaymentSchema>;
+
+const decisionReason = z
+  .string()
+  .trim()
+  .min(1, "Enter the reason for the decision")
+  .max(500, "Reason cannot exceed 500 characters");
+
+const decisionMoment = (message: string) =>
+  z.iso
+    .datetime({ offset: true, message })
+    .refine((val) => Date.parse(val) <= Date.now(), {
+      message: "Time cannot be in the future",
+    });
+
+const transferDecisionBase = {
+  paymentId: z.string().uuid("Invalid payment identifier"),
+  requestKey: z.string().uuid("Invalid request key"),
+  // Operator attestation that they checked actual receipt (or return) of funds.
+  factsConfirmed: z.literal(true, {
+    error: "Confirm that you checked the actual receipt of funds",
+  }),
+};
+
+/**
+ * Input validation for verifying or rejecting a transfer submission (FL-025 / T-036).
+ * Mirrors the verify_payment decision modes; the database re-checks every rule.
+ * - received: verify a new actual receipt.
+ * - no_receipt: reject because no money was received.
+ * - duplicate: reject duplicate proof of a transfer already receipted.
+ * - returned: reject a new actual transfer that was received and fully returned.
+ */
+export const transferDecisionSchema = z.discriminatedUnion("mode", [
+  z.object({
+    ...transferDecisionBase,
+    mode: z.literal("received"),
+    receivedAt: decisionMoment("Invalid receipt date and time"),
+  }),
+  z.object({
+    ...transferDecisionBase,
+    mode: z.literal("no_receipt"),
+    reason: decisionReason,
+  }),
+  z.object({
+    ...transferDecisionBase,
+    mode: z.literal("duplicate"),
+    reason: decisionReason,
+    existingReceiptId: z.string().uuid("Select the existing receipt"),
+  }),
+  z
+    .object({
+      ...transferDecisionBase,
+      mode: z.literal("returned"),
+      reason: decisionReason,
+      receivedAt: decisionMoment("Invalid receipt date and time"),
+      refundedAt: decisionMoment("Invalid refund date and time"),
+    })
+    .refine((val) => Date.parse(val.refundedAt) >= Date.parse(val.receivedAt), {
+      message: "Refund cannot be earlier than the receipt",
+      path: ["refundedAt"],
+    }),
+]);
+
+export type TransferDecisionInput = z.infer<typeof transferDecisionSchema>;
