@@ -361,30 +361,28 @@ function RosterRowActions({
         />
       )}
 
-      {canInvite && (
-        <InviteStudentDialog
-          student={student}
-          open={inviteOpen}
-          onOpenChange={setInviteOpen}
-          isReissue={false}
-        />
-      )}
-
-      {canReissue && (
-        <InviteStudentDialog
-          student={student}
-          open={reissueOpen}
-          onOpenChange={setReissueOpen}
-          isReissue={true}
-        />
-      )}
-
-      {canCancel && (
-        <CancelInvitationDialog
-          student={student}
-          open={cancelOpen}
-          onOpenChange={setCancelOpen}
-        />
+      {/* Mounted on account state, not invitation state: a successful invite or
+          cancel flips canInvite/canCancel, and unmounting would hide the result. */}
+      {canEdit && !student.has_account && (
+        <>
+          <InviteStudentDialog
+            student={student}
+            open={inviteOpen}
+            onOpenChange={setInviteOpen}
+            isReissue={false}
+          />
+          <InviteStudentDialog
+            student={student}
+            open={reissueOpen}
+            onOpenChange={setReissueOpen}
+            isReissue={true}
+          />
+          <CancelInvitationDialog
+            student={student}
+            open={cancelOpen}
+            onOpenChange={setCancelOpen}
+          />
+        </>
       )}
     </div>
   );
