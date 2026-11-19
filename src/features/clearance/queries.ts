@@ -2,6 +2,7 @@ import { cache } from "react";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
+import { fromCents, toCents } from "@/features/finance/calculations";
 import { allRows, getCouncilFinancialRoster } from "@/features/finance/queries";
 import { displayName } from "@/lib/format-name";
 import { isAuthorizedCouncilClearanceRole } from "./authorization";
@@ -64,7 +65,10 @@ export const getCouncilClearanceCandidates = cache(async function getCouncilClea
   const financialSummaries = new Map<string, { totalOutstandingPayable: number }>();
   for (const item of financialRoster) {
     financialSummaries.set(item.student_id, {
-      totalOutstandingPayable: item.summary.totalOutstandingPayable,
+      // Pending proof is not settlement (FL-023), so it still counts as unpaid when reviewing clearance.
+      totalOutstandingPayable: fromCents(
+        toCents(item.summary.totalOutstandingPayable) + toCents(item.summary.totalPendingVerificationAmount)
+      ),
     });
   }
 

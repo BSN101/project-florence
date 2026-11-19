@@ -21,6 +21,7 @@ import {
   type FineDefinitionCatalogItem,
   type FineDefinitionDTO,
   type CouncilFinancialRosterItem,
+  type PendingTransferReviewDTO,
   type ObligationWithStandingDTO,
   type PaymentAccountDTO,
   type StudentFinancialAccountData,
@@ -719,5 +720,107 @@ export async function getCouncilStudentPayableObligations(
     client,
     studentId: validStudentId,
     semesters: context.semesters,
+  });
+}
+
+/**
+ * Current transfer submissions awaiting verification for one semester, oldest first (FL-025 / T-036).
+ * Restricted to Council Executive and Operations. Reads through the request-scoped user client
+ * with explicit fields; each row lists only that student's own receipts for duplicate linking.
+ */
+export async function getPendingTransferReviews(
+  semesterId: string,
+  studentId?: string
+): Promise<PendingTransferReviewDTO[]> {
+  await assertAuthorizedCouncilManager();
+  const validSemesterId = previewFeeObligationsSchema.shape.semesterId.parse(semesterId);
+  const validStudentId =
+    studentId === undefined ? undefined : previewFeeObligationsSchema.shape.semesterId.parse(studentId);
+  const client = await createUserClient();
+
+  const pending = await allRows(
+    (from, to) => {
+      const query = client
+        .from("payments")
+        .select(
+          "id, student_id, semester_id, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, payment_items(obligation_id, amount, obligation:obligations(description))"
+        )
+        .eq("method", "transfer")
+        .eq("status", "pending")
+        .eq("record_status", "current")
+        .eq("semester_id", validSemesterId);
+      return (validStudentId ? query.eq("student_id", validStudentId) : query)
+        .order("submitted_at", { ascending: true })
+        .order("id")
+        .range(from, to);
+    },
+    "Unable to load pending transfers."
+  );
+  if (pending.length === 0) return [];
+
+  const [roster, receipts] = await Promise.all([
+    getRoster(validSemesterId),
+    allRows(
+      (from, to) => {
+        const query = client
+          .from("payments")
+          .select(
+            "id, student_id, method, receipt_id, amount, reference_number, receipt:payment_receipts(received_at)"
+          )
+          .eq("semester_id", validSemesterId)
+          .eq("is_receipt_record", true)
+          .eq("record_status", "current");
+        return (validStudentId ? query.eq("student_id", validStudentId) : query).order("id").range(from, to);
+      },
+      "Unable to load existing receipts."
+    ),
+  ]);
+  // shortcut: the semester-wide queue reads every refund receipt id, because an id list that large
+  // would overflow the request URL; one student's ledger reads only the refunds of its receipts.
+  const receiptIds = receipts.flatMap((r) => (r.receipt_id ? [r.receipt_id] : []));
+  const refunds =
+    validStudentId && receiptIds.length === 0
+      ? []
+      : await allRows(
+          (from, to) => {
+            const query = client.from("payment_refunds").select("id, receipt_id");
+            return (validStudentId ? query.in("receipt_id", receiptIds) : query).order("id").range(from, to);
+          },
+          "Unable to load payment refunds."
+        );
+
+  const students = new Map(roster.map((s) => [s.student_id, s]));
+  const refundedReceiptIds = new Set(refunds.map((r) => r.receipt_id));
+  const receiptsByStudent = new Map<string, PendingTransferReviewDTO["existingReceipts"]>();
+  for (const r of receipts) {
+    if (!r.receipt_id) continue;
+    const list = receiptsByStudent.get(r.student_id) ?? [];
+    list.push({
+      receipt_id: r.receipt_id,
+      payment_id: r.id,
+      method: r.method,
+      amount: r.amount,
+      reference_number: r.reference_number,
+      received_at: r.receipt?.received_at ?? null,
+      is_refunded: refundedReceiptIds.has(r.receipt_id),
+    });
+    receiptsByStudent.set(r.student_id, list);
+  }
+
+  return pending.map(({ payment_items, ...p }) => {
+    const student = students.get(p.student_id);
+    return {
+      ...p,
+      student: {
+        universityId: student?.university_id ?? null,
+        fullName: student ? displayName(student) : "Unknown student",
+      },
+      items: payment_items.map((i) => ({
+        obligation_id: i.obligation_id,
+        description: i.obligation?.description ?? "Obligation",
+        amount: i.amount,
+      })),
+      existingReceipts: receiptsByStudent.get(p.student_id) ?? [],
+    };
   });
 }

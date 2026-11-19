@@ -417,3 +417,50 @@ Submitted merit endorsements appear in `public.merit_endorsements` with `status 
 - Submitted endorsements enter `status = 'pending'` without triggering student notifications prematurely.
 - The 4-step wizard runs in-page within `WorkspaceShell` under `?endorse`, preserving `?tab=endorsements` upon completion with zero layout shifts.
 - Roster table and student detail dialog in `/council` provide contextual "Endorse for merit" triggers that collapse to icon-only on mobile.
+
+## Verify or reject student transfer submission
+
+- **Author:** Reipoh Gabriel Arradaza
+- **Actors:** Council Executive, Council Operations, Student (beneficiary).
+- **Starts at:** Council workspace > Payments (`/council/payments`), either from the semester's "Transfers awaiting review" queue or inside a selected student's ledger; user must hold an active Council Executive or Operations role.
+- **References:** FL-025, FL-022, FL-023, FL-044; database schema (`docs/database/schema.dbml`: `payments`, `payment_items`, `payment_receipts`, `payment_refunds`, `obligations`, `notifications`).
+
+### Main flow
+
+1. The Council Executive or Operations officer opens Payments in the Council workspace, views the "Transfers awaiting review" queue (or opens an individual student's ledger where their pending transfers appear at the top), and clicks "Review" on a pending transfer submission.
+2. The system opens the review dialog showing the student's name and university ID, the destination account snapshot, reference number, submission date, itemized covered obligations, total amount, and a short-lived signed preview of the uploaded receipt proof image.
+3. The officer checks the actual receipt of funds against the destination account statement and selects one of four decision modes:
+   - **Verify (`received`):** confirms the money was received and enters the actual receipt date and time (`Asia/Manila`, not in the future).
+   - **Reject — no money received (`no_receipt`):** enters the rejection reason when no funds arrived.
+   - **Reject — duplicate of a recorded transfer (`duplicate`):** selects the student's existing authoritative receipt for that transfer and enters the reason, counting the actual transfer only once without creating a second receipt or refund.
+   - **Reject — received and returned externally (`returned`):** enters the actual receipt timestamp, the external refund timestamp (`refunded_at >= received_at`, not in the future), and the reason when an extra transfer was actually received and returned outside the platform.
+4. The officer checks the operator attestation confirming they verified the actual receipt or external return of funds and submits the decision.
+5. The system validates the mode-specific input server-side and executes the atomic `verify_payment` RPC with a generated idempotency request key (`requestKey`).
+6. In one transaction, the database locks the pending transfer and its covered obligations, creates or links the `payment_receipts` row (and inserts a `payment_refunds` row when mode is `returned`), updates the `payments` row to `verified` or `rejected` with the deciding officer and timestamp, and inserts a `payment_verified` or `payment_rejected` in-app notification for the student.
+
+### System involvement
+
+- Table `payments`: transitions a current pending transfer (`method = 'transfer'`, `status = 'pending'`, `record_status = 'current'`) to `verified` (`is_receipt_record = true`) or `rejected` (`is_receipt_record = true` only for `returned`; `false` for `no_receipt` and `duplicate`), recording `receipt_id`, `decided_by`, `decided_at`, and `decision_reason` under `f_access_private.payment_guard`.
+- Table `payment_receipts`: inserts a new receipt record (`request_key`, `received_at`, `recognized_by = actor`) for `received` and `returned` modes, or locks and links `p_existing_receipt` for `duplicate` mode.
+- Table `payment_refunds`: inserts a refund record (`receipt_id`, `payment_id`, `amount`, `reason`, `recorded_by`, `refunded_at`) when `p_mode = 'returned'`, retaining both the gross receipt and refund history while keeping the submission rejected.
+- Table `notifications`: atomically inserts an in-app notification (`payment_verified` or `payment_rejected`) for the student via `f_cmd_notice`.
+- Procedure `verify_payment`: enforces Executive or Operations authority (`f_cmd_council`), self-decision prohibition (`p.student_id <> p_actor`), operator fact confirmation (`p_facts_confirmed = true`), mode-specific timestamp and receipt constraints, obligation payable/settlement checks (`f_cmd_check_items`), same-student duplicate receipt ownership, and request-level idempotency (`f_cmd_begin`/`f_cmd_finish`).
+
+### Outcome
+
+When verified, the transfer receives a stable receipt, the covered obligations become settled, and the student's outstanding payable balance decreases. When rejected, the submission never counts as settled revenue, its covered obligations remain payable (unless already settled by another payment), any actual extra transfer that was returned is retained in receipt and refund records, and the student receives an in-app notification linking to `/student/fees-and-fines`.
+
+### Important alternatives
+
+- **Self-Decision Blocked:** If an Executive or Operations officer has a pending transfer on their own student account, the review queue displays a "Your submission" badge instead of a "Review" button, and both `decideTransfer` and `verify_payment` (plus the `payment_guard` trigger) reject self-verification or self-rejection.
+- **Obligations Already Settled or Waived:** If one of the transfer's obligations was settled by another payment (such as an in-person cash payment) or waived while the transfer was pending, `verify_payment` blocks verification (`received`); the officer must reject the transfer (`duplicate`, `no_receipt`, or `returned` according to actual money movement).
+- **Duplicate Mode Without Existing Receipt:** If the student has no authoritative receipt in the semester, the "duplicate" option is disabled in the dialog, and the RPC rejects missing or cross-student receipt links.
+- **Concurrent Decision or Retry:** Locking the `payments` row with `FOR UPDATE` ensures only one officer can decide a pending transfer; a second officer receives an "already decided" message. Retrying an unchanged submission reuses the locked `requestKey` and replays the original result via `f_cmd_begin`/`f_cmd_finish`.
+
+### Acceptance checks
+
+- Council Executive and Operations officers can review pending transfer submissions from `/council/payments` (both in the semester queue and inside a student's ledger) and inspect the private proof image via a short-lived signed URL.
+- Officers cannot verify or reject their own transfer submissions (blocked in the UI, server action, RPC, and trigger).
+- All four decision modes (`received`, `no_receipt`, `duplicate`, `returned`) enforce operator confirmation and their required timestamps, reasons, and receipt selections.
+- Rejected transfers (`no_receipt`, `duplicate`, `returned`) never count toward settled revenue; `duplicate` creates no second receipt or refund, and `returned` retains both the receipt and refund record.
+- Verifying or rejecting a transfer immediately creates a `payment_verified` or `payment_rejected` in-app notification for the student and refreshes the Council and Student financial views.

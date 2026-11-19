@@ -413,3 +413,123 @@ export function sanitizeCashPaymentError(
   }
   return fallbackMessage;
 }
+
+/**
+ * Standardized action result for verifying or rejecting a transfer (FL-025 / T-036).
+ */
+export type TransferDecisionResult =
+  | {
+      success: true;
+      paymentId: string;
+      status: "verified" | "rejected";
+      receiptId: string | null;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      issues?: Record<string, string[]>;
+      /** Nothing was committed, so the next attempt must use a new request key. */
+      retryWithNewKey?: boolean;
+    };
+
+/**
+ * Pure self-benefit check for transfer decisions (FL-025 / T-036).
+ * Officers may not verify or reject their own transfer submission.
+ */
+export function canDecideTransferForStudent(
+  actorProfileId: string | null | undefined,
+  studentId: string | null | undefined
+): boolean {
+  return Boolean(actorProfileId && studentId && actorProfileId !== studentId);
+}
+
+/**
+ * Defensive error message sanitizer for transfer decisions (FL-025 / T-036).
+ * Strips database internals while surfacing actionable guidance.
+ */
+export function sanitizeTransferDecisionError(
+  error: unknown,
+  fallbackMessage = "Unable to record the decision. Please review the details and try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    const msg = err.message ?? "";
+    if (msg.includes("Self payment decision forbidden")) {
+      return "Officers are not permitted to decide their own transfer submissions.";
+    }
+    if (msg.includes("Only a current pending transfer can be decided")) {
+      return "This transfer was already decided. Refresh the page to see its latest status.";
+    }
+    if (msg.includes("Receipt/return facts must be confirmed")) {
+      return "Confirm that you checked the actual receipt of funds before deciding.";
+    }
+    if (msg.includes("Rejection reason required")) {
+      return "Enter the reason for rejecting this transfer.";
+    }
+    if (msg.includes("Money evidence does not match decision mode")) {
+      return "The receipt or refund details do not match the selected decision.";
+    }
+    if (
+      msg.includes("Existing receipt not found") ||
+      msg.includes("Receipt has no authorized authoritative representation") ||
+      msg.includes("Duplicate receipt beneficiary mismatch")
+    ) {
+      return "Select an existing receipt that belongs to the same student.";
+    }
+    // After the message checks: the receipt error above also uses 42501.
+    if (err.code === "42501" || msg.includes("Council action not authorized")) {
+      return "You are not authorized to verify or reject transfers.";
+    }
+    if (
+      msg.includes("Selected obligation is waived or already settled") ||
+      msg.includes("Payment must equal full selected items")
+    ) {
+      return "The obligations on this transfer have changed or were already settled. Reject it instead, then refresh the page.";
+    }
+    if (msg.includes("Request key reused")) {
+      return "This decision request conflicted with a previous attempt. Please try again.";
+    }
+    if (msg.includes("Incomplete command receipt")) {
+      return "This decision could not be confirmed. Refresh the page to check the transfer's status before retrying.";
+    }
+  }
+  return fallbackMessage;
+}
+
+/**
+ * An existing receipt the operator may link a duplicate submission to (FL-025 / T-036).
+ * Limited to the same student's authoritative receipts.
+ */
+export type ExistingReceiptOptionDTO = {
+  receipt_id: string;
+  payment_id: string;
+  method: Tables["payments"]["Row"]["method"];
+  amount: number;
+  reference_number: string | null;
+  received_at: string | null;
+  is_refunded: boolean;
+};
+
+/**
+ * Client-safe projection of a transfer awaiting Executive/Operations review (FL-025 / T-036).
+ * Carries the proof file id (resolve through getTransferProofUrl), never a storage key or URL.
+ */
+export type PendingTransferReviewDTO = Pick<
+  Tables["payments"]["Row"],
+  | "id"
+  | "student_id"
+  | "semester_id"
+  | "destination_label"
+  | "destination_account_name"
+  | "destination_account_reference"
+  | "reference_number"
+  | "proof_file_id"
+  | "amount"
+  | "submitted_at"
+> & {
+  student: { universityId: string | null; fullName: string };
+  items: Array<{ obligation_id: string; description: string; amount: number }>;
+  existingReceipts: ExistingReceiptOptionDTO[];
+};
