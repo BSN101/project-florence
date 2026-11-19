@@ -86,11 +86,15 @@ export type LogFacultyDemeritsInput = z.infer<typeof logFacultyDemeritsSchema>;
 // Merit endorsement schemas (FL-031 / T-043)
 // ---------------------------------------------------------------------------
 
-/** Whole-day units: FL-031 sets no upper bound, and neither does `endorse_merit`. */
+/** Product cap per endorsement; approval creates one merit row per day, so a typo must not mint hundreds. */
+export const MAX_ENDORSEMENT_DAYS = 7;
+
+/** Whole-day units, 1 to MAX_ENDORSEMENT_DAYS. `endorse_merit` checks only that days are positive. */
 export const requestedDaysSchema = z.coerce
   .number()
   .int("Days must be a whole number.")
-  .min(1, "Days must be at least 1.");
+  .min(1, "Days must be at least 1.")
+  .max(MAX_ENDORSEMENT_DAYS, `Days cannot exceed ${MAX_ENDORSEMENT_DAYS}.`);
 
 export const endorsementDescriptionSchema = z
   .string()

@@ -29,6 +29,7 @@ import type {
 } from "../contracts";
 import {
   endorsementDescriptionSchema,
+  MAX_ENDORSEMENT_DAYS,
   requestedDaysSchema,
 } from "../schemas";
 
@@ -402,13 +403,14 @@ export function SubmitEndorsementsFlow({
                 type="number"
                 inputMode="numeric"
                 min={1}
+                max={MAX_ENDORSEMENT_DAYS}
                 step={1}
                 value={requestedDays}
                 onChange={(e) => setRequestedDays(e.target.value)}
                 className="h-10 max-w-xs"
               />
               <p className="text-xs text-muted-foreground">
-                Whole-day units to recommend for each selected recipient.
+                Whole-day units to recommend for each selected recipient, up to {MAX_ENDORSEMENT_DAYS}.
               </p>
             </div>
 

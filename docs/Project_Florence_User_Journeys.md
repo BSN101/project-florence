@@ -384,7 +384,7 @@ The selected obligations are immediately settled in full, the student's outstand
 2. The system verifies Council Executive or Operations access and shows the Council disciplinary ledger for the selected semester. If the selected semester is the current semester, the "Endorse for merit" action is active; for historical semesters, it remains visible as disabled with an explanatory tooltip.
 3. The officer chooses "Endorse for merit". The in-page endorsement flow (`?endorse`) opens on the Students step, with the student already selected when deep-linked from directory rows or details.
 4. **Students:** the officer searches the current semester roster (`florence_roster`, excluding the officer's own student profile) and selects one or more candidate students.
-5. **Details:** the officer selects an assigned reviewer from the list of active Academic and Clinical Instructors (`florence_instructor_choices`), enters whole-day requested units (defaulting to 1), and enters the basis / justification (at least 3 characters). An informational callout clarifies that endorsements create pending recommendations awaiting instructor decision.
+5. **Details:** the officer selects an assigned reviewer from the list of active Academic and Clinical Instructors (`florence_instructor_choices`), enters whole-day requested units (1 to 7, defaulting to 1), and enters the basis / justification (at least 3 characters). An informational callout clarifies that endorsements create pending recommendations awaiting instructor decision.
 6. **Review:** the page summarizes the recipient count, total requested units, assigned reviewer name and role, justification, and pending status. The officer confirms with a button naming the recipient count (for example, "Submit endorsement for 2 students").
 7. The system validates the input server-side, checks that the actor is not among the recipients, and runs `endorse_merit` once per student through the command client. Each recipient carries an independent client-generated request key created when the student was picked.
 8. The database inserts a row with `status = 'pending'`, `requested_days = p_days`, `assigned_instructor_id = p_instructor`, and `submitted_by = p_actor` into `public.merit_endorsements` for each student.
@@ -413,7 +413,7 @@ Submitted merit endorsements appear in `public.merit_endorsements` with `status 
 - Only Council Executive and Operations officers can submit merit endorsements; Council Representatives and non-Council actors are denied.
 - Active Academic and Clinical Instructors populate the reviewer selector via `florence_instructor_choices`.
 - Self-endorsement is prevented at all layers (candidate picker, directory rows, server action, and RPC).
-- Requested units require positive whole integers ($\ge 1$) without arbitrary upper caps.
+- Requested units are whole days from 1 to 7 per student, enforced in the form and the server action.
 - Submitted endorsements enter `status = 'pending'` without triggering student notifications prematurely.
 - The 4-step wizard runs in-page within `WorkspaceShell` under `?endorse`, preserving `?tab=endorsements` upon completion with zero layout shifts.
 - Roster table and student detail dialog in `/council` provide contextual "Endorse for merit" triggers that collapse to icon-only on mobile.

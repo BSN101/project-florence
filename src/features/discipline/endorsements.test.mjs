@@ -29,11 +29,15 @@ const parse = (patch) => submitMeritEndorsementsSchema.safeParse({ ...valid, ...
 
 test("requestedDaysSchema accepts whole positive integers and coerces strings", () => {
   assert.equal(requestedDaysSchema.safeParse(1).success, true);
-  assert.equal(requestedDaysSchema.safeParse(50).success, true);
+  assert.equal(requestedDaysSchema.safeParse(7).success, true);
   const coerced = requestedDaysSchema.safeParse("3");
   assert.equal(coerced.success && coerced.data, 3);
-  // FL-031 sets no arbitrary upper bound on requested days.
-  assert.equal(requestedDaysSchema.safeParse(100).success, true);
+});
+
+test("requestedDaysSchema caps requested days at 7", () => {
+  for (const days of [8, 50, 1000000]) {
+    assert.equal(requestedDaysSchema.safeParse(days).success, false, `days=${days}`);
+  }
 });
 
 test("requestedDaysSchema rejects non-whole or non-positive values", () => {
