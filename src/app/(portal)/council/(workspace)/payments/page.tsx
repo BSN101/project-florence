@@ -1,15 +1,18 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
+import { Suspense } from "react";
 
 import { DrillTransition } from "@/components/layout/page-transition";
 import { RefreshButton } from "@/components/layout/refresh-button";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   CouncilFinancialRosterTable,
   CouncilStudentLedger,
 } from "@/features/finance/components/council-financial-ledger-view";
+import { PendingTransferReviewSection } from "@/features/finance/components/pending-transfer-review-section";
 import {
   canRecordCashForStudent,
   isAuthorizedCouncilFinancialViewer,
@@ -18,6 +21,7 @@ import {
   getCouncilFinancialRoster,
   getCouncilStudentFinancialAccount,
   getCouncilStudentPayableObligations,
+  getPendingTransferReviews,
 } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -105,9 +109,18 @@ export default async function CouncilPaymentsPage({
       );
     }
   } else if (semesterId) {
+    // Started now, read later behind Suspense, so the roster is not held back by the review queue.
+    const pendingReviews = getPendingTransferReviews(semesterId).catch(() => null);
     const students = await getCouncilFinancialRoster(semesterId).catch(() => null);
     if (students) {
-      content = <CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />;
+      content = (
+        <div className="space-y-8">
+          <Suspense fallback={<Skeleton className="h-32 w-full rounded-xl" />}>
+            <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={access.profile.id} />
+          </Suspense>
+          <CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />
+        </div>
+      );
     } else {
       errorNotice = "Unable to load the semester's student accounts at this time. Please refresh the page.";
       content = (
