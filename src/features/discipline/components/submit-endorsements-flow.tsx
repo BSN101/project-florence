@@ -74,7 +74,7 @@ export function SubmitEndorsementsFlow({
   );
 
   const [search, setSearch] = useState("");
-  const [instructorId, setInstructorId] = useState(() => instructors[0]?.id ?? "");
+  const [instructorId, setInstructorId] = useState("");
   const [requestedDays, setRequestedDays] = useState("1");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -366,18 +366,31 @@ export function SubmitEndorsementsFlow({
               <select
                 id={ids.instructor}
                 value={instructorId}
-                onChange={(e) => setInstructorId(e.target.value)}
-                className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
+                onChange={(e) => {
+                  setInstructorId(e.target.value);
+                  setError(null);
+                }}
+                className={cn(
+                  "h-10 rounded-lg border bg-background px-3 text-sm",
+                  error && !instructorId
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : "border-input"
+                )}
               >
+                <option value="">Select an instructor reviewer...</option>
                 {instructors.map((inst) => (
                   <option key={inst.id} value={inst.id}>
                     {inst.last_name}, {inst.first_name} ({inst.instructor_role})
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted-foreground">
-                Only active Academic and Clinical Instructors can decide merit endorsements.
-              </p>
+              {error && !instructorId ? (
+                <p className="text-xs text-destructive">Select an assigned instructor to review this endorsement.</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Only active Academic and Clinical Instructors can decide merit endorsements.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">
