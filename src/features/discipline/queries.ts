@@ -361,5 +361,11 @@ export async function getInstructorChoices(): Promise<InstructorChoice[]> {
   const { data, error } = await client.rpc("florence_instructor_choices");
   if (error) throw new Error("Unable to load instructor choices");
 
-  return data ?? [];
+  // The RPC returns one row per instructor role; show each person once with all their roles.
+  const byId = new Map<string, InstructorChoice>();
+  for (const row of data ?? []) {
+    const seen = byId.get(row.id);
+    byId.set(row.id, seen ? { ...seen, instructor_role: `${seen.instructor_role} / ${row.instructor_role}` } : row);
+  }
+  return [...byId.values()];
 }
