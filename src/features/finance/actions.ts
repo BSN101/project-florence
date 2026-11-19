@@ -16,10 +16,13 @@ import {
   type PublishFeeResult,
   type RecordCashPaymentResult,
   type SubmitTransferResult,
+  type TransferDecisionResult,
+  canDecideTransferForStudent,
   canRecordCashForStudent,
   hasSameSemesterObligations,
   sanitizeCashPaymentError,
   sanitizePaymentAccountError,
+  sanitizeTransferDecisionError,
   sanitizeTransferSubmissionError,
 } from "./contracts";
 import {
@@ -37,6 +40,7 @@ import {
   publishFeeObligationsSchema,
   recordCashPaymentSchema,
   submitTransferSchema,
+  transferDecisionSchema,
   updateDefinitionSchema,
   updatePaymentAccountSchema,
   type ArchiveDefinitionInput,
@@ -47,6 +51,7 @@ import {
   type PublishFeeObligationsInput,
   type RecordCashPaymentInput,
   type SubmitTransferInput,
+  type TransferDecisionInput,
   type UpdateDefinitionInput,
   type UpdatePaymentAccountInput,
 } from "./schemas";
@@ -1073,5 +1078,99 @@ export async function recordCashPayment(
       };
     }
     return { success: false, error: sanitizeCashPaymentError(null) };
+  }
+}
+
+/**
+ * Verify or reject a pending transfer submission (FL-025 / T-036).
+ * Enforces Council Executive/Operations authority and the self-decision prohibition, then decides
+ * atomically through the verify_payment RPC, which also locks the payment, creates or links the
+ * receipt, records any external return, and notifies the student in the same transaction.
+ * The actor always comes from the session; the browser never supplies it.
+ */
+export async function decideTransfer(
+  input: TransferDecisionInput
+): Promise<TransferDecisionResult> {
+  try {
+    const context = await assertAuthorizedCouncilManager();
+    const parsed = transferDecisionSchema.safeParse(input);
+    if (!parsed.success) {
+      const issues = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+      return {
+        success: false,
+        error: Object.values(issues).flat()[0] ?? "Invalid transfer decision input",
+        issues,
+      };
+    }
+    const d = parsed.data;
+
+    // Read the payment's owner (RLS-scoped, explicit field) for an early self-decision refusal.
+    const userClient = await createUserClient();
+    const { data: payment, error: paymentError } = await userClient
+      .from("payments")
+      .select("student_id")
+      .eq("id", d.paymentId)
+      .maybeSingle();
+    if (paymentError || !payment) {
+      return { success: false, error: "This transfer could not be found. Refresh the page and try again." };
+    }
+    if (!canDecideTransferForStudent(context.profile.id, payment.student_id)) {
+      return {
+        success: false,
+        error: "Officers are not permitted to decide their own transfer submissions.",
+      };
+    }
+
+    // Generated RPC args are non-null; verify_payment takes SQL NULL for fields a mode does not use.
+    const nullable = (value: string | undefined) => (value ?? null) as string;
+    const { data, error } = await createCommandClient().rpc("verify_payment", {
+      p_key: d.requestKey,
+      p_actor: context.profile.id,
+      p_payment: d.paymentId,
+      p_mode: d.mode,
+      p_reason: nullable("reason" in d ? d.reason : undefined),
+      p_received_at: nullable("receivedAt" in d ? d.receivedAt : undefined),
+      p_existing_receipt: nullable("existingReceiptId" in d ? d.existingReceiptId : undefined),
+      p_refunded_at: nullable("refundedAt" in d ? d.refundedAt : undefined),
+      p_facts_confirmed: d.factsConfirmed,
+    });
+
+    if (error) {
+      return { success: false, error: sanitizeTransferDecisionError(error) };
+    }
+
+    const result = data as {
+      payment_id: string;
+      status: "verified" | "rejected";
+      receipt_id: string | null;
+    } | null;
+    if (!result?.payment_id || !result.status) {
+      return {
+        success: false,
+        error: "The decision returned no result. Refresh the page to check the transfer's status before retrying.",
+      };
+    }
+
+    revalidatePath("/council/payments");
+    revalidatePath("/student/fees-and-fines");
+    revalidatePath("/student/notifications");
+    return {
+      success: true,
+      paymentId: result.payment_id,
+      status: result.status,
+      receiptId: result.receipt_id ?? null,
+      message:
+        result.status === "verified"
+          ? "Transfer verified and the student was notified."
+          : "Transfer rejected and the student was notified.",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may verify or reject transfers",
+      };
+    }
+    return { success: false, error: sanitizeTransferDecisionError(null) };
   }
 }

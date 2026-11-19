@@ -491,3 +491,39 @@ export function sanitizeTransferDecisionError(
   }
   return fallbackMessage;
 }
+
+/**
+ * An existing receipt the operator may link a duplicate submission to (FL-025 / T-036).
+ * Limited to the same student's authoritative receipts.
+ */
+export type ExistingReceiptOptionDTO = {
+  receipt_id: string;
+  payment_id: string;
+  method: Tables["payments"]["Row"]["method"];
+  amount: number;
+  reference_number: string | null;
+  received_at: string | null;
+  is_refunded: boolean;
+};
+
+/**
+ * Client-safe projection of a transfer awaiting Executive/Operations review (FL-025 / T-036).
+ * Carries the proof file id (resolve through getTransferProofUrl), never a storage key or URL.
+ */
+export type PendingTransferReviewDTO = Pick<
+  Tables["payments"]["Row"],
+  | "id"
+  | "student_id"
+  | "semester_id"
+  | "destination_label"
+  | "destination_account_name"
+  | "destination_account_reference"
+  | "reference_number"
+  | "proof_file_id"
+  | "amount"
+  | "submitted_at"
+> & {
+  student: { universityId: string | null; fullName: string };
+  items: Array<{ obligation_id: string; description: string; amount: number }>;
+  existingReceipts: ExistingReceiptOptionDTO[];
+};
