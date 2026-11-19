@@ -81,3 +81,39 @@ export const logFacultyDemeritsSchema = z
   });
 
 export type LogFacultyDemeritsInput = z.infer<typeof logFacultyDemeritsSchema>;
+
+// ---------------------------------------------------------------------------
+// Merit endorsement schemas (FL-031 / T-043)
+// ---------------------------------------------------------------------------
+
+/** Whole-day units: FL-031 sets no upper bound, and neither does `endorse_merit`. */
+export const requestedDaysSchema = z.coerce
+  .number()
+  .int("Days must be a whole number.")
+  .min(1, "Days must be at least 1.");
+
+export const endorsementDescriptionSchema = z
+  .string()
+  .trim()
+  .min(3, "Description must be at least 3 characters.")
+  .max(500, "Description cannot exceed 500 characters.");
+
+export const submitMeritEndorsementsSchema = z.object({
+  recipients: z
+    .array(
+      z.object({
+        studentId: z.string().uuid("Invalid student identifier."),
+        requestKey: z.string().uuid("Invalid request key."),
+      })
+    )
+    .min(1, "Select at least one student.")
+    .refine(
+      (list) => new Set(list.map((r) => r.studentId)).size === list.length,
+      "Each student can be selected once."
+    ),
+  instructorId: z.string().uuid("Select an assigned instructor."),
+  requestedDays: requestedDaysSchema,
+  description: endorsementDescriptionSchema,
+});
+
+export type SubmitMeritEndorsementsInput = z.infer<typeof submitMeritEndorsementsSchema>;
