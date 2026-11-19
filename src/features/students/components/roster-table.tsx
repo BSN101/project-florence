@@ -55,10 +55,14 @@ export function RosterTable({
   students,
   canEdit,
   workspace = "council",
+  canEndorse = false,
+  currentProfileId,
 }: {
   students: StudentRosterItem[];
   canEdit: boolean;
   workspace?: "council" | "faculty";
+  canEndorse?: boolean;
+  currentProfileId?: string;
 }) {
   // Account and invitation state is Council's provisioning concern; faculty don't see it.
   const accounts = workspace === "council";
@@ -155,8 +159,31 @@ export function RosterTable({
             </Button>
           </>
         )}
+        {workspace === "council" && canEndorse && student.student_id !== currentProfileId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+            render={
+              <Link
+                href={`/council/merit-endorsements-and-council-demerits?endorse&student=${student.student_id}`}
+                aria-label={`Endorse ${sortName(student)} for merit`}
+              />
+            }
+          >
+            <Award className="size-3.5" />
+            <span className="max-sm:hidden">Endorse for merit</span>
+          </Button>
+        )}
         <StudentRowActions student={student} canEdit={canEdit} />
-        <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
+        <StudentDetailDialog
+          student={student}
+          canEdit={canEdit}
+          workspace={workspace}
+          canEndorse={canEndorse}
+          currentProfileId={currentProfileId}
+        />
         {canEdit && <EditStudentDialog student={student} />}
       </div>
     );

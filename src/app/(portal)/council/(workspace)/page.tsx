@@ -31,6 +31,7 @@ export default async function CouncilPage({
     : undefined;
   // Roster changes apply to the current semester only (no backdating).
   const canEdit = canManage && Boolean(selected?.is_current);
+  const canEndorse = canManage && Boolean(selected?.is_current);
 
   let students: StudentRosterItem[] = [];
   let loadFailed = false;
@@ -108,7 +109,12 @@ export default async function CouncilPage({
                 </p>
               </Card>
             ) : (
-              <RosterTable students={students} canEdit={canEdit} />
+              <RosterTable
+                students={students}
+                canEdit={canEdit}
+                canEndorse={canEndorse}
+                currentProfileId={ready?.profile.id}
+              />
             )}
           </>
         )}
