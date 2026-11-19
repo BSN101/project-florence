@@ -12,6 +12,7 @@ import {
   CouncilFinancialRosterTable,
   CouncilStudentLedger,
 } from "@/features/finance/components/council-financial-ledger-view";
+import { PaymentsTabs } from "@/features/finance/components/payments-tabs";
 import { PendingTransferReviewSection } from "@/features/finance/components/pending-transfer-review-section";
 import {
   canRecordCashForStudent,
@@ -119,12 +120,16 @@ export default async function CouncilPaymentsPage({
     const students = await getCouncilFinancialRoster(semesterId).catch(() => null);
     if (students) {
       content = (
-        <div className="space-y-8">
-          <Suspense fallback={<Skeleton className="h-32 w-full rounded-xl" />}>
-            <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={access.profile.id} />
-          </Suspense>
-          <CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />
-        </div>
+        <PaymentsTabs
+          pendingReviews={pendingReviews}
+          studentCount={students.length}
+          transfers={
+            <Suspense fallback={<Skeleton className="h-32 w-full rounded-xl" />}>
+              <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={access.profile.id} />
+            </Suspense>
+          }
+          accounts={<CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />}
+        />
       );
     } else {
       errorNotice = "Unable to load the semester's student accounts at this time. Please refresh the page.";
