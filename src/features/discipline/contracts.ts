@@ -126,3 +126,22 @@ export type MisconductOption = {
   label: string;
   is_other: boolean;
 };
+
+/** The roster fields the merit endorsement picker needs; nothing else leaves the server. */
+export type MeritEndorsementRecipientOption = {
+  student_id: string;
+  university_id: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  suffix: string | null;
+  year_level: number;
+};
+
+/** Active instructor choice for Council merit endorsement assignment. */
+export type InstructorChoice = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  instructor_role: string;
+};
