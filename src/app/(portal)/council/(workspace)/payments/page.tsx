@@ -87,9 +87,7 @@ export default async function CouncilPaymentsPage({
       ? getCouncilStudentPayableObligations(studentId).catch(() => null)
       : undefined;
     // Only this student's rows, read later behind Suspense.
-    const pendingReviews = getPendingTransferReviews(semesterId)
-      .then((rows) => rows.filter((row) => row.student_id === studentId))
-      .catch(() => null);
+    const pendingReviews = getPendingTransferReviews(semesterId, studentId).catch(() => null);
     const data = await getCouncilStudentFinancialAccount({ studentId, semesterId }).catch(() => null);
     if (data) {
       content = (

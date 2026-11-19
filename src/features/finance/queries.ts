@@ -729,15 +729,18 @@ export async function getCouncilStudentPayableObligations(
  * with explicit fields; each row lists only that student's own receipts for duplicate linking.
  */
 export async function getPendingTransferReviews(
-  semesterId: string
+  semesterId: string,
+  studentId?: string
 ): Promise<PendingTransferReviewDTO[]> {
   await assertAuthorizedCouncilManager();
   const validSemesterId = previewFeeObligationsSchema.shape.semesterId.parse(semesterId);
+  const validStudentId =
+    studentId === undefined ? undefined : previewFeeObligationsSchema.shape.semesterId.parse(studentId);
   const client = await createUserClient();
 
   const pending = await allRows(
-    (from, to) =>
-      client
+    (from, to) => {
+      const query = client
         .from("payments")
         .select(
           "id, student_id, semester_id, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, payment_items(obligation_id, amount, obligation:obligations(description))"
@@ -745,36 +748,46 @@ export async function getPendingTransferReviews(
         .eq("method", "transfer")
         .eq("status", "pending")
         .eq("record_status", "current")
-        .eq("semester_id", validSemesterId)
+        .eq("semester_id", validSemesterId);
+      return (validStudentId ? query.eq("student_id", validStudentId) : query)
         .order("submitted_at", { ascending: true })
         .order("id")
-        .range(from, to),
+        .range(from, to);
+    },
     "Unable to load pending transfers."
   );
   if (pending.length === 0) return [];
 
-  // shortcut: reads the semester's receipt records and all refund receipt ids, then filters in memory.
-  const [roster, receipts, refunds] = await Promise.all([
+  const [roster, receipts] = await Promise.all([
     getRoster(validSemesterId),
     allRows(
-      (from, to) =>
-        client
+      (from, to) => {
+        const query = client
           .from("payments")
           .select(
             "id, student_id, method, receipt_id, amount, reference_number, receipt:payment_receipts(received_at)"
           )
           .eq("semester_id", validSemesterId)
           .eq("is_receipt_record", true)
-          .eq("record_status", "current")
-          .order("id")
-          .range(from, to),
+          .eq("record_status", "current");
+        return (validStudentId ? query.eq("student_id", validStudentId) : query).order("id").range(from, to);
+      },
       "Unable to load existing receipts."
     ),
-    allRows(
-      (from, to) => client.from("payment_refunds").select("id, receipt_id").order("id").range(from, to),
-      "Unable to load payment refunds."
-    ),
   ]);
+  // shortcut: the semester-wide queue reads every refund receipt id, because an id list that large
+  // would overflow the request URL; one student's ledger reads only the refunds of its receipts.
+  const receiptIds = receipts.flatMap((r) => (r.receipt_id ? [r.receipt_id] : []));
+  const refunds =
+    validStudentId && receiptIds.length === 0
+      ? []
+      : await allRows(
+          (from, to) => {
+            const query = client.from("payment_refunds").select("id, receipt_id");
+            return (validStudentId ? query.in("receipt_id", receiptIds) : query).order("id").range(from, to);
+          },
+          "Unable to load payment refunds."
+        );
 
   const students = new Map(roster.map((s) => [s.student_id, s]));
   const refundedReceiptIds = new Set(refunds.map((r) => r.receipt_id));
