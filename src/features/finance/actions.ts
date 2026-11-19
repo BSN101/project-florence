@@ -1061,6 +1061,7 @@ export async function recordCashPayment(
     }
 
     revalidatePath("/council/payments");
+    revalidatePath("/council/clearance");
     revalidatePath("/student/fees-and-fines");
     return {
       success: true,
@@ -1153,6 +1154,7 @@ export async function decideTransfer(
     }
 
     revalidatePath("/council/payments");
+    revalidatePath("/council/clearance");
     revalidatePath("/student/fees-and-fines");
     revalidatePath("/student/notifications");
     return {
