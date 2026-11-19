@@ -489,6 +489,9 @@ export function sanitizeTransferDecisionError(
     if (msg.includes("Request key reused")) {
       return "This decision request conflicted with a previous attempt. Please try again.";
     }
+    if (msg.includes("Incomplete command receipt")) {
+      return "This decision could not be confirmed. Refresh the page to check the transfer's status before retrying.";
+    }
   }
   return fallbackMessage;
 }
