@@ -571,9 +571,17 @@ export function SubmitEndorsementsFlow({
             <Button variant="outline" nativeButton={false} render={<Link href={listHref} />}>
               Done
             </Button>
-            <Button onClick={startOver} className="gap-2">
-              Endorse more students
-            </Button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              {/* picked now holds only the failed recipients, still with their original request keys */}
+              {!result.success && picked.length > 0 && (
+                <Button variant="outline" onClick={() => go("review")}>
+                  Retry failed ({picked.length})
+                </Button>
+              )}
+              <Button onClick={startOver} className="gap-2">
+                Endorse more students
+              </Button>
+            </div>
           </div>
         </Card>
       )}
