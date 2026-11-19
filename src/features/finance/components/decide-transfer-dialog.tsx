@@ -183,6 +183,7 @@ export function DecideTransferDialog({
   }
 
   const fieldClass = "min-h-11 text-base md:text-sm";
+  const nowInput = isoToManilaInput(new Date().toISOString());
 
   return (
     <Dialog open onOpenChange={(open) => !open && handleClose()}>
@@ -325,6 +326,7 @@ export function DecideTransferDialog({
                         id={receivedAtId}
                         type="datetime-local"
                         value={receivedAtInput}
+                        max={nowInput}
                         disabled={isPending}
                         onChange={(e) => edit(() => setReceivedAtInput(e.target.value))}
                         className={fieldClass}
@@ -342,6 +344,8 @@ export function DecideTransferDialog({
                         id={refundedAtId}
                         type="datetime-local"
                         value={refundedAtInput}
+                        min={receivedAtInput || undefined}
+                        max={nowInput}
                         disabled={isPending}
                         onChange={(e) => edit(() => setRefundedAtInput(e.target.value))}
                         className={fieldClass}
