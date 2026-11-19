@@ -240,31 +240,6 @@ export function DecideTransferDialog({
                 </div>
               </section>
 
-              <section
-                aria-label="Receipt image"
-                className="flex min-h-40 min-w-0 items-center justify-center rounded-xl border border-border bg-muted/20 p-3"
-              >
-                {proof.status === "loading" ? (
-                  <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="size-6 animate-spin text-primary" />
-                    <span>Loading receipt image…</span>
-                  </div>
-                ) : proof.status === "error" ? (
-                  <p className="text-center text-sm text-destructive">{proof.message}</p>
-                ) : (
-                  <a href={proof.url} target="_blank" rel="noreferrer" className="block" title="Open full size">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={proof.url}
-                      alt="Submitted transfer receipt"
-                      className="mx-auto max-h-[40vh] w-auto max-w-full rounded-lg border border-border bg-background object-contain"
-                    />
-                  </a>
-                )}
-              </section>
-            </div>
-
-            <div className="min-w-0 space-y-4">
               {error && (
                 <div
                   role="alert"
@@ -411,6 +386,29 @@ export function DecideTransferDialog({
                 </div>
               )}
             </div>
+
+            <section
+              aria-label="Receipt image"
+              className="flex min-h-48 min-w-0 items-center justify-center rounded-xl border border-border bg-muted/20 p-3"
+            >
+              {proof.status === "loading" ? (
+                <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-6 animate-spin text-primary" />
+                  <span>Loading receipt image…</span>
+                </div>
+              ) : proof.status === "error" ? (
+                <p className="text-center text-sm text-destructive">{proof.message}</p>
+              ) : (
+                <a href={proof.url} target="_blank" rel="noreferrer" className="block" title="Open full size">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={proof.url}
+                    alt="Submitted transfer receipt"
+                    className="mx-auto max-h-[60vh] w-auto max-w-full rounded-lg border border-border bg-background object-contain"
+                  />
+                </a>
+              )}
+            </section>
           </div>
         )}
 
