@@ -1,3 +1,4 @@
+import type { StudentRosterItem } from "@/features/students/contracts";
 import type { Database } from "@/server/db/database.types";
 
 type Tables = Database["public"]["Tables"];
@@ -127,21 +128,11 @@ export type MisconductOption = {
   is_other: boolean;
 };
 
-/** The roster fields the merit endorsement picker needs; nothing else leaves the server. */
-export type MeritEndorsementRecipientOption = {
-  student_id: string;
-  university_id: string;
-  first_name: string;
-  middle_name: string | null;
-  last_name: string;
-  suffix: string | null;
-  year_level: number;
-};
+/** The roster fields the merit endorsement picker needs; the page maps to exactly these, so nothing else leaves the server. */
+export type MeritEndorsementRecipientOption = Pick<
+  StudentRosterItem,
+  "student_id" | "university_id" | "first_name" | "middle_name" | "last_name" | "suffix" | "year_level"
+>;
 
 /** Active instructor choice for Council merit endorsement assignment. */
-export type InstructorChoice = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  instructor_role: string;
-};
+export type InstructorChoice = Database["public"]["Functions"]["florence_instructor_choices"]["Returns"][number];
