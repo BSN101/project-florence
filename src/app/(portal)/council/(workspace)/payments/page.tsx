@@ -75,7 +75,8 @@ export default async function CouncilPaymentsPage({
     : access.semesters.find((item) => item.is_current)?.id ?? access.semesters[0]?.id;
 
   const studentId = typeof student === "string" ? student : undefined;
-  const backHref = `?semester=${semesterId}`;
+  // Ledgers open from the Accounts tab, so "All students" returns there.
+  const backHref = `?semester=${semesterId}&tab=accounts`;
   const renderedAt = new Date().toISOString();
 
   // Like events: a selected student shows their ledger, otherwise the semester's student table.
