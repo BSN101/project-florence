@@ -32,10 +32,10 @@ export const instant = false;
 export default async function CouncilPaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ semester?: string | string[]; student?: string | string[] }>;
+  searchParams: Promise<{ semester?: string | string[]; student?: string | string[]; tab?: string | string[] }>;
 }) {
   await connection();
-  const { semester, student } = await searchParams;
+  const { semester, student, tab } = await searchParams;
   const access = await getAccessContext();
 
   if (access.status !== "ready" || !access.workspaces.includes("council")) {
@@ -121,6 +121,7 @@ export default async function CouncilPaymentsPage({
     if (students) {
       content = (
         <PaymentsTabs
+          initialTab={tab === "accounts" ? "accounts" : "transfers"}
           pendingReviews={pendingReviews}
           studentCount={students.length}
           transfers={

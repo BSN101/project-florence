@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, use, useEffect, useState, type ReactNode } from "react";
+import { Suspense, use, useState, type ReactNode } from "react";
 import { Clock, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { PendingTransferReviewDTO } from "../contracts";
 
-type TabId = "transfers" | "accounts";
+export type PaymentsTabId = "transfers" | "accounts";
 
 function PendingCount({ reviews }: { reviews: Promise<PendingTransferReviewDTO[] | null> }) {
   const rows = use(reviews);
@@ -20,26 +20,21 @@ function PendingCount({ reviews }: { reviews: Promise<PendingTransferReviewDTO[]
  * and open dialogs survive a switch.
  */
 export function PaymentsTabs({
+  initialTab,
   transfers,
   accounts,
   pendingReviews,
   studentCount,
 }: {
+  initialTab: PaymentsTabId;
   transfers: ReactNode;
   accounts: ReactNode;
   pendingReviews?: Promise<PendingTransferReviewDTO[] | null>;
   studentCount?: number;
 }) {
-  const [activeTab, setActiveTab] = useState<TabId>("transfers");
+  const [activeTab, setActiveTab] = useState<PaymentsTabId>(initialTab);
 
-  useEffect(() => {
-    const initial = new URLSearchParams(window.location.search).get("tab");
-    if (initial === "accounts") {
-      setActiveTab("accounts");
-    }
-  }, []);
-
-  function select(next: TabId) {
+  function select(next: PaymentsTabId) {
     setActiveTab(next);
     const url = new URL(window.location.href);
     if (next === "transfers") url.searchParams.delete("tab");
