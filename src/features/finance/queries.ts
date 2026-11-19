@@ -378,7 +378,7 @@ async function fetchStudentFinancialAccountData({
 
   const semesterCodeMap = new Map<string, string>();
   for (const s of semesters) {
-    semesterCodeMap.set(s.id, `${s.academic_year_start} Â· ${s.term}`);
+    semesterCodeMap.set(s.id, `${s.academic_year_start} · ${s.term}`);
   }
 
   const priorSemesterIds = priorSemesterIdsFor(semesters, targetSemesterId);
@@ -661,7 +661,7 @@ async function fetchStudentPayableObligations({
 
   const semesterCodeMap = new Map<string, string>();
   for (const s of semesters) {
-    semesterCodeMap.set(s.id, `${s.academic_year_start} Â· ${s.term}`);
+    semesterCodeMap.set(s.id, `${s.academic_year_start} · ${s.term}`);
   }
 
   const currentSemester =
