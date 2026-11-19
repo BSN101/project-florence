@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useState, type ReactNode } from "react";
+import { Suspense, use, useId, useState, type ReactNode } from "react";
 import { Clock, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,10 @@ export function PaymentsTabs({
   studentCount?: number;
 }) {
   const [activeTab, setActiveTab] = useState<PaymentsTabId>(initialTab);
+  // Preserved hidden pages stay in the DOM, so ids must be unique per copy.
+  const idBase = useId();
+  const tabId = (tab: PaymentsTabId) => `${idBase}-tab-${tab}`;
+  const panelId = (tab: PaymentsTabId) => `${idBase}-panel-${tab}`;
 
   function select(next: PaymentsTabId) {
     setActiveTab(next);
@@ -48,9 +52,9 @@ export function PaymentsTabs({
         <Button
           type="button"
           role="tab"
-          id="payments-tab-transfers"
+          id={tabId("transfers")}
           aria-selected={activeTab === "transfers"}
-          aria-controls="payments-panel-transfers"
+          aria-controls={panelId("transfers")}
           variant={activeTab === "transfers" ? "default" : "ghost"}
           size="sm"
           onClick={() => select("transfers")}
@@ -70,9 +74,9 @@ export function PaymentsTabs({
         <Button
           type="button"
           role="tab"
-          id="payments-tab-accounts"
+          id={tabId("accounts")}
           aria-selected={activeTab === "accounts"}
-          aria-controls="payments-panel-accounts"
+          aria-controls={panelId("accounts")}
           variant={activeTab === "accounts" ? "default" : "ghost"}
           size="sm"
           onClick={() => select("accounts")}
@@ -88,16 +92,16 @@ export function PaymentsTabs({
 
       <div
         role="tabpanel"
-        id="payments-panel-transfers"
-        aria-labelledby="payments-tab-transfers"
+        id={panelId("transfers")}
+        aria-labelledby={tabId("transfers")}
         hidden={activeTab !== "transfers"}
       >
         {transfers}
       </div>
       <div
         role="tabpanel"
-        id="payments-panel-accounts"
-        aria-labelledby="payments-tab-accounts"
+        id={panelId("accounts")}
+        aria-labelledby={tabId("accounts")}
         hidden={activeTab !== "accounts"}
       >
         {accounts}

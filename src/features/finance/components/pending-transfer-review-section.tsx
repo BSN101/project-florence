@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatPhDate, formatPhp } from "../calculations";
@@ -21,6 +21,7 @@ export function PendingTransferReviewSection({
   /** Render nothing when no transfer is waiting (used inside a single student's ledger). */
   hideWhenEmpty?: boolean;
 }) {
+  const titleId = useId();
   const rows = use(reviews);
   // Holds the open review itself, so the dialog's result stays up after the row leaves the list.
   const [selected, setSelected] = useState<PendingTransferReviewDTO | null>(null);
@@ -38,8 +39,8 @@ export function PendingTransferReviewSection({
   if (rows.length === 0 && hideWhenEmpty && !selected) return null;
 
   return (
-    <section aria-labelledby="pending-transfers-title" className="space-y-3">
-      <h2 id="pending-transfers-title" className="section-title">
+    <section aria-labelledby={titleId} className="space-y-3">
+      <h2 id={titleId} className="section-title">
         Transfers awaiting review{rows.length > 0 ? ` (${rows.length})` : ""}
       </h2>
       {rows.length === 0 ? (
