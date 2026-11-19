@@ -132,6 +132,13 @@ describe("Task T-036 / FL-025: Transfer decision rules", () => {
         /already decided/
       );
       assert.match(sanitizeTransferDecisionError({ code: "42501" }), /not authorized/);
+      assert.match(
+        sanitizeTransferDecisionError({
+          code: "42501",
+          message: "Receipt has no authorized authoritative representation",
+        }),
+        /existing receipt/
+      );
     });
 
     test("never leaks unknown database text", () => {

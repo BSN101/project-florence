@@ -457,9 +457,6 @@ export function sanitizeTransferDecisionError(
     if (msg.includes("Self payment decision forbidden")) {
       return "Officers are not permitted to decide their own transfer submissions.";
     }
-    if (err.code === "42501" || msg.includes("Council action not authorized")) {
-      return "You are not authorized to verify or reject transfers.";
-    }
     if (msg.includes("Only a current pending transfer can be decided")) {
       return "This transfer was already decided. Refresh the page to see its latest status.";
     }
@@ -478,6 +475,10 @@ export function sanitizeTransferDecisionError(
       msg.includes("Duplicate receipt beneficiary mismatch")
     ) {
       return "Select an existing receipt that belongs to the same student.";
+    }
+    // After the message checks: the receipt error above also uses 42501.
+    if (err.code === "42501" || msg.includes("Council action not authorized")) {
+      return "You are not authorized to verify or reject transfers.";
     }
     if (
       msg.includes("Selected obligation is waived or already settled") ||
