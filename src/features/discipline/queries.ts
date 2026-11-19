@@ -11,6 +11,7 @@ import type {
   FacultyDemeritGroup,
   FacultyDisciplinaryViewData,
   FacultyMeritGroup,
+  InstructorChoice,
   MisconductOption,
   StudentDisciplinarySummary,
 } from "./contracts";
@@ -347,4 +348,18 @@ export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyD
   }
 
   return Array.from(groupsMap.values());
+}
+
+/**
+ * Active Academic and Clinical Instructors available for Council merit endorsement assignment (FL-031).
+ * Restricted to Council Executive and Operations.
+ */
+export async function getInstructorChoices(): Promise<InstructorChoice[]> {
+  await requireCouncilDisciplinaryViewer();
+  const client = await createUserClient();
+
+  const { data, error } = await client.rpc("florence_instructor_choices");
+  if (error) throw new Error("Unable to load instructor choices");
+
+  return data ?? [];
 }
