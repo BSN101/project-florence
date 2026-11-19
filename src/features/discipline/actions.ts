@@ -219,6 +219,16 @@ export async function submitMeritEndorsementsAction(rawInput: unknown): Promise<
   }
 
   const client = createCommandClient();
+
+  // endorse_merit checks enrollment only; archived profiles are denied here (AGENTS.md §5).
+  const { data: archived, error: archivedError } = await client
+    .from("profiles")
+    .select("id")
+    .in("id", recipients.map((r) => r.studentId))
+    .eq("account_status", "archived");
+  if (archivedError) return rejectedEndorsement("Unable to check the selected students. Try again.");
+  if (archived.length) return rejectedEndorsement("Archived students cannot be endorsed for merit.");
+
   const endorsedIds: string[] = [];
   const failures: EndorsementFailure[] = [];
 

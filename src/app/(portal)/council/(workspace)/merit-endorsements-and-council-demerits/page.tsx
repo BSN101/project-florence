@@ -95,7 +95,7 @@ export default async function CouncilMeritEndorsementsAndDemeritsPage({
       content = loadError;
     } else {
       const candidateStudents: MeritEndorsementRecipientOption[] = roster
-        .filter((s) => s.student_id !== access.profile.id)
+        .filter((s) => s.student_id !== access.profile.id && s.account_status !== "archived")
         .map(({ student_id, university_id, first_name, middle_name, last_name, suffix, year_level }) => ({
           student_id,
           university_id,
