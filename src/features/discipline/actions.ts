@@ -18,7 +18,7 @@ const RPC_MESSAGES: [string, string][] = [
   ["Self endorsement forbidden", "You cannot endorse yourself for merits."],
   ["Council action not authorized", "You are not authorized to endorse students for merits."],
   ["Positive days and description required", "Requested days and description are required."],
-  ["Current semester not configured", "There is no active semester configured."],
+  ["Activate a semester before creating academic records", "There is no active semester configured."],
   ["Student enrollment in the specified semester required", "Not enrolled in the current semester."],
   ["Matching instructor assignment required", "Only Academic or Clinical Instructors can award merits or log demerits."],
   ["Active misconduct option required", "The selected misconduct option is no longer active."],
