@@ -421,7 +421,7 @@ Do **not** automatically implement these as RPCs. The following transaction cont
 - `approve_merit_endorsement(...)` — lock pending endorsement, authorize assigned instructor, create all uniquely numbered units and record approval together.
 - `submit_transfer_payment(p_key, p_actor, p_semester, p_obligations, p_payment_account, p_reference_number, p_proof_file)` — insert pending submission and complete selected items together; derive owner and safe initial/decision fields server-side and validate proof ownership/purpose, same semester/student and parent-total equality. Refuse obligations already on a current pending transfer, and a reference number (normalized: alphanumerics only, upper case) already on a current pending/verified transfer to the same account; rejection frees both.
 - `correct_payment(...)` — lock stable receipt/current representation and affected obligations; preserve refund identity, create replacement/items and supersede target together with no double settlement.
-- `record_refund(...)` / `waive_obligation(...)` — coordinate receipt and obligation locks with settlement/correction; recheck refund uniqueness or unpaid state at commit.
+- `record_refund(...)` / `waive_obligation(...)` — coordinate receipt and obligation locks with settlement/correction; recheck refund uniqueness or unpaid state at commit. `record_cash_payment` and `waive_obligation` also refuse an obligation on a current pending transfer (decide the transfer first); `waive_obligation` sends the student an `obligation_waived` notice in the same transaction.
 - `confirm_faculty_clearance(...)` — validate same-student/semester Council prerequisite and insert the permanent component confirmation. Council confirmations are immutable, so a committed prerequisite cannot disappear; ordinary authorized SQL with uniqueness may suffice.
 
 ## 17. Scope limits
@@ -1665,7 +1665,7 @@ Permanent semester-level confirmation for one component. Absence of a row means 
 Table notifications {
   id uuid [pk, note: "Primary key"]
   recipient_id uuid [not null, note: "FK → `profiles.id`"]
-  kind text [not null, note: "Fixed safe notice category: `merit_received`, `demerit_incurred`, `service_recorded`, `obligation_due`, `payment_verified`, `payment_rejected`, `council_access_changed`"]
+  kind text [not null, note: "Fixed safe notice category: `merit_received`, `demerit_incurred`, `service_recorded`, `obligation_due`, `obligation_waived`, `payment_verified`, `payment_rejected`, `council_access_changed`"]
   message text [not null, note: "Minimal non-sensitive message"]
   target_type text [null, note: "Optional navigation target type"]
   target_id uuid [null, note: "Optional navigation target id"]
