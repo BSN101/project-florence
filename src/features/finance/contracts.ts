@@ -565,16 +565,13 @@ export function canWaiveObligationForStudent(
 
 /**
  * Pure eligibility check for whether an obligation can be waived (FL-026 / T-037).
- * Only unpaid obligations (including those with a pending, unverified transfer) may be waived;
- * settled and already-waived obligations cannot be waived.
+ * Only unpaid obligations may be waived. An obligation on a pending transfer is not waivable:
+ * verify_payment would then reject every item on that transfer, so the transfer is decided first.
  */
 export function isObligationWaivable(
   obligation: Pick<ObligationWithStandingDTO, "status"> | null | undefined
 ): boolean {
-  return Boolean(
-    obligation &&
-      (obligation.status === "unpaid" || obligation.status === "pending_verification")
-  );
+  return obligation?.status === "unpaid";
 }
 
 /**
@@ -594,6 +591,9 @@ export function sanitizeWaiveObligationError(
       msg.includes("Self obligation waiver forbidden")
     ) {
       return "Officers are not permitted to waive their own obligations.";
+    }
+    if (msg.includes("Obligation has a pending transfer")) {
+      return "This obligation is on a transfer awaiting review. Verify or reject that transfer first.";
     }
     if (msg.includes("Waiver reason required")) {
       return "Enter the reason for the waiver.";
