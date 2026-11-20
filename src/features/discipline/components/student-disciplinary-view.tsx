@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { Award, Clock, FileWarning } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -59,6 +59,7 @@ export function StudentDisciplinaryView({
   const hasOutstandingDebt = summary.office.balance > 0 || summary.rle.balance > 0;
   const isEligible = canAct && availableMeritCount > 0 && hasOutstandingDebt;
 
+  const reasonId = useId();
   const ineligibilityReason = !canAct
     ? "Merits cannot be applied in a past semester."
     : availableMeritCount === 0
@@ -128,7 +129,7 @@ export function StudentDisciplinaryView({
             </Button>
           </div>
 
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-col gap-1 max-sm:w-full sm:items-end">
             {isEligible ? (
               <Link
                 href={applyHref}
@@ -144,11 +145,16 @@ export function StudentDisciplinaryView({
                 size="sm"
                 disabled
                 className="gap-1.5 text-xs max-sm:w-full"
-                title={ineligibilityReason}
+                aria-describedby={reasonId}
               >
                 <Award className="size-3.5" />
                 Apply merits
               </Button>
+            )}
+            {!isEligible && ineligibilityReason && (
+              <p id={reasonId} className="text-xs text-muted-foreground">
+                {ineligibilityReason}
+              </p>
             )}
           </div>
         </div>
