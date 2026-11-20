@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Award, Clock, FileWarning } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { canApplyMerits } from "../calculations";
 import type {
   DemeritRecord,
   MeritRecord,
@@ -56,15 +57,14 @@ export function StudentDisciplinaryView({
     }
   };
 
-  const hasOutstandingDebt = summary.office.balance > 0 || summary.rle.balance > 0;
-  const isEligible = canAct && availableMeritCount > 0 && hasOutstandingDebt;
+  const isEligible = canApplyMerits(summary, availableMeritCount, canAct);
 
   const reasonId = useId();
   const ineligibilityReason = !canAct
     ? "Merits cannot be applied in a past semester."
     : availableMeritCount === 0
     ? "No available merits to apply."
-    : !hasOutstandingDebt
+    : !summary.hasOutstandingDebt
     ? "No outstanding sanctions to offset."
     : undefined;
 
@@ -72,12 +72,12 @@ export function StudentDisciplinaryView({
   const applyHref = `${applyBaseHref}${separator}apply`;
 
   const applyOfficeHref =
-    canAct && availableMeritCount > 0 && summary.office.balance > 0
+    canApplyMerits(summary, availableMeritCount, canAct, "office")
       ? `${applyHref}&bucket=office`
       : undefined;
 
   const applyRleHref =
-    canAct && availableMeritCount > 0 && summary.rle.balance > 0
+    canApplyMerits(summary, availableMeritCount, canAct, "rle")
       ? `${applyHref}&bucket=rle`
       : undefined;
 

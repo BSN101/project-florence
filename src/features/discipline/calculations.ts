@@ -9,6 +9,17 @@ import type {
   StudentDisciplinarySummary,
 } from "./contracts";
 
+/** Whether a student may open the apply-merits wizard (optionally for one bucket). */
+export function canApplyMerits(
+  summary: StudentDisciplinarySummary,
+  availableMeritCount: number,
+  canAct: boolean,
+  bucket?: DisciplinaryBucket
+): boolean {
+  const hasDebt = bucket ? summary[bucket].balance > 0 : summary.hasOutstandingDebt;
+  return canAct && availableMeritCount > 0 && hasDebt;
+}
+
 /** The bucket a faculty member logs demerits in; access policy allows only one instructor role. */
 export function instructorBucket(roles: readonly string[]): DisciplinaryBucket | null {
   if (roles.includes("Academic Instructor")) return "office";

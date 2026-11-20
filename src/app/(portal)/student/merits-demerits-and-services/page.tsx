@@ -8,6 +8,7 @@ import {
   ApplyMeritsFlow,
   MeritApplicationResultCard,
 } from "@/features/discipline/components/apply-merits-flow";
+import { canApplyMerits } from "@/features/discipline/calculations";
 import { StudentDisciplinaryView } from "@/features/discipline/components/student-disciplinary-view";
 import {
   getMyDisciplinaryRecords,
@@ -107,10 +108,7 @@ export default async function StudentMeritsDemeritsAndServicesPage({
         />
       );
     } else if (apply !== undefined) {
-      const hasOutstandingDebt =
-        data.summary.office.balance > 0 || data.summary.rle.balance > 0;
-
-      if (!canAct || data.availableMerits.length === 0 || !hasOutstandingDebt) {
+      if (!canApplyMerits(data.summary, data.availableMerits.length, canAct)) {
         redirect(baseHref);
       }
 
