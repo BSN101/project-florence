@@ -20,7 +20,6 @@ import {
   type WaiveObligationResult,
   canDecideTransferForStudent,
   canRecordCashForStudent,
-  canWaiveObligationForStudent,
   hasSameSemesterObligations,
   sanitizeCashPaymentError,
   sanitizePaymentAccountError,
@@ -1204,14 +1203,7 @@ export async function waiveObligation(
       };
     }
 
-    if (!canWaiveObligationForStudent(context.profile.id, parsed.data.studentId)) {
-      return {
-        success: false,
-        error: "Officers are not permitted to waive their own obligations.",
-      };
-    }
-
-    // waive_obligation locks the obligation row and re-verifies owner, unpaid standing, and non-waived status.
+    // waive_obligation locks the obligation row and re-verifies self-waiver, unpaid standing and no pending transfer, then notifies the student.
     const { data, error } = await createCommandClient().rpc("waive_obligation", {
       p_key: parsed.data.requestKey,
       p_actor: context.profile.id,
@@ -1242,6 +1234,7 @@ export async function waiveObligation(
     revalidatePath("/council/payments");
     revalidatePath("/council/clearance");
     revalidatePath("/student/fees-and-fines");
+    revalidatePath("/student/notifications");
     return {
       success: true,
       obligationId: result.obligation_id,

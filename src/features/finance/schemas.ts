@@ -276,7 +276,6 @@ const waiverReason = z
  */
 export const waiveObligationSchema = z.object({
   obligationId: z.string().uuid("Invalid obligation identifier"),
-  studentId: z.string().uuid("Invalid student identifier"),
   reason: waiverReason,
   requestKey: z.string().uuid("Invalid request key"),
 });
