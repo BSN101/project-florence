@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
@@ -333,5 +333,7 @@ export async function applyMeritsAction(rawInput: unknown): Promise<ApplyMeritsR
   revalidatePath("/student");
   revalidatePath("/student/clearance");
 
-  redirect(`/student/merits-demerits-and-services?applied=${requestKey}`);
+  // Replace, so Back from the result card does not reopen the wizard. Dropping
+  // ?semester= is safe: applying requires the current semester, the default view.
+  redirect(`/student/merits-demerits-and-services?applied=${requestKey}`, RedirectType.replace);
 }
