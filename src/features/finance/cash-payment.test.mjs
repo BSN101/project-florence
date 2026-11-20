@@ -242,6 +242,13 @@ describe("Task T-035 / FL-024: Cash Payment Recording Rules", () => {
   });
 
   describe("sanitizeCashPaymentError helper", () => {
+    test("explains that a pending transfer must be decided before cash is recorded", () => {
+      assert.equal(
+        sanitizeCashPaymentError({ code: "55000", message: "Selected obligation has a pending transfer" }),
+        "One or more selected obligations are on a transfer awaiting review. Verify or reject that transfer first."
+      );
+    });
+
     test("prioritizes self-recording error even when SQLSTATE 42501 is present", () => {
       const msg = sanitizeCashPaymentError({
         code: "42501",

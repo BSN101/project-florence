@@ -394,6 +394,9 @@ export function sanitizeCashPaymentError(
     if (msg.includes("Payment items must share beneficiary and semester")) {
       return "All selected obligations must belong to the same student and semester.";
     }
+    if (msg.includes("Selected obligation has a pending transfer")) {
+      return "One or more selected obligations are on a transfer awaiting review. Verify or reject that transfer first.";
+    }
     if (
       msg.includes("Selected obligation is waived or already settled") ||
       msg.includes("Double settlement forbidden") ||
