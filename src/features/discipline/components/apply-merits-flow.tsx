@@ -605,7 +605,7 @@ export function MeritApplicationResultCard({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-border/70 p-3 bg-card">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            {bucketLabel} Balance
+            Current {bucketLabel} Balance
           </span>
           <div className="mt-2 font-heading text-xl font-semibold tracking-tight tabular-nums">
             {targetBalance > 0 ? formatDays(targetBalance) : "0 days (Clear)"}
@@ -614,7 +614,7 @@ export function MeritApplicationResultCard({
 
         <div className="rounded-lg border border-border/70 p-3 bg-card">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Remaining Merits
+            Merits Available Now
           </span>
           <div className="mt-2 font-heading text-xl font-semibold tracking-tight tabular-nums">
             {formatDays(remainingAvailableMerits)}
@@ -623,7 +623,7 @@ export function MeritApplicationResultCard({
 
         <div className="rounded-lg border border-border/70 p-3 bg-card">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Overall Standing
+            Current Standing
           </span>
           <div className="mt-2 font-heading text-xl font-semibold tracking-tight tabular-nums">
             {summary.totalActiveBalance > 0
