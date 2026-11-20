@@ -133,7 +133,7 @@ export const disciplinaryBucketSchema = z.enum(["office", "rle"], {
 export const applyMeritsSchema = z.object({
   requestKey: z.string().uuid("Invalid request key."),
   bucket: disciplinaryBucketSchema,
-  days: meritDaysSchema,
+  days: meritDaysSchema.max(2147483647, "Days is too large."), // Postgres integer limit
 });
 
 export type ApplyMeritsInput = z.infer<typeof applyMeritsSchema>;
