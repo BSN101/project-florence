@@ -50,7 +50,7 @@ export function DisciplinaryBalanceCards({
             <div className="mt-2.5 pt-2 border-t border-border/50">
               <Link
                 href={applyOfficeHref}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline max-sm:min-h-11"
               >
                 Apply merits →
               </Link>
@@ -92,7 +92,7 @@ export function DisciplinaryBalanceCards({
             <div className="mt-2.5 pt-2 border-t border-border/50">
               <Link
                 href={applyRleHref}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline max-sm:min-h-11"
               >
                 Apply merits →
               </Link>

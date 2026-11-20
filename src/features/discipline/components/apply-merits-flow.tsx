@@ -251,7 +251,7 @@ export function ApplyMeritsFlow({
                   setError(null);
                 }}
                 className={cn(
-                  "flex flex-col justify-between rounded-lg border p-4 text-left transition-all",
+                  "flex flex-col justify-between rounded-lg border p-4 text-left",
                   summary.office.balance <= 0
                     ? "opacity-60 cursor-not-allowed border-border/50 bg-muted/20"
                     : bucket === "office"
@@ -294,7 +294,7 @@ export function ApplyMeritsFlow({
                   setError(null);
                 }}
                 className={cn(
-                  "flex flex-col justify-between rounded-lg border p-4 text-left transition-all",
+                  "flex flex-col justify-between rounded-lg border p-4 text-left",
                   summary.rle.balance <= 0
                     ? "opacity-60 cursor-not-allowed border-border/50 bg-muted/20"
                     : bucket === "rle"

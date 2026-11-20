@@ -99,7 +99,7 @@ export function StudentDisciplinaryView({
               variant={activeTab === "demerits" ? "default" : "ghost"}
               size="sm"
               onClick={() => handleTabChange("demerits")}
-              className="shrink-0 gap-2 text-xs"
+              className="shrink-0 gap-2 text-xs max-sm:min-h-11"
             >
               <FileWarning className="size-3.5" />
               <span>Demerits ({demerits.length})</span>
@@ -110,7 +110,7 @@ export function StudentDisciplinaryView({
               variant={activeTab === "merits" ? "default" : "ghost"}
               size="sm"
               onClick={() => handleTabChange("merits")}
-              className="shrink-0 gap-2 text-xs"
+              className="shrink-0 gap-2 text-xs max-sm:min-h-11"
             >
               <Award className="size-3.5" />
               <span>Merits ({merits.length})</span>
@@ -121,7 +121,7 @@ export function StudentDisciplinaryView({
               variant={activeTab === "services" ? "default" : "ghost"}
               size="sm"
               onClick={() => handleTabChange("services")}
-              className="shrink-0 gap-2 text-xs"
+              className="shrink-0 gap-2 text-xs max-sm:min-h-11"
             >
               <Clock className="size-3.5" />
               <span className="sm:hidden">Services ({serviceCredits.length})</span>
@@ -133,7 +133,7 @@ export function StudentDisciplinaryView({
             {isEligible ? (
               <Link
                 href={applyHref}
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 text-xs max-sm:w-full")}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 text-xs max-sm:min-h-11 max-sm:w-full")}
               >
                 <Award className="size-3.5" />
                 Apply merits
@@ -144,7 +144,7 @@ export function StudentDisciplinaryView({
                 variant="outline"
                 size="sm"
                 disabled
-                className="gap-1.5 text-xs max-sm:w-full"
+                className="gap-1.5 text-xs max-sm:min-h-11 max-sm:w-full"
                 aria-describedby={reasonId}
               >
                 <Award className="size-3.5" />
