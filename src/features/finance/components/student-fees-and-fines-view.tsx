@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { formatPhp } from "../calculations";
 import {
   canRecordCashForStudent,
+  canWaiveObligationForStudent,
   type ObligationWithStandingDTO,
   type StudentFinancialAccountData,
   type StudentPaymentAccountDTO,
@@ -205,6 +206,9 @@ export function StudentFeesAndFinesView({
   const isSelfStudent = Boolean(
     actorProfileId && !canRecordCashForStudent(actorProfileId, data.student.id)
   );
+  const canWaive = Boolean(
+    isCouncilView && canWaiveObligationForStudent(actorProfileId, data.student.id)
+  );
 
   const hasPriorOverdue = data.summary.priorSemestersOverduePayable > 0;
 
@@ -291,7 +295,7 @@ export function StudentFeesAndFinesView({
                 title="Officers are not permitted to record their own cash payments."
               />
               <span className="text-xs text-muted-foreground">
-                Self-recording is not permitted
+                Self-recording and self-waiver are not permitted
               </span>
             </div>
           )}
@@ -311,7 +315,13 @@ export function StudentFeesAndFinesView({
         </div>
 
         {activeSection === "obligations" ? (
-          <StudentObligationsTable obligations={data.obligations} />
+          <StudentObligationsTable
+            obligations={data.obligations}
+            isCouncilView={isCouncilView}
+            student={data.student}
+            canWaive={canWaive}
+            locationKey={currentLocation}
+          />
         ) : (
           <StudentPaymentHistoryTable
             payments={data.payments}
