@@ -1,8 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +30,6 @@ export function WaiveObligationDialog({
   student: { id: string; universityId: string | null; fullName: string };
   onClose: () => void;
 }) {
-  const router = useRouter();
   const reasonId = useId();
 
   const [reason, setReason] = useState("");
@@ -56,7 +54,6 @@ export function WaiveObligationDialog({
 
   function handleClose() {
     if (isPending) return;
-    if (doneMessage) router.refresh();
     onClose();
   }
 
@@ -75,7 +72,6 @@ export function WaiveObligationDialog({
     startTransition(async () => {
       const res = await waiveObligation({
         obligationId: obligation.id,
-        studentId: student.id,
         reason: trimmedReason,
         requestKey: key,
       });
@@ -153,15 +149,6 @@ export function WaiveObligationDialog({
                 </span>
               </div>
             </section>
-
-            {obligation.status === "pending_verification" && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <span className="leading-relaxed">
-                  This obligation is included on a transfer currently pending verification. Waiving it removes the debt immediately, so that transfer cannot settle it.
-                </span>
-              </div>
-            )}
 
             {error && (
               <div
