@@ -26,7 +26,12 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { formatPhDate, formatPhp } from "../calculations";
-import type { ObligationWithStandingDTO } from "../contracts";
+import {
+  isObligationWaivable,
+  type ObligationWithStandingDTO,
+  type StudentFinancialAccountData,
+} from "../contracts";
+import { WaiveObligationDialog } from "./waive-obligation-dialog";
 
 const PAGE_SIZE = 25;
 
@@ -46,13 +51,30 @@ const STANDING_OPTIONS = [
 
 export function StudentObligationsTable({
   obligations,
+  isCouncilView = false,
+  student,
+  canWaive = false,
+  locationKey,
 }: {
   obligations: ObligationWithStandingDTO[];
+  isCouncilView?: boolean;
+  student?: StudentFinancialAccountData["student"];
+  canWaive?: boolean;
+  locationKey?: string;
 }) {
   const [category, setCategory] = useState("all");
   const [standing, setStanding] = useState("all");
   const [inspectingWaiver, setInspectingWaiver] =
     useState<ObligationWithStandingDTO | null>(null);
+  const [waivingObligation, setWaivingObligation] =
+    useState<ObligationWithStandingDTO | null>(null);
+
+  const [seenLocationKey, setSeenLocationKey] = useState(locationKey);
+  if (seenLocationKey !== locationKey) {
+    setSeenLocationKey(locationKey);
+    setInspectingWaiver(null);
+    setWaivingObligation(null);
+  }
 
   const filteredObligations = obligations.filter(
     (item) =>
@@ -240,9 +262,20 @@ export function StudentObligationsTable({
                         <Info className="size-3.5 mr-1" />
                         Waiver Info
                       </Button>
+                    ) : canWaive && student && isObligationWaivable(item) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWaivingObligation(item)}
+                        className="h-7 gap-1 px-2.5 text-xs"
+                      >
+                        <ShieldCheck className="size-3.5" />
+                        <span>Waive</span>
+                      </Button>
                     ) : item.status === "pending_verification" ? (
                       <span className="text-[11px] text-muted-foreground">
-                        Transfer pending · Still payable
+                        {isCouncilView ? "Transfer pending · Decide the transfer first" : "Transfer pending · Still payable"}
                       </span>
                     ) : (
                       <span className="text-muted-foreground/60">—</span>
@@ -345,6 +378,15 @@ export function StudentObligationsTable({
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Modal Dialog for Waiving an Unpaid Obligation (Council View Only) */}
+      {isCouncilView && canWaive && student && waivingObligation && (
+        <WaiveObligationDialog
+          obligation={waivingObligation}
+          student={student}
+          onClose={() => setWaivingObligation(null)}
+        />
       )}
     </div>
   );

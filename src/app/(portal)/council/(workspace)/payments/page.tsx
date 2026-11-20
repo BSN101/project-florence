@@ -124,14 +124,23 @@ export default async function CouncilPaymentsPage({
           pendingReviews={pendingReviews}
           studentCount={students.length}
           transfers={
-            <div className="space-y-3">
-              <div className="flex justify-end">
-                <RefreshButton renderedAt={renderedAt} />
-              </div>
-              <Suspense fallback={<Skeleton className="h-32 w-full rounded-xl" />}>
-                <PendingTransferReviewSection reviews={pendingReviews} actorProfileId={access.profile.id} />
-              </Suspense>
-            </div>
+            <Suspense
+              fallback={
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="section-title">Transfers awaiting review</h2>
+                    <RefreshButton renderedAt={renderedAt} />
+                  </div>
+                  <Skeleton className="h-32 w-full rounded-xl" />
+                </div>
+              }
+            >
+              <PendingTransferReviewSection
+                reviews={pendingReviews}
+                actorProfileId={access.profile.id}
+                renderedAt={renderedAt}
+              />
+            </Suspense>
           }
           accounts={<CouncilFinancialRosterTable students={students} semesterId={semesterId} renderedAt={renderedAt} />}
         />

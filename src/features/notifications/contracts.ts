@@ -17,6 +17,7 @@ export const NOTIFICATION_KINDS = [
   "demerit_incurred",
   "service_recorded",
   "obligation_due",
+  "obligation_waived",
   "payment_verified",
   "payment_rejected",
   "council_access_changed",
@@ -65,6 +66,13 @@ export const NOTIFICATION_CONFIG: Record<NotificationKind, NotificationConfigIte
     icon: Receipt,
     href: "/student/fees-and-fines",
     badgeClass: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  },
+  obligation_waived: {
+    label: "Obligation Waived",
+    category: "finance",
+    icon: CheckCircle2,
+    href: "/student/fees-and-fines",
+    badgeClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
   },
   payment_verified: {
     label: "Payment Verified",
