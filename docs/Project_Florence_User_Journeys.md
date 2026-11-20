@@ -371,6 +371,53 @@ The selected obligations are immediately settled in full, the student's outstand
 - Council Representatives and non-Council roles cannot access the cash recording workflow or invoke the server action.
 - Recording cash settles the selected obligations immediately, updates payable and settled totals, and creates a `payment_verified` in-app notification for the student.
 
+## Endorse students for merit (Council)
+
+- **Author:** Andrei Catigan
+- **Actors:** Council Executive, Council Operations.
+- **Starts at:** Council workspace > Merit endorsements and Council demerits (`/council/merit-endorsements-and-council-demerits`) or a student's row/details on the Students page (`/council`); user must hold an active Council Executive or Operations role.
+- **References:** FL-031; Schema section 8.3 (`merit_endorsements`), Schema section 8.4 (`merits`), Schema section 12.1 (`notifications`).
+
+### Main flow
+
+1. The Council Executive or Operations officer navigates to Merit endorsements and Council demerits in the Council workspace, or clicks "Endorse for merit" in a student's row or details on the Students page.
+2. The system verifies Council Executive or Operations access and shows the Council disciplinary ledger for the selected semester. If the selected semester is the current semester, the "Endorse for merit" action is active; for historical semesters, it remains visible as disabled with an explanatory tooltip.
+3. The officer chooses "Endorse for merit". The in-page endorsement flow (`?endorse`) opens on the Students step, with the student already selected when deep-linked from directory rows or details.
+4. **Students:** the officer searches the current semester roster (`florence_roster`, excluding the officer's own student profile and archived students) and selects one or more candidate students.
+5. **Details:** the officer selects an assigned reviewer from the list of active Academic and Clinical Instructors (`florence_instructor_choices`), enters whole-day requested units (1 to 7, defaulting to 1), and enters the basis / justification (at least 3 characters). An informational callout clarifies that endorsements create pending recommendations awaiting instructor decision.
+6. **Review:** the page summarizes the recipient count, total requested units, assigned reviewer name and role, justification, and pending status. The officer confirms with a button naming the recipient count (for example, "Submit endorsement for 2 students").
+7. The system validates the input server-side, checks that the actor is not among the recipients, and runs `endorse_merit` once per student through the command client. Each recipient carries an independent client-generated request key created when the student was picked.
+8. The database inserts a row with `status = 'pending'`, `requested_days = p_days`, `assigned_instructor_id = p_instructor`, and `submitted_by = p_actor` into `public.merit_endorsements` for each student.
+9. The result page lists the students successfully endorsed and any that failed, with the specific reason. The ledger page is revalidated, and navigating back returns to the Merit Endorsements tab (`?tab=endorsements`).
+
+### System involvement
+
+- Table `merit_endorsements`: inserts rows with `status = 'pending'`, `requested_days`, `description`, `assigned_instructor_id`, `submitted_by = actor.profile.id`, and `semester_id = current_semester`.
+- Function `florence_instructor_choices`: retrieves active, Auth-linked Academic and Clinical Instructors without exposing arbitrary profile records.
+- Procedure `endorse_merit`: enforces Council access (`f_cmd_council`), active instructor assignment (`f_cmd_instructor`), non-self endorsement (`p_student <> p_actor`), positive whole-day units, active semester enrollment, and command-level idempotency (`f_cmd_begin`/`f_cmd_finish`). No student notification is dispatched on submission; notifications occur upon instructor approval in FL-032.
+- Server action `submitMeritEndorsementsAction`: checks Council Executive/Operations access via `requireWorkspace("council")`, rejects self-endorsement and archived recipients server-side, runs each recipient in an isolated `try...catch`, and revalidates paths.
+
+### Outcome
+
+Submitted merit endorsements appear in `public.merit_endorsements` with `status = 'pending'` and show under the Merit Endorsements tab in the Council disciplinary view. They become visible to the assigned instructor for decision in FL-032 / T-044.
+
+### Important alternatives
+
+- **Historical semester:** "Endorse for merit" is rendered as disabled with a tooltip explaining that endorsements can only be submitted for the active semester context.
+- **Self-endorsement prevention:** the Council officer is excluded from the student picker, the directory row hides the button on their own row, and the server action and `endorse_merit` RPC strictly reject `p_student = p_actor`.
+- **Some students fail:** endorsements already submitted remain recorded. The result page names each failed student and the reason, and the officer can retry or start over without duplicating recorded entries. Details lock after an attempt to prevent request key parameter drift.
+- **Connection drop or double-click:** each student's request key is bound to the submission payload, so replaying through `f_cmd_begin` returns the existing result instead of creating duplicates.
+
+### Acceptance checks
+
+- Only Council Executive and Operations officers can submit merit endorsements; Council Representatives and non-Council actors are denied.
+- Active Academic and Clinical Instructors populate the reviewer selector via `florence_instructor_choices`.
+- Self-endorsement is prevented at all layers (candidate picker, directory rows, server action, and RPC).
+- Requested units are whole days from 1 to 7 per student, enforced in the form and the server action.
+- Submitted endorsements enter `status = 'pending'` without triggering student notifications prematurely.
+- The 4-step wizard runs in-page within `WorkspaceShell` under `?endorse`, preserving `?tab=endorsements` upon completion with zero layout shifts.
+- Roster table and student detail dialog in `/council` provide contextual "Endorse for merit" triggers that collapse to icon-only on mobile.
+
 ## Verify or reject student transfer submission
 
 - **Author:** Reipoh Gabriel Arradaza

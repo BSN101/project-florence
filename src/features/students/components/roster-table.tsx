@@ -2,10 +2,28 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Award, FileWarning, GraduationCap, Search, Users } from "lucide-react";
+import {
+  Award,
+  FileWarning,
+  GraduationCap,
+  Mail,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Search,
+  Users,
+  XCircle,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   FilterSelect,
@@ -22,7 +40,10 @@ import { AcademicStatusBadge } from "./academic-status-badge";
 import { EditStudentDialog } from "./edit-student-dialog";
 import { InvitationStatusBadge } from "./invitation-status-badge";
 import { StudentDetailDialog } from "./student-detail-dialog";
-import { StudentRowActions } from "./student-invitation-dialogs";
+import {
+  CancelInvitationDialog,
+  InviteStudentDialog,
+} from "./student-invitation-dialogs";
 
 const YEAR_OPTIONS = [
   { value: "all", label: "All" },
@@ -55,10 +76,14 @@ export function RosterTable({
   students,
   canEdit,
   workspace = "council",
+  canEndorse = false,
+  currentProfileId,
 }: {
   students: StudentRosterItem[];
   canEdit: boolean;
   workspace?: "council" | "faculty";
+  canEndorse?: boolean;
+  currentProfileId?: string;
 }) {
   // Account and invitation state is Council's provisioning concern; faculty don't see it.
   const accounts = workspace === "council";
@@ -118,50 +143,6 @@ export function RosterTable({
     </>
   );
 
-  function actions(student: StudentRosterItem) {
-    return (
-      <div className="flex shrink-0 items-center justify-end gap-1">
-        {workspace === "faculty" && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              nativeButton={false}
-              className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-              render={
-                <Link
-                  href={`/faculty/my-merits-and-demerits?demerit&student=${student.student_id}`}
-                  aria-label={`Log demerit for ${sortName(student)}`}
-                />
-              }
-            >
-              <FileWarning className="size-3.5" />
-              <span className="max-sm:hidden">Log demerit</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              nativeButton={false}
-              className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-              render={
-                <Link
-                  href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`}
-                  aria-label={`Award merits to ${sortName(student)}`}
-                />
-              }
-            >
-              <Award className="size-3.5" />
-              <span className="max-sm:hidden">Award merits</span>
-            </Button>
-          </>
-        )}
-        <StudentRowActions student={student} canEdit={canEdit} />
-        <StudentDetailDialog student={student} canEdit={canEdit} workspace={workspace} />
-        {canEdit && <EditStudentDialog student={student} />}
-      </div>
-    );
-  }
-
   return (
     <TableFrame filters={filters} pager={pager}>
       {rows.length === 0 ? (
@@ -182,7 +163,15 @@ export function RosterTable({
                   <AcademicStatusBadge status={student.academic_status} size="sm" />
                   {accounts && <InvitationStatusBadge student={student} size="sm" />}
                 </div>
-                <div className="border-t border-border/60 pt-2">{actions(student)}</div>
+                <div className="border-t border-border/60 pt-2">
+                  <RosterRowActions
+                    student={student}
+                    canEdit={canEdit}
+                    workspace={workspace}
+                    canEndorse={canEndorse}
+                    currentProfileId={currentProfileId}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -195,7 +184,7 @@ export function RosterTable({
                 <th className="px-4 py-3">Year</th>
                 <th className="px-4 py-3">Status</th>
                 {accounts && <th className="px-4 py-3">Account / Invitation</th>}
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="w-36 px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -213,7 +202,15 @@ export function RosterTable({
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-foreground">Year {student.year_level}</td>
                   <td className="px-4 py-3"><AcademicStatusBadge status={student.academic_status} /></td>
                   {accounts && <td className="px-4 py-3"><InvitationStatusBadge student={student} size="md" /></td>}
-                  <td className="px-4 py-3">{actions(student)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <RosterRowActions
+                      student={student}
+                      canEdit={canEdit}
+                      workspace={workspace}
+                      canEndorse={canEndorse}
+                      currentProfileId={currentProfileId}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -221,5 +218,172 @@ export function RosterTable({
         </>
       )}
     </TableFrame>
+  );
+}
+
+function RosterRowActions({
+  student,
+  canEdit,
+  workspace = "council",
+  canEndorse = false,
+  currentProfileId,
+}: {
+  student: StudentRosterItem;
+  canEdit: boolean;
+  workspace?: "council" | "faculty";
+  canEndorse?: boolean;
+  currentProfileId?: string;
+}) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [reissueOpen, setReissueOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  const hasEmail = Boolean(student.email && student.email.trim() !== "");
+  const isPending = Boolean(student.pending_invitation_id);
+  const isExpired = student.invitation_state === "expired";
+  const isCancelled = student.invitation_state === "cancelled";
+
+  const canInvite = canEdit && !student.has_account && (!student.invitation_state || isCancelled) && hasEmail;
+  const canReissue = canEdit && !student.has_account && (isPending || isExpired) && hasEmail;
+  const canCancel = canEdit && !student.has_account && isPending;
+  const canEndorseStudent = workspace === "council" && canEndorse && student.student_id !== currentProfileId;
+  const isFaculty = workspace === "faculty";
+
+  const hasMenuActions = canEndorseStudent || isFaculty || canEdit || canInvite || canReissue || canCancel;
+
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-1">
+      <StudentDetailDialog
+        student={student}
+        canEdit={canEdit}
+        workspace={workspace}
+        canEndorse={canEndorse}
+        currentProfileId={currentProfileId}
+      />
+
+      {hasMenuActions && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                aria-label={`More actions for ${sortName(student)}`}
+                title="More actions"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-48">
+            {canEndorseStudent && (
+              <DropdownMenuItem
+                render={
+                  <Link
+                    href={`/council/merit-endorsements-and-council-demerits?endorse&student=${student.student_id}`}
+                  />
+                }
+              >
+                <Award className="size-4" />
+                <span>Endorse for merit</span>
+              </DropdownMenuItem>
+            )}
+
+            {isFaculty && (
+              <>
+                <DropdownMenuItem
+                  render={
+                    <Link
+                      href={`/faculty/my-merits-and-demerits?demerit&student=${student.student_id}`}
+                    />
+                  }
+                >
+                  <FileWarning className="size-4" />
+                  <span>Log demerit</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  render={
+                    <Link
+                      href={`/faculty/my-merits-and-demerits?award&student=${student.student_id}`}
+                    />
+                  }
+                >
+                  <Award className="size-4" />
+                  <span>Award merits</span>
+                </DropdownMenuItem>
+              </>
+            )}
+
+            {canEdit && (
+              <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4" />
+                <span>Edit details</span>
+              </DropdownMenuItem>
+            )}
+
+            {canInvite && (
+              <DropdownMenuItem onClick={() => setInviteOpen(true)}>
+                <Mail className="size-4" />
+                <span>{isCancelled ? "Re-invite student" : "Invite student"}</span>
+              </DropdownMenuItem>
+            )}
+
+            {canReissue && (
+              <DropdownMenuItem onClick={() => setReissueOpen(true)}>
+                <RefreshCw className="size-4" />
+                <span>Reissue invitation</span>
+              </DropdownMenuItem>
+            )}
+
+            {canCancel && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setCancelOpen(true)}
+                >
+                  <XCircle className="size-4" />
+                  <span>Cancel invitation</span>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      {canEdit && (
+        <EditStudentDialog
+          student={student}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
+
+      {/* Mounted on account state, not invitation state: a successful invite or
+          cancel flips canInvite/canCancel, and unmounting would hide the result. */}
+      {canEdit && !student.has_account && (
+        <>
+          <InviteStudentDialog
+            student={student}
+            open={inviteOpen}
+            onOpenChange={setInviteOpen}
+            isReissue={false}
+          />
+          <InviteStudentDialog
+            student={student}
+            open={reissueOpen}
+            onOpenChange={setReissueOpen}
+            isReissue={true}
+          />
+          <CancelInvitationDialog
+            student={student}
+            open={cancelOpen}
+            onOpenChange={setCancelOpen}
+          />
+        </>
+      )}
+    </div>
   );
 }

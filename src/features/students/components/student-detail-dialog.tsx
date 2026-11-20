@@ -30,10 +30,14 @@ export function StudentDetailDialog({
   student,
   canEdit = false,
   workspace,
+  canEndorse = false,
+  currentProfileId,
 }: {
   student: StudentRosterItem;
   canEdit?: boolean;
   workspace?: "council" | "faculty";
+  canEndorse?: boolean;
+  currentProfileId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -279,6 +283,21 @@ export function StudentDetailDialog({
                   <Award className="size-4" /> Award merits
                 </Button>
               </>
+            )}
+            {workspace === "council" && canEndorse && student.student_id !== currentProfileId && (
+              <Button
+                variant="outline"
+                nativeButton={false}
+                className="w-full gap-1.5 sm:w-auto"
+                render={
+                  <Link
+                    href={`/council/merit-endorsements-and-council-demerits?endorse&student=${student.student_id}`}
+                    onClick={() => setOpen(false)}
+                  />
+                }
+              >
+                <Award className="size-4" /> Endorse for merit
+              </Button>
             )}
             <Button
               type="button"

@@ -81,3 +81,43 @@ export const logFacultyDemeritsSchema = z
   });
 
 export type LogFacultyDemeritsInput = z.infer<typeof logFacultyDemeritsSchema>;
+
+// ---------------------------------------------------------------------------
+// Merit endorsement schemas (FL-031 / T-043)
+// ---------------------------------------------------------------------------
+
+/** Product cap per endorsement; approval creates one merit row per day, so a typo must not mint hundreds. */
+export const MAX_ENDORSEMENT_DAYS = 7;
+
+/** Whole-day units, 1 to MAX_ENDORSEMENT_DAYS. `endorse_merit` checks only that days are positive. */
+export const requestedDaysSchema = z.coerce
+  .number()
+  .int("Days must be a whole number.")
+  .min(1, "Days must be at least 1.")
+  .max(MAX_ENDORSEMENT_DAYS, `Days cannot exceed ${MAX_ENDORSEMENT_DAYS}.`);
+
+export const endorsementDescriptionSchema = z
+  .string()
+  .trim()
+  .min(3, "Description must be at least 3 characters.")
+  .max(500, "Description cannot exceed 500 characters.");
+
+export const submitMeritEndorsementsSchema = z.object({
+  recipients: z
+    .array(
+      z.object({
+        studentId: z.string().uuid("Invalid student identifier."),
+        requestKey: z.string().uuid("Invalid request key."),
+      })
+    )
+    .min(1, "Select at least one student.")
+    .refine(
+      (list) => new Set(list.map((r) => r.studentId)).size === list.length,
+      "Each student can be selected once."
+    ),
+  instructorId: z.string().uuid("Select an assigned instructor."),
+  requestedDays: requestedDaysSchema,
+  description: endorsementDescriptionSchema,
+});
+
+export type SubmitMeritEndorsementsInput = z.infer<typeof submitMeritEndorsementsSchema>;

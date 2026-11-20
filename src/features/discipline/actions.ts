@@ -5,12 +5,20 @@ import { revalidatePath } from "next/cache";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 import { getTodayManila, instructorBucket } from "./calculations";
-import { awardDirectMeritsSchema, logFacultyDemeritsSchema } from "./schemas";
+import {
+  awardDirectMeritsSchema,
+  logFacultyDemeritsSchema,
+  submitMeritEndorsementsSchema,
+} from "./schemas";
 
 const RPC_MESSAGES: [string, string][] = [
   ["Incident date must be within current context and not future", "The incident date must fall within the current semester and cannot be in the future."],
   ["Self disciplinary entry forbidden", "You cannot issue demerits to yourself."],
   ["Self award forbidden", "You cannot award merits to yourself."],
+  ["Self endorsement forbidden", "You cannot endorse yourself for merits."],
+  ["Council action not authorized", "You are not authorized to endorse students for merits."],
+  ["Positive days and description required", "Requested days and description are required."],
+  ["Activate a semester before creating academic records", "There is no active semester configured."],
   ["Student enrollment in the specified semester required", "Not enrolled in the current semester."],
   ["Matching instructor assignment required", "Only Academic or Clinical Instructors can award merits or log demerits."],
   ["Active misconduct option required", "The selected misconduct option is no longer active."],
@@ -22,9 +30,19 @@ const RPC_MESSAGES: [string, string][] = [
   ["Bucket required", "Select Office or RLE."],
 ];
 
+// In endorse_merit the instructor check is on the chosen reviewer, not the Council actor.
+const ENDORSEMENT_MESSAGES: [string, string][] = [
+  ["Matching instructor assignment required", "The selected instructor can no longer review endorsements. Choose another instructor."],
+  ...RPC_MESSAGES,
+];
+
 // Database messages are not shown as-is; unknown ones get a generic message.
-function formatRpcError(message: string, fallback = "Unable to record this award. Try again."): string {
-  return RPC_MESSAGES.find(([match]) => message.includes(match))?.[1] ?? fallback;
+function formatRpcError(
+  message: string,
+  fallback = "Unable to record this award. Try again.",
+  messages = RPC_MESSAGES,
+): string {
+  return messages.find(([match]) => message.includes(match))?.[1] ?? fallback;
 }
 
 export type AwardFailure = { studentId: string; error: string };
@@ -157,6 +175,94 @@ export async function logFacultyDemeritsAction(rawInput: unknown): Promise<LogFa
     success: false,
     error: recordedIds.length ? "Some demerits were not recorded." : "No demerits were recorded.",
     recordedIds,
+    failures,
+  };
+}
+
+export type EndorsementFailure = { studentId: string; error: string };
+
+export type SubmitMeritEndorsementsResult =
+  | { success: true; endorsedIds: string[] }
+  | { success: false; error: string; endorsedIds: string[]; failures: EndorsementFailure[] };
+
+function rejectedEndorsement(error: string): SubmitMeritEndorsementsResult {
+  return { success: false, error, endorsedIds: [], failures: [] };
+}
+
+/**
+ * Submits merit recommendations for student(s) with an assigned reviewer instructor (FL-031).
+ * Submission places the endorsement in 'pending' status; usable merit is awarded only upon instructor approval (FL-032).
+ * Each recipient is executed as an isolated idempotent command, so partial failures report clearly.
+ */
+export async function submitMeritEndorsementsAction(rawInput: unknown): Promise<SubmitMeritEndorsementsResult> {
+  let context: Awaited<ReturnType<typeof requireWorkspace>>;
+  try {
+    context = await requireWorkspace("council");
+  } catch (err) {
+    return rejectedEndorsement(
+      err instanceof AccessDeniedError ? "You are not permitted to submit merit endorsements." : "Unable to verify your access. Try again."
+    );
+  }
+
+  if (context.councilRole !== "executive" && context.councilRole !== "operations") {
+    return rejectedEndorsement("Only Council Executive and Operations officers can submit merit endorsements.");
+  }
+
+  const parsed = submitMeritEndorsementsSchema.safeParse(rawInput);
+  if (!parsed.success) return rejectedEndorsement(parsed.error.issues[0]?.message ?? "Check the endorsement details.");
+
+  const { recipients, instructorId, requestedDays, description } = parsed.data;
+  const actorId = context.profile.id;
+
+  if (recipients.some((r) => r.studentId === actorId)) {
+    return rejectedEndorsement("You cannot endorse yourself for merits.");
+  }
+
+  const client = createCommandClient();
+
+  // endorse_merit checks enrollment only; archived profiles are denied here (AGENTS.md §5).
+  const { data: archived, error: archivedError } = await client
+    .from("profiles")
+    .select("id")
+    .in("id", recipients.map((r) => r.studentId))
+    .eq("account_status", "archived");
+  if (archivedError) return rejectedEndorsement("Unable to check the selected students. Try again.");
+  if (archived.length) return rejectedEndorsement("Archived students cannot be endorsed for merit.");
+
+  const endorsedIds: string[] = [];
+  const failures: EndorsementFailure[] = [];
+
+  for (const { studentId, requestKey } of recipients) {
+    try {
+      const { error } = await client.rpc("endorse_merit", {
+        p_key: requestKey,
+        p_actor: actorId,
+        p_student: studentId,
+        p_instructor: instructorId,
+        p_days: requestedDays,
+        p_description: description.trim(),
+      });
+      if (error) {
+        failures.push({
+          studentId,
+          error: formatRpcError(error.message, "Unable to submit this endorsement. Try again.", ENDORSEMENT_MESSAGES),
+        });
+      } else {
+        endorsedIds.push(studentId);
+      }
+    } catch {
+      failures.push({ studentId, error: "Unable to reach the server. Try again." });
+    }
+  }
+
+  if (endorsedIds.length) {
+    revalidatePath("/council/merit-endorsements-and-council-demerits");
+  }
+  if (!failures.length) return { success: true, endorsedIds };
+  return {
+    success: false,
+    error: endorsedIds.length ? "Some endorsements were not submitted." : "No endorsements were submitted.",
+    endorsedIds,
     failures,
   };
 }

@@ -24,8 +24,20 @@ import {
 import { updateStudentAction } from "../actions";
 import type { StudentActionResult, StudentRosterItem } from "../contracts";
 
-export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
-  const [open, setOpen] = useState(false);
+export function EditStudentDialog({
+  student,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: {
+  student: StudentRosterItem;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (controlledOnOpenChange ?? (() => {})) : setInternalOpen;
+
   const [lastName, setLastName] = useState(student.last_name);
   const [firstName, setFirstName] = useState(student.first_name);
   const [middleName, setMiddleName] = useState(student.middle_name ?? "");
@@ -36,9 +48,12 @@ export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
     student.academic_status,
   );
 
-  // Re-read the latest roster values each time the dialog opens.
-  const handleOpenChange = (next: boolean) => {
-    if (next) {
+  // Re-read the latest roster values on every open, including opens from a
+  // controlling parent, so cancelled edits and stale data never come back.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
       setLastName(student.last_name);
       setFirstName(student.first_name);
       setMiddleName(student.middle_name ?? "");
@@ -47,8 +62,7 @@ export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
       setYearLevel(student.year_level.toString());
       setAcademicStatus(student.academic_status);
     }
-    setOpen(next);
-  };
+  }
 
   const [state, formAction, isPending] = useActionState(
     async (prev: StudentActionResult | null, formData: FormData) => {
@@ -62,15 +76,17 @@ export function EditStudentDialog({ student }: { student: StudentRosterItem }) {
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
-            <Pencil className="size-3.5 text-muted-foreground" />
-            Edit
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={(next) => setOpen(next)}>
+      {!isControlled && (
+        <DialogTrigger
+          render={
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-medium">
+              <Pencil className="size-3.5 text-muted-foreground" />
+              Edit
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader className="text-left">
           <DialogTitle className="font-heading text-lg font-medium text-foreground">
