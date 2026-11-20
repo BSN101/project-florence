@@ -262,35 +262,20 @@ export function StudentObligationsTable({
                         <Info className="size-3.5 mr-1" />
                         Waiver Info
                       </Button>
-                    ) : isCouncilView && student && isObligationWaivable(item) ? (
-                      <div className="inline-flex items-center justify-end gap-2">
-                        {item.status === "pending_verification" && (
-                          <span className="text-[11px] text-muted-foreground">
-                            Transfer pending
-                          </span>
-                        )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={!canWaive}
-                          title={
-                            canWaive
-                              ? "Waive or cancel this unpaid obligation"
-                              : "Officers are not permitted to waive their own obligations."
-                          }
-                          onClick={() => {
-                            if (canWaive) setWaivingObligation(item);
-                          }}
-                          className="h-7 gap-1 px-2.5 text-xs"
-                        >
-                          <ShieldCheck className="size-3.5" />
-                          <span>Waive</span>
-                        </Button>
-                      </div>
+                    ) : canWaive && student && isObligationWaivable(item) ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWaivingObligation(item)}
+                        className="h-7 gap-1 px-2.5 text-xs"
+                      >
+                        <ShieldCheck className="size-3.5" />
+                        <span>Waive</span>
+                      </Button>
                     ) : item.status === "pending_verification" ? (
                       <span className="text-[11px] text-muted-foreground">
-                        Transfer pending · Still payable
+                        {isCouncilView ? "Transfer pending · Decide the transfer first" : "Transfer pending · Still payable"}
                       </span>
                     ) : (
                       <span className="text-muted-foreground/60">—</span>
