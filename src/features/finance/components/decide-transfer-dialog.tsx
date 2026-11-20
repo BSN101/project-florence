@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -61,7 +60,6 @@ export function DecideTransferDialog({
   review: PendingTransferReviewDTO;
   onClose: () => void;
 }) {
-  const router = useRouter();
   const receivedAtId = useId();
   const refundedAtId = useId();
   const reasonId = useId();
@@ -123,7 +121,6 @@ export function DecideTransferDialog({
 
   function handleClose() {
     if (isPending) return;
-    if (doneMessage) router.refresh();
     onClose();
   }
 
