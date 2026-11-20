@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertTriangle, Award, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StudentDisciplinarySummary } from "../contracts";
@@ -7,8 +8,12 @@ const formatDays = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
 export function DisciplinaryBalanceCards({
   summary,
+  applyOfficeHref,
+  applyRleHref,
 }: {
   summary: StudentDisciplinarySummary;
+  applyOfficeHref?: string;
+  applyRleHref?: string;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -41,6 +46,16 @@ export function DisciplinaryBalanceCards({
             {summary.office.activeDemerits} demerits · {summary.office.appliedMerits} applied merits ·{" "}
             {summary.office.activeServiceCredits} duty credits
           </p>
+          {applyOfficeHref ? (
+            <div className="mt-2.5 pt-2 border-t border-border/50">
+              <Link
+                href={applyOfficeHref}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                Apply merits →
+              </Link>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -73,6 +88,16 @@ export function DisciplinaryBalanceCards({
             {summary.rle.activeDemerits} demerits · {summary.rle.appliedMerits} applied merits ·{" "}
             {summary.rle.activeServiceCredits} duty credits
           </p>
+          {applyRleHref ? (
+            <div className="mt-2.5 pt-2 border-t border-border/50">
+              <Link
+                href={applyRleHref}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                Apply merits →
+              </Link>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

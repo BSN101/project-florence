@@ -91,7 +91,11 @@ export function MeritsTable({
               </td>
               <td className="px-4 py-3 whitespace-nowrap">
                 {hasStatus ? (
-                  <MeritStatusBadge isApplied={m.isApplied} isExpired={m.isExpired} />
+                  <MeritStatusBadge
+                    isApplied={m.isApplied}
+                    isExpired={m.isExpired}
+                    appliedBucket={m.appliedBucket}
+                  />
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
