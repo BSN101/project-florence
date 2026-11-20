@@ -30,14 +30,12 @@ describe("Task T-037 / FL-026: Unpaid Obligation Waiver Rules", () => {
     test("accepts valid waiver payload and trims the attributable reason", () => {
       const parsed = waiveObligationSchema.safeParse({
         obligationId: validObligationId1,
-        studentId: validStudentId,
         reason: "   Approved medical exemption for General Assembly   ",
         requestKey: validRequestKey,
       });
       assert.equal(parsed.success, true);
       if (parsed.success) {
         assert.equal(parsed.data.obligationId, validObligationId1);
-        assert.equal(parsed.data.studentId, validStudentId);
         assert.equal(
           parsed.data.reason,
           "Approved medical exemption for General Assembly"
@@ -50,7 +48,6 @@ describe("Task T-037 / FL-026: Unpaid Obligation Waiver Rules", () => {
       for (const badReason of ["", "   ", "\n\t"]) {
         const res = waiveObligationSchema.safeParse({
           obligationId: validObligationId1,
-          studentId: validStudentId,
           reason: badReason,
           requestKey: validRequestKey,
         });
@@ -67,7 +64,6 @@ describe("Task T-037 / FL-026: Unpaid Obligation Waiver Rules", () => {
     test("rejects waiver reasons exceeding 500 characters", () => {
       const res = waiveObligationSchema.safeParse({
         obligationId: validObligationId1,
-        studentId: validStudentId,
         reason: "a".repeat(501),
         requestKey: validRequestKey,
       });
@@ -80,21 +76,15 @@ describe("Task T-037 / FL-026: Unpaid Obligation Waiver Rules", () => {
       }
     });
 
-    test("requires valid UUIDs for obligationId, studentId, and requestKey", () => {
+    test("requires valid UUIDs for obligationId and requestKey", () => {
       const base = {
         obligationId: validObligationId1,
-        studentId: validStudentId,
         reason: "Cancelled duplicate fee assessment",
         requestKey: validRequestKey,
       };
 
       assert.equal(
         waiveObligationSchema.safeParse({ ...base, obligationId: "bad-uuid" })
-          .success,
-        false
-      );
-      assert.equal(
-        waiveObligationSchema.safeParse({ ...base, studentId: "bad-uuid" })
           .success,
         false
       );
@@ -106,7 +96,6 @@ describe("Task T-037 / FL-026: Unpaid Obligation Waiver Rules", () => {
       assert.equal(
         waiveObligationSchema.safeParse({
           obligationId: validObligationId1,
-          studentId: validStudentId,
           reason: "Cancelled duplicate fee assessment",
         }).success,
         false
@@ -143,11 +132,11 @@ describe("Task T-037 / FL-026: Unpaid Obligation Waiver Rules", () => {
       assert.equal(canWaiveObligationForStudent("", validStudentId), false);
     });
 
-    test("isObligationWaivable allows unpaid and pending_verification items, and blocks settled or already waived items", () => {
+    test("isObligationWaivable allows only unpaid items; pending-transfer, settled and waived items are blocked", () => {
       assert.equal(isObligationWaivable({ status: "unpaid" }), true);
       assert.equal(
         isObligationWaivable({ status: "pending_verification" }),
-        true
+        false
       );
       assert.equal(isObligationWaivable({ status: "settled" }), false);
       assert.equal(isObligationWaivable({ status: "waived" }), false);
@@ -157,6 +146,13 @@ describe("Task T-037 / FL-026: Unpaid Obligation Waiver Rules", () => {
   });
 
   describe("sanitizeWaiveObligationError helper", () => {
+    test("explains that a pending transfer must be decided before waiving", () => {
+      assert.equal(
+        sanitizeWaiveObligationError({ code: "55000", message: "Obligation has a pending transfer" }),
+        "This obligation is on a transfer awaiting review. Verify or reject that transfer first."
+      );
+    });
+
     test("prioritizes self-waiver error even when SQLSTATE 42501 is present", () => {
       for (const message of [
         "Self debt waiver forbidden",
