@@ -23,8 +23,8 @@ import type {
   AvailableMerit,
   DisciplinaryBucket,
   StudentDisciplinarySummary,
+  StudentMeritApplicationGroup,
 } from "../contracts";
-import type { StudentMeritApplicationGroup } from "../queries";
 import { BucketBadge } from "./disciplinary-badges";
 
 type Step = "configure" | "review";

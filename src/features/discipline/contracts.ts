@@ -36,6 +36,12 @@ export type AvailableMerit = Pick<
 
 export type MeritApplicationRecord = Tables["merit_applications"]["Row"];
 
+/** One student merit application, shown on the result card. */
+export type StudentMeritApplicationGroup = Pick<
+  MeritApplicationRecord,
+  "application_group_id" | "bucket" | "applied_at"
+> & { applied_days: number };
+
 export type ServiceCreditRecord = Omit<Tables["service_credits"]["Row"], "session_id"> & {
   issuer_name: string | null;
 };

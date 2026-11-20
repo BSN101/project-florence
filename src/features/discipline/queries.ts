@@ -8,6 +8,7 @@ import { createUserClient } from "@/server/db/user-client";
 
 import { calculateDisciplinarySummary, evaluateMeritState, getAvailableMeritsFifo, getTodayManila } from "./calculations";
 import type {
+  StudentMeritApplicationGroup,
   CouncilDisciplinaryViewData,
   DisciplinaryBucket,
   DisciplinaryLedger,
@@ -168,13 +169,6 @@ export async function getMyDisciplinaryRecords(semesterId: string) {
 }
 
 const UUID_SCHEMA = z.string().uuid();
-
-export type StudentMeritApplicationGroup = {
-  application_group_id: string;
-  bucket: DisciplinaryBucket;
-  applied_days: number;
-  applied_at: string;
-};
 
 /**
  * Verifies that an application group belongs to the authenticated student and returns its summary details.
