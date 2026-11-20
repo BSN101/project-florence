@@ -464,3 +464,45 @@ When verified, the transfer receives a stable receipt, the covered obligations b
 - All four decision modes (`received`, `no_receipt`, `duplicate`, `returned`) enforce operator confirmation and their required timestamps, reasons, and receipt selections.
 - Rejected transfers (`no_receipt`, `duplicate`, `returned`) never count toward settled revenue; `duplicate` creates no second receipt or refund, and `returned` retains both the receipt and refund record.
 - Verifying or rejecting a transfer immediately creates a `payment_verified` or `payment_rejected` in-app notification for the student and refreshes the Council and Student financial views.
+
+## Waive unpaid student obligation
+
+- **Author:** Reipoh Gabriel Arradaza
+- **Actors:** Council Executive, Council Operations, Student (beneficiary).
+- **Starts at:** Council workspace > Payments (`/council/payments`), inside a selected student's ledger under the "Obligations & Dues" tab; user must hold an active Council Executive or Operations role.
+- **References:** FL-026, FL-021, FL-022, FL-023; database schema (`docs/database/schema.dbml`: `obligations`, `payments`, `payment_items`).
+
+### Main flow
+
+1. The Council Executive or Operations officer opens Payments in the Council workspace, selects the "Student Financial Accounts & Payments" tab, and clicks "View" on a student to open their individual financial ledger.
+2. In the "Obligations & Dues" tab, the officer locates an unsettled obligation (either `unpaid` or `pending_verification`) and clicks "Waive" in the row's Details column.
+3. The system opens the "Waive unpaid obligation" confirmation dialog displaying the student's name and university ID, the obligation description, category (`Fee` or `Fine`), academic term, and full amount to waive. If the obligation is currently included on a pending transfer submission, the dialog displays a warning that waiving removes the debt immediately so that transfer cannot settle it.
+4. The officer enters an attributable reason for the waiver or obligation cancellation (1–500 characters) and submits the waiver.
+5. The system validates the input server-side, verifies Council Executive or Operations authority and non-self eligibility, and calls the `waive_obligation` RPC with a client-generated idempotency request key (`requestKey`).
+6. In one transaction, the database locks the obligation row, verifies it belongs to another student and remains unsettled and non-waived, and records `waived_at = now()`, `waived_by = actor`, and `waiver_reason`.
+7. The dialog confirms that the obligation has been waived and removed from the student's payable balance; closing the dialog refreshes the ledger, changing the row's standing to "Waived" with a "Waiver Info" audit button.
+
+### System involvement
+
+- Table `obligations`: updates an unsettled, non-waived row with `waived_at = now()`, `waived_by = actor`, and `waiver_reason = reason` under `f_access_private.obligation_guard` and `f_access_private.obligation_settled_check` (which ensures a waived obligation is never simultaneously settled by a verified current payment).
+- Procedure `waive_obligation`: enforces Executive or Operations authority (`f_cmd_council`), row-level obligation locking (`f_cmd_lock_obligations`), self-waiver prohibition (`o.student_id <> p_actor`), unsettled and non-waived precondition (`not f_cmd_settled(o.id) and o.waived_at is null`), non-blank reason validation, and request-level idempotency (`f_cmd_begin`/`f_cmd_finish`).
+- Server action `waiveObligation`: enforces `assertAuthorizedCouncilManager()`, validates input with `waiveObligationSchema`, blocks self-waiver before calling the RPC, sanitizes database errors, and revalidates `/council/payments`, `/council/clearance`, and `/student/fees-and-fines`.
+
+### Outcome
+
+The obligation's standing becomes `waived`, reducing what the student owes (`totalOutstandingPayable` and `currentSemesterPayable` or `priorSemestersOverduePayable`) and increasing `totalWaivedAmount` without altering any money already received. Both Council officers and the recipient student can inspect the waiver date and documented reason via the "Waiver Info" dialog. Because waiver also covers the agreed obligation cancellation use case, no separate cancellation or deletion action exists.
+
+### Important alternatives
+
+- **Self-Waiver Blocked:** When a Council Executive or Operations officer inspects their own student financial account, a self-restriction notice is shown, every "Waive" button on their own obligations is disabled with an explanatory tooltip, and both the `waiveObligation` server action and `waive_obligation` RPC (plus `obligation_guard`) reject `student_id = actor`.
+- **Settled Obligations Protected:** Obligations already settled by a verified current cash or transfer payment display the "Settled" badge with no "Waive" action, and `waive_obligation` / `obligation_settled_check` reject waiving settled debt.
+- **Obligation Included on a Pending Transfer:** Because a pending transfer does not settle debt (FL-023), the obligation can still be waived. Once waived, any subsequent attempt to verify (`received`) that pending transfer is blocked by `verify_payment` (`"Cannot settle waived debt"`), so the officer rejects the transfer according to actual money movement (`no_receipt`, `duplicate`, or `returned`).
+- **Concurrent Settlement or Retry:** Locking the obligation row prevents concurrent settlement and waiver; if another officer already waived or settled the row, the action returns a clear status message. Retrying an unchanged request reuses the locked `requestKey` and replays the original result via `f_cmd_begin`/`f_cmd_finish`.
+
+### Acceptance checks
+
+- Council Executive and Operations officers can waive unpaid fee and fine obligations (including obligations from prior terms and obligations on unverified transfers) with a required attributable reason.
+- Council Representatives, Faculty, Platform Admins, and Students cannot invoke the waiver workflow or server action.
+- Officers cannot waive obligations on their own student account (enforced in the UI, server action, RPC, and database trigger).
+- Settled obligations cannot be waived; waivers only change what is owed, never money already received.
+- Waived obligations immediately update payable and waived summary totals and expose their recorded waiver timestamp and reason in both the Council and Student workspaces.
