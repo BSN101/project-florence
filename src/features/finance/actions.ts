@@ -17,13 +17,16 @@ import {
   type RecordCashPaymentResult,
   type SubmitTransferResult,
   type TransferDecisionResult,
+  type WaiveObligationResult,
   canDecideTransferForStudent,
   canRecordCashForStudent,
+  canWaiveObligationForStudent,
   hasSameSemesterObligations,
   sanitizeCashPaymentError,
   sanitizePaymentAccountError,
   sanitizeTransferDecisionError,
   sanitizeTransferSubmissionError,
+  sanitizeWaiveObligationError,
 } from "./contracts";
 import {
   assertAuthorizedCouncilExecutive,
@@ -43,6 +46,7 @@ import {
   transferDecisionSchema,
   updateDefinitionSchema,
   updatePaymentAccountSchema,
+  waiveObligationSchema,
   type ArchiveDefinitionInput,
   type ArchivePaymentAccountInput,
   type CreateDefinitionInput,
@@ -54,6 +58,7 @@ import {
   type TransferDecisionInput,
   type UpdateDefinitionInput,
   type UpdatePaymentAccountInput,
+  type WaiveObligationInput,
 } from "./schemas";
 
 /**
@@ -1177,3 +1182,80 @@ export async function decideTransfer(
     return { success: false, error: sanitizeTransferDecisionError(null) };
   }
 }
+
+/**
+ * Waive an unpaid fee or fine obligation with attributable reason (FL-026 / T-037).
+ * Covers unpaid obligation waivers and cancellations; changes what is owed, never money already received.
+ * Enforces Council Executive/Operations authority and the self-waiver prohibition in both the server action
+ * and the atomic waive_obligation RPC under row-level obligation lock.
+ */
+export async function waiveObligation(
+  input: WaiveObligationInput
+): Promise<WaiveObligationResult> {
+  try {
+    const context = await assertAuthorizedCouncilManager();
+    const parsed = waiveObligationSchema.safeParse(input);
+    if (!parsed.success) {
+      const issues = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+      return {
+        success: false,
+        error: Object.values(issues).flat()[0] ?? "Invalid obligation waiver input",
+        issues,
+      };
+    }
+
+    if (!canWaiveObligationForStudent(context.profile.id, parsed.data.studentId)) {
+      return {
+        success: false,
+        error: "Officers are not permitted to waive their own obligations.",
+      };
+    }
+
+    // waive_obligation locks the obligation row and re-verifies owner, unpaid standing, and non-waived status.
+    const { data, error } = await createCommandClient().rpc("waive_obligation", {
+      p_key: parsed.data.requestKey,
+      p_actor: context.profile.id,
+      p_obligation: parsed.data.obligationId,
+      p_reason: parsed.data.reason,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        error: sanitizeWaiveObligationError(error),
+        retryWithNewKey: true,
+      };
+    }
+
+    const result = data as {
+      obligation_id: string;
+      waived_at: string;
+    } | null;
+
+    if (!result?.obligation_id || !result.waived_at) {
+      return {
+        success: false,
+        error: "The waiver returned no result. Refresh the page to check the obligation's status before retrying.",
+      };
+    }
+
+    revalidatePath("/council/payments");
+    revalidatePath("/council/clearance");
+    revalidatePath("/student/fees-and-fines");
+    return {
+      success: true,
+      obligationId: result.obligation_id,
+      waivedAt: result.waived_at,
+      message: "Obligation waived.",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may waive unpaid obligations",
+      };
+    }
+    return { success: false, error: sanitizeWaiveObligationError(null) };
+  }
+}
+
