@@ -22,7 +22,17 @@ export type MeritRecord = Omit<Tables["merits"]["Row"], "award_request_key" | "a
   // Omitted for ordinary instructors, who cannot see merit applications.
   isApplied?: boolean;
   isExpired?: boolean;
+  appliedBucket?: DisciplinaryBucket | null;
 };
+
+/**
+ * Unexpired, unapplied merit unit for FIFO selection and application preview.
+ * Includes description so students can review the merit reason alongside validity dates.
+ */
+export type AvailableMerit = Pick<
+  MeritRecord,
+  "id" | "awarded_on" | "expires_on" | "description"
+>;
 
 export type MeritApplicationRecord = Tables["merit_applications"]["Row"];
 
