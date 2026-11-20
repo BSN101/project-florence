@@ -533,3 +533,93 @@ export type PendingTransferReviewDTO = Pick<
   items: Array<{ obligation_id: string; description: string; amount: number }>;
   existingReceipts: ExistingReceiptOptionDTO[];
 };
+
+/**
+ * Standardized action result for waiving an unpaid obligation (FL-026 / T-037).
+ */
+export type WaiveObligationResult =
+  | {
+      success: true;
+      obligationId: string;
+      waivedAt: string;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      issues?: Record<string, string[]>;
+      /** Nothing was committed, so the next attempt must use a new request key. */
+      retryWithNewKey?: boolean;
+    };
+
+/**
+ * Pure self-benefit check for waiving unpaid obligations (FL-026 / T-037).
+ * Officers may not waive their own obligations.
+ */
+export function canWaiveObligationForStudent(
+  actorProfileId: string | null | undefined,
+  studentId: string | null | undefined
+): boolean {
+  return Boolean(actorProfileId && studentId && actorProfileId !== studentId);
+}
+
+/**
+ * Pure eligibility check for whether an obligation can be waived (FL-026 / T-037).
+ * Only unpaid obligations (including those with a pending, unverified transfer) may be waived;
+ * settled and already-waived obligations cannot be waived.
+ */
+export function isObligationWaivable(
+  obligation: Pick<ObligationWithStandingDTO, "status"> | null | undefined
+): boolean {
+  return Boolean(
+    obligation &&
+      (obligation.status === "unpaid" || obligation.status === "pending_verification")
+  );
+}
+
+/**
+ * Defensive error message sanitizer for unpaid obligation waivers (FL-026 / T-037).
+ * Strips database internals while surfacing actionable guidance.
+ */
+export function sanitizeWaiveObligationError(
+  error: unknown,
+  fallbackMessage = "Unable to waive obligation. Please review the details and try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    const msg = err.message ?? "";
+    if (
+      msg.includes("Self debt waiver forbidden") ||
+      msg.includes("Self obligation waiver forbidden")
+    ) {
+      return "Officers are not permitted to waive their own obligations.";
+    }
+    if (msg.includes("Waiver reason required")) {
+      return "Enter the reason for the waiver.";
+    }
+    if (
+      msg.includes("Only unpaid, unwaived obligations may be waived") ||
+      msg.includes("Paid obligation cannot be waived")
+    ) {
+      return "This obligation has already been settled or waived. Refresh the page to see its latest status.";
+    }
+    if (
+      msg.includes("Unknown obligation") ||
+      msg.includes("A nonempty unique obligation UUID array")
+    ) {
+      return "This obligation could not be found. Refresh the page and try again.";
+    }
+    if (err.code === "42501" || msg.includes("Council action not authorized")) {
+      return "You are not authorized to waive obligations.";
+    }
+    if (msg.includes("Request key reused")) {
+      return "This waiver request conflicted with a previous attempt. Please try again.";
+    }
+    if (msg.includes("Incomplete command receipt")) {
+      return "This waiver could not be confirmed. Refresh the page to check the obligation's status before retrying.";
+    }
+  }
+  return fallbackMessage;
+}
+
