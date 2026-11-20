@@ -263,3 +263,23 @@ export const transferDecisionSchema = z.discriminatedUnion("mode", [
 ]);
 
 export type TransferDecisionInput = z.infer<typeof transferDecisionSchema>;
+
+const waiverReason = z
+  .string()
+  .trim()
+  .min(1, "Enter the reason for the waiver")
+  .max(500, "Reason cannot exceed 500 characters");
+
+/**
+ * Input validation for waiving an unpaid obligation (FL-026 / T-037).
+ * Covers unpaid fee/fine waivers and obligation cancellations with attributable context.
+ */
+export const waiveObligationSchema = z.object({
+  obligationId: z.string().uuid("Invalid obligation identifier"),
+  studentId: z.string().uuid("Invalid student identifier"),
+  reason: waiverReason,
+  requestKey: z.string().uuid("Invalid request key"),
+});
+
+export type WaiveObligationInput = z.infer<typeof waiveObligationSchema>;
+
