@@ -507,3 +507,52 @@ The obligation's standing becomes `waived`, reducing what the student owes (`tot
 - Settled obligations cannot be waived; waivers only change what is owed, never money already received.
 - Waived obligations immediately update payable and waived summary totals and expose their recorded waiver timestamp and reason in both the Council and Student workspaces.
 - Each waiver creates one `obligation_waived` notification for the student, linking to Fees and Fines.
+
+## Apply student merits to offset demerit sanctions
+
+- **Author:** Andrei Catigan
+- **Actors:** Student (primary).
+- **Starts at:** Student workspace > Conduct (`/student/merits-demerits-and-services`); user must have an active student profile, at least one unexpired unapplied merit, and outstanding active demerit debt (balances are cumulative across semesters), while viewing the current semester.
+- **References:** FL-036, FL-029; database schema (`docs/database/schema.dbml`: `merits`, `merit_applications`, `demerits`, `service_credits`).
+
+### Main flow
+
+1. The student navigates to Conduct in the Student workspace (`/student/merits-demerits-and-services`).
+2. The system checks student workspace access and presents the authoritative disciplinary balance cards (Office Duty, Clinical (RLE) Duty, Available Merits, and Overall Standing) along with the tabulated records for the selected semester. If the student has at least 1 available merit, active demerit debt, and is viewing the institutionally current semester, the "Apply merits" action is enabled in the header (otherwise the reason is shown beneath it) and contextual "Apply merits →" links appear on buckets with outstanding sanctions.
+3. The student triggers the application flow via the header button (opening `?apply`) or a balance card link (opening `?apply&bucket=office` or `?apply&bucket=rle`).
+4. **Step 1 (Configure):** The student selects the duty bucket to offset (Office Duty or Clinical/RLE Duty). Buckets with zero debt are disabled with clear feedback. The student enters whole-day units to apply or clicks "Apply max", dynamically bounded by `Math.min(availableMerits.length, bucketDebt)`. The student clicks "Continue to review".
+5. **Step 2 (Review):** The system displays a side-by-side Current vs. Projected balance breakdown across the selected bucket, available merits, and overall standing. An alert explicitly highlights that merit applications are permanent and cannot be undone or transferred. The student reviews a live earliest-expiring (FIFO) preview showing the exact merit units that will be consumed (description, award date, and expiry date).
+6. The student clicks "Confirm & apply". The system sets an idempotency lock on client inputs and invokes `applyMeritsAction` with a unique request key (`requestKey`).
+7. The database executes the atomic `apply_merits` command. In a single transaction, it takes advisory locks on both of the student's bucket balances, row-locks the merits it will consume, verifies positive whole-day units and sufficient unexpired merits, validates that the election does not exceed the outstanding bucket balance, identifies earliest-expiring units (`expires_on ASC, id ASC`), and inserts matching consumption rows into `public.merit_applications` sharing a unique `application_group_id`.
+8. The server action revalidates affected paths (`/student/merits-demerits-and-services`, `/student`, and `/student/clearance`) and redirects (replacing the wizard history entry) to `/student/merits-demerits-and-services?applied=<applicationGroupId>`.
+9. The system renders the completion card summarizing applied units, target bucket badge, reference group ID, and applied timestamp formatted in Philippine Standard Time (`Asia/Manila`), alongside the current balances. Clicking "Return to conduct ledger" returns to `/student/merits-demerits-and-services?tab=merits`, where consumed merit units now reflect their applied bucket badge.
+
+### System involvement
+
+- Table `merit_applications`: inserts consumption records linking each individual `merit_id` to the student, target `bucket`, `applied_at` timestamp, and shared `application_group_id`.
+- Table `merits`: units are evaluated via `evaluateMeritState` and `getAvailableMeritsFifo` against active applications. Consumed units transition from available to applied, displaying `Applied (Office)` or `Applied (RLE)` in ledger views.
+- Table `demerits`: original demerit rows remain intact for immutable audit history; net duty balances are recalculated dynamically via authoritative command balance calculation (`activeDemerits - appliedMerits - activeServiceCredits`).
+- Procedure `apply_merits`: enforces student actor authority (`f_cmd_actor`), positive whole-day election, bucket validity (`office` or `rle`), active outstanding balance constraints (`balance >= p_days`), unexpired unapplied merit availability (`available >= p_days`), strict FIFO consumption ordering (`expires_on ASC, id ASC`), and command idempotency (`f_cmd_begin`/`f_cmd_finish`).
+- Server action `applyMeritsAction`: validates input with `applyMeritsSchema`, executes the command via the command client, revalidates paths, and triggers a clean Next.js router redirect to the URL-backed result state.
+
+### Outcome
+
+Applied merit units offset active demerit debt in the chosen bucket, immediately updating the student's cumulative Office or Clinical duty balance, clearance eligibility, and dashboard overview. Consumed merits cannot be applied again or transferred to another bucket, while original demerit entries remain permanently recorded for attribution.
+
+### Important alternatives
+
+- **Ineligible Cold Visit:** If a student attempts to navigate directly to `?apply` while having zero available merits, zero demerit debt, or viewing a past semester, the server immediately redirects back to the base conduct ledger (`redirect(baseHref)`), preventing wizard flash or broken states.
+- **Malformed or Unauthorized Result ID:** If `?applied=<uuid>` contains an invalid UUID or an ID not belonging to the student, `getMyMeritApplicationGroup` safely returns `null` and the server redirects to the base ledger URL without database errors.
+- **Connection Interruption or Double-Click:** Client-side lock (`locked = true`) prevents multiple submissions. If a network error occurs, the exact same `requestKey` is retained so that clicking "Retry application" replays idempotently without double-spending merits. If the command is rejected (for example, the balance changed after the page loaded), the wizard refreshes the figures and returns to Configure with a new request key. Choosing "Start over" clears the lock, regenerates a fresh UUID, and resets the form.
+- **Exit Hygiene:** The student can cancel or exit the wizard at any time via "← Back to conduct ledger" or "Cancel", which use direct Next.js links to return cleanly to the ledger without triggering rendering hangs.
+
+### Acceptance checks
+
+- Only authenticated students can apply merits; non-student workspaces are denied.
+- Merits can only be applied toward buckets with active positive demerit debt (zero-debt buckets are disabled).
+- Application amount is whole days, strictly bounded by the minimum of available unexpired merits and the selected bucket's outstanding debt.
+- Merit units are consumed in strict earliest-expiring (FIFO) order (`expires_on ASC, id ASC`), with a live preview shown on the review step.
+- Application is atomic, permanent, and idempotent; retrying an interrupted request does not duplicate applications.
+- Submissions revalidate the student conduct ledger, student dashboard, and student clearance views immediately.
+- Consumed merits display their applied bucket badge (`Applied (Office)` or `Applied (RLE)`) in the conduct ledger's Merits tab.
+- The wizard and result card render responsively on mobile (390px viewport) with zero horizontal overflow.

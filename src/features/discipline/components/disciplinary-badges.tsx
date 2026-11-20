@@ -49,13 +49,21 @@ export function DemeritStatusBadge({
 export function MeritStatusBadge({
   isApplied,
   isExpired,
+  appliedBucket,
   className,
 }: {
   isApplied?: boolean;
   isExpired?: boolean;
+  appliedBucket?: DisciplinaryBucket | null;
   className?: string;
 }) {
   if (isApplied) {
+    const bucketLabel =
+      appliedBucket === "office"
+        ? " (Office)"
+        : appliedBucket === "rle"
+        ? " (RLE)"
+        : "";
     return (
       <span
         className={cn(
@@ -63,7 +71,7 @@ export function MeritStatusBadge({
           className
         )}
       >
-        Applied
+        Applied{bucketLabel}
       </span>
     );
   }

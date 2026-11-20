@@ -1,12 +1,16 @@
 import "server-only";
 
+import { z } from "zod";
+
 import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
 
-import { calculateDisciplinarySummary, evaluateMeritState, getTodayManila } from "./calculations";
+import { calculateDisciplinarySummary, evaluateMeritState, getAvailableMeritsFifo, getTodayManila } from "./calculations";
 import type {
+  StudentMeritApplicationGroup,
   CouncilDisciplinaryViewData,
+  DisciplinaryBucket,
   DisciplinaryLedger,
   FacultyDemeritGroup,
   FacultyDisciplinaryViewData,
@@ -107,13 +111,20 @@ async function loadLedger(
   ]);
   const applications = applicationsRes?.data ?? [];
   const appliedMeritIds = new Set(applications.map((a) => a.merit_id));
+  const appliedBuckets = new Map<string, DisciplinaryBucket>();
+  if (!issuerId) {
+    for (const a of applications) {
+      appliedBuckets.set(a.merit_id, a.bucket);
+    }
+  }
 
   const demerits = demeritsRes.data.map((d) => toDemerit(d, names));
   const merits = meritsRes.data.map((m) => {
     const record = { ...m, awarder_name: nameOf(names, m.awarded_by) };
     if (issuerId) return record;
     const { isApplied, isExpired } = evaluateMeritState(m, appliedMeritIds, today);
-    return { ...record, isApplied, isExpired };
+    const appliedBucket = isApplied ? appliedBuckets.get(m.id) ?? null : null;
+    return { ...record, isApplied, isExpired, appliedBucket };
   });
   const serviceCredits = creditsRes.data.map((c) => ({ ...c, issuer_name: nameOf(names, c.issued_by) }));
 
@@ -138,17 +149,52 @@ export async function requireCouncilDisciplinaryViewer() {
 /**
  * Student workspace query (FL-029). Balances are cumulative across semesters;
  * only the listed records are narrowed to `semesterId`.
+ * Evaluates available merits across the complete cross-semester ledger.
  */
 export async function getMyDisciplinaryRecords(semesterId: string) {
   const access = await requireWorkspace("student");
   const { summary, demerits, merits, serviceCredits } = await loadLedger(access.profile.id);
+  // Student-only: the faculty ledger response must not carry the available-merit list.
+  const appliedMeritIds = new Set(merits.filter((m) => m.isApplied).map((m) => m.id));
+  const availableMerits = getAvailableMeritsFifo(merits, appliedMeritIds, getTodayManila());
   const inSemester = <T extends { semester_id: string }>(rows: T[]) =>
     rows.filter((row) => row.semester_id === semesterId);
   return {
     summary: summary!,
+    availableMerits,
     demerits: inSemester(demerits),
     merits: inSemester(merits),
     serviceCredits: inSemester(serviceCredits),
+  };
+}
+
+const UUID_SCHEMA = z.string().uuid();
+
+/**
+ * Verifies that an application group belongs to the authenticated student and returns its summary details.
+ * Validates the UUID first to prevent database 22P02 syntax errors, and returns null if not found.
+ */
+export async function getMyMeritApplicationGroup(
+  applicationGroupId: string
+): Promise<StudentMeritApplicationGroup | null> {
+  const access = await requireWorkspace("student");
+  const parsedId = UUID_SCHEMA.safeParse(applicationGroupId);
+  if (!parsedId.success) return null;
+
+  const client = await createUserClient();
+  const { data, error } = await client
+    .from("merit_applications")
+    .select("application_group_id, bucket, applied_at")
+    .eq("student_id", access.profile.id)
+    .eq("application_group_id", parsedId.data);
+
+  if (error || !data || data.length === 0) return null;
+
+  return {
+    application_group_id: parsedId.data,
+    bucket: data[0].bucket,
+    applied_days: data.length,
+    applied_at: data[0].applied_at,
   };
 }
 

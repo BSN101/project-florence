@@ -1,4 +1,5 @@
 import type {
+  AvailableMerit,
   BucketDisciplinaryBalance,
   DemeritRecord,
   DisciplinaryBucket,
@@ -7,6 +8,17 @@ import type {
   ServiceCreditRecord,
   StudentDisciplinarySummary,
 } from "./contracts";
+
+/** Whether a student may open the apply-merits wizard (optionally for one bucket). */
+export function canApplyMerits(
+  summary: StudentDisciplinarySummary,
+  availableMeritCount: number,
+  canAct: boolean,
+  bucket?: DisciplinaryBucket
+): boolean {
+  const hasDebt = bucket ? summary[bucket].balance > 0 : summary.hasOutstandingDebt;
+  return canAct && availableMeritCount > 0 && hasDebt;
+}
 
 /** The bucket a faculty member logs demerits in; access policy allows only one instructor role. */
 export function instructorBucket(roles: readonly string[]): DisciplinaryBucket | null {
@@ -119,6 +131,46 @@ export function evaluateMeritState(
   const isAvailable = !isApplied && !isExpired && merit.awarded_on <= todayManila;
 
   return { isApplied, isExpired, isAvailable };
+}
+
+/**
+ * Returns unexpired, unapplied merit units sorted earliest-expiring first (FIFO),
+ * strictly mirroring PostgreSQL `public.apply_merits` (20261107050430_florence_commands.sql, lines 730-733):
+ *
+ *   SELECT m.id, m.expires_on FROM public.merits m
+ *   WHERE m.student_id = p_actor
+ *     AND m.awarded_on <= v_today
+ *     AND m.expires_on > v_today
+ *     AND NOT EXISTS (SELECT 1 FROM public.merit_applications a WHERE a.merit_id = m.id)
+ *   ORDER BY m.expires_on ASC, m.id ASC
+ *
+ * Evaluated against Manila calendar day. Maps each row to clean AvailableMerit
+ * so extra server fields don't leak into client component props.
+ */
+export function getAvailableMeritsFifo(
+  merits: readonly AvailableMerit[],
+  appliedMeritIds: ReadonlySet<string>,
+  todayManila: string
+): AvailableMerit[] {
+  return merits
+    .filter(
+      (m) =>
+        m.awarded_on <= todayManila &&
+        m.expires_on > todayManila &&
+        !appliedMeritIds.has(m.id)
+    )
+    .map((m) => ({
+      id: m.id,
+      awarded_on: m.awarded_on,
+      expires_on: m.expires_on,
+      description: m.description,
+    }))
+    .sort((a, b) => {
+      if (a.expires_on !== b.expires_on) {
+        return a.expires_on < b.expires_on ? -1 : 1;
+      }
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
 }
 
 /**

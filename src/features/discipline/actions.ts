@@ -1,17 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect, RedirectType } from "next/navigation";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 import { getTodayManila, instructorBucket } from "./calculations";
 import {
+  applyMeritsSchema,
   awardDirectMeritsSchema,
   logFacultyDemeritsSchema,
   submitMeritEndorsementsSchema,
 } from "./schemas";
 
 const RPC_MESSAGES: [string, string][] = [
+  ["Election exceeds matching outstanding balance", "You have fewer outstanding demerits in this bucket than the days requested."],
+  ["Election exceeds available unexpired merits", "You do not have enough unexpired, unapplied merits for this many days."],
+  ["Positive whole-day election and bucket required", "Select a bucket and at least 1 day."],
+  ["Student identity required", "Student identity is required to apply merits."],
   ["Incident date must be within current context and not future", "The incident date must fall within the current semester and cannot be in the future."],
   ["Self disciplinary entry forbidden", "You cannot issue demerits to yourself."],
   ["Self award forbidden", "You cannot award merits to yourself."],
@@ -265,4 +271,69 @@ export async function submitMeritEndorsementsAction(rawInput: unknown): Promise<
     endorsedIds,
     failures,
   };
+}
+
+// retryable: the RPC may have committed, so the client must resend the same request key.
+export type ApplyMeritsResult = { success: false; error: string; retryable?: true };
+
+/**
+ * Applies unexpired, unapplied merits to offset active demerit debt in the chosen bucket (FL-036).
+ * Executes atomic `public.apply_merits` RPC with row-level balance serialization and earliest-expiring FIFO consumption.
+ * On success, revalidates student routes and redirects atomically to `?applied=<applicationGroupId>`.
+ */
+export async function applyMeritsAction(rawInput: unknown): Promise<ApplyMeritsResult> {
+  let actorId: string;
+  try {
+    actorId = (await requireWorkspace("student")).profile.id;
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof AccessDeniedError
+          ? "You are not permitted to apply merits."
+          : "Unable to verify your access. Try again.",
+    };
+  }
+
+  const parsed = applyMeritsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Check the merit application details.",
+    };
+  }
+
+  const { requestKey, bucket, days } = parsed.data;
+  const client = createCommandClient();
+
+  try {
+    const { error } = await client.rpc("apply_merits", {
+      p_key: requestKey,
+      p_actor: actorId,
+      p_bucket: bucket,
+      p_days: days,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        error: formatRpcError(error.message, "Unable to apply merits. Try again."),
+      };
+    }
+  } catch {
+    return {
+      success: false,
+      error: "Unable to reach the server. Try again.",
+      retryable: true,
+    };
+  }
+
+  // Outside try...catch so NEXT_REDIRECT is never intercepted:
+  revalidatePath("/student/merits-demerits-and-services");
+  revalidatePath("/student");
+  revalidatePath("/student/clearance");
+
+  // Replace, so Back from the result card does not reopen the wizard. Dropping
+  // ?semester= is safe: applying requires the current semester, the default view.
+  redirect(`/student/merits-demerits-and-services?applied=${requestKey}`, RedirectType.replace);
 }

@@ -121,3 +121,19 @@ export const submitMeritEndorsementsSchema = z.object({
 });
 
 export type SubmitMeritEndorsementsInput = z.infer<typeof submitMeritEndorsementsSchema>;
+
+// ---------------------------------------------------------------------------
+// Student merit application schemas (FL-036 / T-048)
+// ---------------------------------------------------------------------------
+
+export const disciplinaryBucketSchema = z.enum(["office", "rle"], {
+  message: "Select Office or RLE.",
+});
+
+export const applyMeritsSchema = z.object({
+  requestKey: z.string().uuid("Invalid request key."),
+  bucket: disciplinaryBucketSchema,
+  days: meritDaysSchema.max(2147483647, "Days is too large."), // Postgres integer limit
+});
+
+export type ApplyMeritsInput = z.infer<typeof applyMeritsSchema>;
