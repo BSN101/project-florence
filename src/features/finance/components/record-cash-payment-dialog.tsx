@@ -153,6 +153,8 @@ export function RecordCashPaymentDialog({
         grouped.set(item.semester_id, group);
       }
       group.obligations.push(item);
+      // Items on a transfer awaiting review stay visible but cannot be collected until it is decided.
+      if (item.status !== "unpaid") continue;
       group.payableIds.push(item.id);
       group.payableCents += toCents(Number(item.amount));
     }
@@ -177,7 +179,7 @@ export function RecordCashPaymentDialog({
     ) {
       return initialSemesterId;
     }
-    return semesterGroups[0]?.semesterId ?? "";
+    return (semesterGroups.find((g) => g.payableIds.length > 0) ?? semesterGroups[0])?.semesterId ?? "";
   }, [initialSemesterId, semesterGroups]);
 
   const [stage, setStage] = useState<CashDialogStage>("obligations");
@@ -536,11 +538,11 @@ export function RecordCashPaymentDialog({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        disabled={hasAttemptedSubmission}
+                        disabled={hasAttemptedSubmission || activeGroup.payableIds.length === 0}
                         onClick={handleToggleAllInSemester}
                         className="min-h-11 px-3 text-xs"
                       >
-                        {activeGroup.payableIds.every((id) =>
+                        {activeGroup.payableIds.length > 0 && activeGroup.payableIds.every((id) =>
                           selectedObligationIds.includes(id)
                         )
                           ? "Clear all"
@@ -551,19 +553,24 @@ export function RecordCashPaymentDialog({
                     <div className="divide-y divide-border rounded-xl border border-border bg-card">
                       {activeGroup.obligations.map((item) => {
                         const checked = selectedObligationIds.includes(item.id);
+                        const onPendingTransfer = item.status === "pending_verification";
                         return (
                           <label
                             key={item.id}
                             className={cn(
-                              "flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3.5 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl",
-                              checked ? "bg-primary/5" : "hover:bg-muted/40"
+                              "flex min-h-11  items-center justify-between gap-3 px-3.5 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl",
+                              onPendingTransfer
+                                ? "cursor-not-allowed opacity-60"
+                                : checked
+                                  ? "cursor-pointer bg-primary/5"
+                                  : "cursor-pointer hover:bg-muted/40"
                             )}
                           >
                             <div className="flex min-w-0 items-start gap-3">
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                disabled={hasAttemptedSubmission}
+                                disabled={hasAttemptedSubmission || onPendingTransfer}
                                 onChange={() => toggleObligation(item.id)}
                                 className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
                               />
@@ -573,9 +580,9 @@ export function RecordCashPaymentDialog({
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                                   <span className="capitalize">{item.kind}</span>
-                                  {item.status === "pending_verification" && (
+                                  {onPendingTransfer && (
                                     <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
-                                      Transfer pending review
+                                      Transfer pending · Decide the transfer first
                                     </span>
                                   )}
                                 </div>
@@ -736,17 +743,6 @@ export function RecordCashPaymentDialog({
                 was collected from this student.
               </span>
             </label>
-
-            {selectedObligations.some(
-              (item) => item.status === "pending_verification"
-            ) && (
-              <p className="text-xs leading-relaxed text-amber-800">
-                One or more selected obligations have a transfer pending
-                review. Recording cash settles them now. The transfer stays
-                pending and must be rejected as a duplicate when Council
-                reviews it.
-              </p>
-            )}
 
             <DialogFooter className="gap-2 pt-2">
               {hasAttemptedSubmission ? (

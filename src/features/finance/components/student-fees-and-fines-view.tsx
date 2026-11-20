@@ -148,9 +148,7 @@ function CashPaymentWizardLauncher({
       />
     );
   }
-  const hasPayable = obligations.some(
-    (item) => item.status === "unpaid" || item.status === "pending_verification"
-  );
+  const hasPayable = obligations.some((item) => item.status === "unpaid");
   return (
     <>
       <RecordCashButton
@@ -159,7 +157,7 @@ function CashPaymentWizardLauncher({
         title={
           hasPayable
             ? undefined
-            : "No unpaid obligations are available for cash collection."
+            : "No unpaid obligations are available for cash collection. Obligations on a transfer awaiting review are collectible once it is rejected."
         }
       />
       <RecordCashPaymentDialog
