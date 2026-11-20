@@ -8,7 +8,6 @@ import { createUserClient } from "@/server/db/user-client";
 
 import { calculateDisciplinarySummary, evaluateMeritState, getAvailableMeritsFifo, getTodayManila } from "./calculations";
 import type {
-  AvailableMerit,
   CouncilDisciplinaryViewData,
   DisciplinaryBucket,
   DisciplinaryLedger,
@@ -75,7 +74,7 @@ const demeritActors = (d: { source: string; issued_by: string; waived_by: string
 async function loadLedger(
   studentId: string,
   issuerId?: string
-): Promise<DisciplinaryLedger & { summary: StudentDisciplinarySummary | null; availableMerits?: AvailableMerit[] }> {
+): Promise<DisciplinaryLedger & { summary: StudentDisciplinarySummary | null }> {
   const client = await createUserClient();
   const today = getTodayManila();
 
@@ -131,10 +130,7 @@ async function loadLedger(
   const summary = issuerId
     ? null
     : calculateDisciplinarySummary({ demerits, merits, applications, serviceCredits, asOfDate: today });
-  const availableMerits = issuerId
-    ? undefined
-    : getAvailableMeritsFifo(merits, appliedMeritIds, today);
-  return { summary, demerits, merits, serviceCredits, availableMerits };
+  return { summary, demerits, merits, serviceCredits };
 }
 
 /**
@@ -156,12 +152,15 @@ export async function requireCouncilDisciplinaryViewer() {
  */
 export async function getMyDisciplinaryRecords(semesterId: string) {
   const access = await requireWorkspace("student");
-  const { summary, demerits, merits, serviceCredits, availableMerits } = await loadLedger(access.profile.id);
+  const { summary, demerits, merits, serviceCredits } = await loadLedger(access.profile.id);
+  // Student-only: the faculty ledger response must not carry the available-merit list.
+  const appliedMeritIds = new Set(merits.filter((m) => m.isApplied).map((m) => m.id));
+  const availableMerits = getAvailableMeritsFifo(merits, appliedMeritIds, getTodayManila());
   const inSemester = <T extends { semester_id: string }>(rows: T[]) =>
     rows.filter((row) => row.semester_id === semesterId);
   return {
     summary: summary!,
-    availableMerits: availableMerits ?? [],
+    availableMerits,
     demerits: inSemester(demerits),
     merits: inSemester(merits),
     serviceCredits: inSemester(serviceCredits),
