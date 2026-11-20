@@ -273,7 +273,8 @@ export async function submitMeritEndorsementsAction(rawInput: unknown): Promise<
   };
 }
 
-export type ApplyMeritsResult = { success: false; error: string };
+// retryable: the RPC may have committed, so the client must resend the same request key.
+export type ApplyMeritsResult = { success: false; error: string; retryable?: true };
 
 /**
  * Applies unexpired, unapplied merits to offset active demerit debt in the chosen bucket (FL-036).
@@ -323,6 +324,7 @@ export async function applyMeritsAction(rawInput: unknown): Promise<ApplyMeritsR
     return {
       success: false,
       error: "Unable to reach the server. Try again.",
+      retryable: true,
     };
   }
 

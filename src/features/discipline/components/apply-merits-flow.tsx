@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import {
   ArrowLeft,
@@ -74,6 +75,7 @@ export function ApplyMeritsFlow({
   const [error, setError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const daysInputId = useId();
 
@@ -131,7 +133,16 @@ export function ApplyMeritsFlow({
 
         // Next.js redirect() during server action navigates the client; res is undefined on redirect
         if (res && !res.success) {
+          if (res.retryable) {
+            setError(res.error);
+            return;
+          }
+          // Deterministic failure (e.g. balance changed): reload current figures and let the student reconfigure.
+          setLocked(false);
+          setRequestKey(crypto.randomUUID());
+          setStep("configure");
           setError(res.error);
+          router.refresh();
         }
       } catch (err) {
         // Rethrow Next.js redirect control-flow error so navigation completes cleanly without triggering the error banner
