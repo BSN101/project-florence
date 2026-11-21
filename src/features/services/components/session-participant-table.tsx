@@ -380,10 +380,10 @@ export function SessionParticipantTable({
                   <th scope="col" className="px-3 py-2.5">
                     Status
                   </th>
-                  <th scope="col" className="px-3 py-2.5 min-w-[150px]">
+                  <th scope="col" className="px-3 py-2.5 min-w-[190px]">
                     Time-In
                   </th>
-                  <th scope="col" className="px-3 py-2.5 min-w-[150px]">
+                  <th scope="col" className="px-3 py-2.5 min-w-[190px]">
                     Time-Out
                   </th>
                   {canManage && (
@@ -445,7 +445,7 @@ export function SessionParticipantTable({
                               onChange={(e) =>
                                 updateDraft(p.student_id, { timeInHHmm: e.target.value })
                               }
-                              className="h-7 w-24 text-xs px-1.5 py-0 max-sm:min-h-11"
+                              className="h-7 w-32 text-xs px-2 py-0 tabular-nums max-sm:min-h-11"
                               aria-label={`Time-in for ${displayName(p)}`}
                             />
                             {!isExcluded && !locked && (
@@ -499,7 +499,7 @@ export function SessionParticipantTable({
                               onChange={(e) =>
                                 updateDraft(p.student_id, { timeOutHHmm: e.target.value })
                               }
-                              className="h-7 w-24 text-xs px-1.5 py-0 max-sm:min-h-11"
+                              className="h-7 w-32 text-xs px-2 py-0 tabular-nums max-sm:min-h-11"
                               aria-label={`Time-out for ${displayName(p)}`}
                             />
                             {!isExcluded && !locked && (
