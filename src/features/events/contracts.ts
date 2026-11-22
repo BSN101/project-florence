@@ -42,3 +42,10 @@ export type ConsequenceTotals = { absent: number; late: number; fines: number; f
 export type EventActionResult =
   | { success: true; message?: string }
   | { success: false; error: string; issues?: Record<string, string[]> };
+
+/** The student's own selfie attendance claim (FL-049); RLS limits rows to the claimant and Council. */
+export type MyClaim = Pick<
+  Tables["event_attendance_claims"]["Row"],
+  "id" | "event_id" | "kind" | "status" | "submitted_at" | "rejection_reason"
+>;
+

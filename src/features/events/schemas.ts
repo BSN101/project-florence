@@ -71,7 +71,31 @@ export const attendanceImportSchema = z.object({
   requestKey: id.optional(),
 });
 
+/**
+ * Consent notice shown before the camera turns on, on every submission. Its version is
+ * stored on each claim, so changing any wording must change the version too.
+ * Draft wording: the client approves the final text under the Data Privacy Act of 2012.
+ */
+export const SELFIE_CONSENT_VERSION = "selfie-consent-2026-11-22";
+export const SELFIE_CONSENT = [
+  ["Purpose", "Your photo is used only to verify your attendance at this event."],
+  ["Who sees it", "Council Executive, Operations and Representative members reviewing this event's attendance."],
+  ["Storage", "The photo is stored privately and only until your claim is reviewed."],
+  ["Deletion", "It is deleted as soon as a reviewer verifies or rejects your claim, or when Council records that time by QR, manual entry or CSV first."],
+  ["If you decline", "Ask Council to record your attendance by QR or manual entry instead."],
+] as const;
+
+// A selfie claim (FL-049). The photo travels separately in the same FormData.
+export const attendanceClaimSchema = z.object({
+  eventId: id,
+  kind: z.enum(["time_in", "time_out"]),
+  universityId: z.string().trim().regex(/^[0-9]{2}-1-[0-9]{5}$/, "Use the format XX-1-XXXXX"),
+  consentVersion: z.literal(SELFIE_CONSENT_VERSION, { message: "Accept the consent notice first" }),
+  requestKey: id,
+});
+
 export type SaveEventInput = z.input<typeof saveEventSchema>;
+export type AttendanceClaimInput = z.infer<typeof attendanceClaimSchema>;
 export type RecordAttendanceInput = z.infer<typeof recordAttendanceSchema>;
 export type QrAttendanceInput = z.infer<typeof qrAttendanceSchema>;
 export type GenerateConsequencesInput = z.infer<typeof generateConsequencesSchema>;

@@ -108,6 +108,14 @@ Node.js through the firewall on private networks. `next.config.ts` allows
 `192.168.*.*` and `10.*.*.*` dev origins; add your range if it differs.
 This setup is for local development only.
 
+Selfie attendance uses the front camera the same way. Its face detector
+(`@mediapipe/tasks-vision`) runs in the browser from self-hosted files: the
+model is committed at `public/mediapipe/blaze_face_short_range.tflite`, and
+`npm run dev` / `npm run build` copy the WASM from `node_modules` into the
+gitignored `public/mediapipe/wasm/`. `npm run dev:https` skips that step, so
+run `npm run predev` once before using it. No CDN is called and no new
+environment variables are needed.
+
 ### Authentication
 
 Public signup must remain disabled. Accounts are provisioned through the
@@ -359,7 +367,7 @@ Institutional date-sensitive behavior uses `Asia/Manila`.
 
 ### Private files
 
-Roster CSVs, payment proof and payment-account QR images live in a private
+Roster CSVs, payment proof, payment-account QR images and attendance selfies live in a private
 Cloudflare R2 bucket (`R2_*` variables). Use `src/server/storage/files.ts`:
 
 - In the browser, shrink images with `compressImage(file, purpose)` from
@@ -367,9 +375,9 @@ Cloudflare R2 bucket (`R2_*` variables). Use `src/server/storage/files.ts`:
   it is not a security check.
 - In a server action, call `uploadFile(purpose, file, requestKey)`. The
   server checks the content, re-compresses images (proof to WebP ≤ 2000 px,
-  QR to PNG ≤ 1024 px, metadata removed), builds the storage key itself and
+  QR to PNG ≤ 1024 px, selfie to WebP ≤ 800 px, metadata removed), builds the storage key itself and
   records the file. Pass the returned file id to your feature's command.
-  Request limits: CSV 1 MB, proof 4 MB, QR 2 MB.
+  Request limits: CSV 1 MB, proof 4 MB, QR 2 MB, selfie 1 MB.
 - To show or download a file, call `getDownloadUrl(fileId, workspace)`. It
   returns a 5-minute link only if the signed-in user may read that file,
   otherwise `null`. Never log the link or pass storage keys to the browser.

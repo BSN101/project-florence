@@ -6,12 +6,14 @@ import { revalidatePath } from "next/cache";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 import { createUserClient } from "@/server/db/user-client";
+import { deleteStoredObject, uploadFile, UploadRejectedError } from "@/server/storage/files";
 
 import { mergeImportFindings, parseAttendanceCsv, type ImportRowResult } from "./attendance-import";
 import { feedbackSchema, toResponses, type FeedbackInput } from "./feedback";
 import type { ConsequencePreviewRow, ConsequenceTotals, EventActionResult } from "./contracts";
 import { consequenceTotals, sameTotals } from "./event-state";
 import {
+  attendanceClaimSchema,
   attendanceImportSchema,
   eventIdSchema,
   generateConsequencesSchema,
@@ -317,6 +319,62 @@ export async function submitFeedback(input: FeedbackInput): Promise<EventActionR
     if (error) return { success: false, error: error.message };
     revalidatePath("/student/events");
     return { success: true, message: "Thank you. Your feedback was submitted." };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** Removes the object of an upload that no claim will use. */
+async function discardUpload(fileId: string) {
+  const { data } = await createCommandClient().from("files").select("storage_key")
+    .eq("id", fileId).eq("purpose", "attendance_selfie").maybeSingle();
+  if (data) await deleteStoredObject(data.storage_key).catch(() => {});
+}
+
+/**
+ * FL-049: a student's selfie claim for one side. The student is the session profile.
+ * The request key makes the claim idempotent; the photo always gets a fresh server key,
+ * so a retry can never overwrite a photo that is already under review.
+ */
+export async function submitAttendanceClaim(formData: FormData): Promise<EventActionResult> {
+  try {
+    const context = await requireWorkspace("student");
+    const parsed = attendanceClaimSchema.safeParse({
+      eventId: formData.get("eventId"), kind: formData.get("kind"), universityId: formData.get("universityId"),
+      consentVersion: formData.get("consentVersion"), requestKey: formData.get("requestKey"),
+    });
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check your details" };
+    const photo = formData.get("photo");
+    if (!(photo instanceof File)) return { success: false, error: "Take a photo first." };
+    // Checked before uploading; the database checks it again under the event lock.
+    if (parsed.data.universityId !== context.profile.university_id) {
+      return { success: false, error: "That student number doesn't match your account." };
+    }
+
+    let fileId: string;
+    try {
+      fileId = await uploadFile("attendance_selfie", photo, randomUUID());
+    } catch (err) {
+      if (err instanceof UploadRejectedError) return { success: false, error: err.message };
+      throw err;
+    }
+    const { error } = await createCommandClient().rpc("submit_attendance_claim", {
+      p_key: parsed.data.requestKey,
+      p_actor: context.profile.id,
+      p_event: parsed.data.eventId,
+      p_university_id: parsed.data.universityId,
+      p_kind: parsed.data.kind,
+      p_file: fileId,
+      p_consent_version: parsed.data.consentVersion,
+    });
+    if (error) {
+      await discardUpload(fileId);
+      // A retry after a lost response: the first submission went through with its own photo.
+      if (!error.message.includes("Request key reused")) return { success: false, error: error.message };
+    }
+    revalidatePath("/student/events");
+    revalidatePath(path);
+    return { success: true, message: "Photo sent. Council will verify your attendance." };
   } catch (err) {
     return failure(err);
   }

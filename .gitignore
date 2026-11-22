@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Personal Claude Code settings
 .claude/settings.local.json
+
+# face-detection WASM, copied from node_modules by predev/prebuild
+/public/mediapipe/wasm/

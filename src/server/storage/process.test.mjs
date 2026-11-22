@@ -107,3 +107,15 @@ test("roster CSV is stored as is but must be UTF-8 text", async () => {
   await assert.rejects(processUpload("roster_import", new Uint8Array([0xff, 0xfe, 0x41])), /UTF-8 CSV/);
   await assert.rejects(processUpload("roster_import", new Uint8Array(0)), /empty/);
 });
+
+test("attendance selfies are WebP, at most 800 px, without metadata and capped at 1 MB", async () => {
+  const input = await sharp(await photo()).resize(1600, 1200).withMetadata({ exif: { GPS: { GPSLatitudeRef: "N" } } })
+    .jpeg({ quality: 70 }).toBuffer();
+  assert.ok(input.byteLength <= 1024 * 1024, `fixture too large: ${input.byteLength}`);
+  const out = await processUpload("attendance_selfie", new Uint8Array(input));
+  const meta = await sharp(out).metadata();
+  assert.equal(meta.format, "webp");
+  assert.equal(Math.max(meta.width, meta.height), 800);
+  assert.equal(meta.exif, undefined);
+  await assert.rejects(processUpload("attendance_selfie", new Uint8Array(1024 * 1024 + 1)), UploadRejectedError);
+});
