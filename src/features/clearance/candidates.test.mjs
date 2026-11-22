@@ -183,7 +183,6 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
       student_id: student1Id,
       confirmed_at: "2026-11-17T09:30:00Z",
       confirmed_by: "rle-coordinator-1",
-      confirmed_by_name: "Prof. Juan Dela Cruz",
     },
   ];
 
@@ -217,7 +216,8 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
     assert.equal(c1.status.cleared, false);
     assert.equal(c1.academicClearance.cleared, false);
     assert.equal(c1.rleClearance.cleared, true);
-    assert.equal(c1.rleClearance.confirmedByName, "Prof. Juan Dela Cruz");
+    assert.equal(c1.rleClearance.confirmedBy, "rle-coordinator-1");
+    assert.equal(c1.rleClearance.confirmedByName, null);
     assert.equal(c1.bucket, "office");
     assert.equal(c1.netBalance, 0);
 
