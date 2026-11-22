@@ -35,12 +35,12 @@ const confirmedFormat = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", 
 function CandidateTableColgroup() {
   return (
     <colgroup>
-      <col className="w-[24%]" />
-      <col className="w-[12%]" />
+      <col className="w-[23%]" />
+      <col className="w-[11%]" />
+      <col className="w-[15%]" />
+      <col className="w-[15%]" />
+      <col className="w-[20%]" />
       <col className="w-[16%]" />
-      <col className="w-[16%]" />
-      <col className="w-[14%]" />
-      <col className="w-[18%]" />
     </colgroup>
   );
 }
@@ -115,45 +115,29 @@ function BucketBalanceBadge({
   );
 }
 
-function ClearanceStatusBadge({
-  label,
-  status,
-  showMeta = false,
-}: {
-  label: string;
-  status: ClearanceStatus;
-  showMeta?: boolean;
-}) {
-  if (status.cleared && status.confirmedAt) {
+function ClearanceItemStatus({ status }: { status: ClearanceStatus }) {
+  if (status.cleared) {
     return (
-      <div className="flex flex-col items-start gap-0.5">
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
-          title={status.confirmedByName ? `Confirmed by ${status.confirmedByName}` : "Cleared"}
-        >
-          <Check className="size-3 shrink-0 stroke-[2.5]" />
-          <span>{label}: Cleared</span>
-        </span>
-        {showMeta && (
-          <span className="text-[11px] text-muted-foreground pl-1">
-            {confirmedFormat.format(new Date(status.confirmedAt))}
-          </span>
-        )}
-        {showMeta && status.confirmedByName && (
-          <span
-            className="text-[10px] text-muted-foreground/80 truncate max-w-[140px] pl-1"
-            title={`Confirmed by ${status.confirmedByName}`}
-          >
-            by {status.confirmedByName}
-          </span>
-        )}
-      </div>
+      <span
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap"
+        title={
+          status.confirmedAt
+            ? status.confirmedByName
+              ? `Confirmed by ${status.confirmedByName} on ${confirmedFormat.format(new Date(status.confirmedAt))}`
+              : `Confirmed on ${confirmedFormat.format(new Date(status.confirmedAt))}`
+            : "Cleared"
+        }
+      >
+        <Check className="size-3.5 shrink-0 stroke-[2.5]" />
+        Cleared
+      </span>
     );
   }
+
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-      <Clock className="size-3 shrink-0" />
-      <span>{label}: Pending</span>
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+      <span className="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+      Pending
     </span>
   );
 }
@@ -173,15 +157,12 @@ function ClearanceActionButton({
 
   if (candidate.status.cleared) {
     return (
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled
-        className={cn("text-xs text-muted-foreground cursor-default", buttonWidthClass)}
-      >
-        <CheckCircle2 className="mr-1.5 size-3.5 text-emerald-600" />
-        Confirmed
-      </Button>
+      <div className={cn("flex items-center", fullWidth ? "w-full justify-center py-2" : "justify-end pr-2")}>
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+          <Check className="size-3.5 shrink-0 stroke-[2.5]" />
+          Granted
+        </span>
+      </div>
     );
   }
 
@@ -545,7 +526,17 @@ export function FacultyCandidateTable({
                       </div>
 
                       <div className="shrink-0">
-                        <ClearanceStatusBadge label={componentLabel} status={candidate.status} />
+                        {candidate.status.cleared ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            <Check className="size-3.5 shrink-0 stroke-[2.5]" />
+                            Granted
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                            Pending
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -558,11 +549,12 @@ export function FacultyCandidateTable({
                         />
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">{counterpartLabel} Status:</span>
-                        <ClearanceStatusBadge
-                          label={counterpartLabel}
-                          status={component === "academic" ? candidate.rleClearance : candidate.academicClearance}
-                        />
+                        <span className="w-16 shrink-0 text-muted-foreground font-normal">Academic</span>
+                        <ClearanceItemStatus status={candidate.academicClearance} />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="w-16 shrink-0 text-muted-foreground font-normal">RLE</span>
+                        <ClearanceItemStatus status={candidate.rleClearance} />
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground">{bucketLabel} Balance:</span>
@@ -586,7 +578,7 @@ export function FacultyCandidateTable({
             {/* Tablet & Desktop Table View (>= md) */}
             <div className="hidden overflow-hidden rounded-xl border border-border bg-card md:block shadow-xs">
               <div className="max-h-[560px] overflow-auto clearance-scrollbar">
-                <table className="w-full min-w-[860px] table-fixed text-left text-sm">
+                <table className="w-full min-w-[880px] table-fixed text-left text-sm">
                   <CandidateTableColgroup />
                   <thead className="sticky top-0 z-10 border-b border-border bg-muted text-xs font-medium text-muted-foreground">
                     <tr>
@@ -602,7 +594,7 @@ export function FacultyCandidateTable({
                     {paged.map((candidate) => (
                       <tr key={candidate.studentId} className="transition-colors hover:bg-muted/40">
                         {/* Student Info */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3.5">
                           <div className="flex flex-col">
                             <span className="font-medium text-foreground">{candidate.name}</span>
                             <span className="font-mono text-xs text-muted-foreground">
@@ -612,13 +604,13 @@ export function FacultyCandidateTable({
                         </td>
 
                         {/* Year & Status */}
-                        <td className="px-4 py-3 text-xs text-foreground">
+                        <td className="px-4 py-3.5 text-xs text-foreground">
                           <div>Year {candidate.yearLevel}</div>
                           <div className="capitalize text-muted-foreground">{candidate.academicStatus}</div>
                         </td>
 
                         {/* Council Clearance Prerequisite */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3.5">
                           <CouncilPrerequisiteBadge
                             cleared={candidate.councilCleared}
                             confirmedAt={candidate.councilConfirmedAt}
@@ -626,28 +618,26 @@ export function FacultyCandidateTable({
                         </td>
 
                         {/* Disciplinary Bucket Balance & Ledger Link */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3.5">
                           <BucketBalanceBadge candidate={candidate} onInspect={setInspectingCandidate} />
                         </td>
 
-                        {/* Faculty Clearance Status & Counterpart Indicator */}
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col items-start gap-1.5">
-                            <ClearanceStatusBadge
-                              label={componentLabel}
-                              status={candidate.status}
-                              showMeta
-                            />
-                            <ClearanceStatusBadge
-                              label={counterpartLabel}
-                              status={component === "academic" ? candidate.rleClearance : candidate.academicClearance}
-                              showMeta
-                            />
+                        {/* Faculty Clearance Status */}
+                        <td className="px-4 py-3.5">
+                          <div className="flex flex-col gap-1.5 text-xs">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                              <span className="w-16 shrink-0 text-muted-foreground font-normal">Academic</span>
+                              <ClearanceItemStatus status={candidate.academicClearance} />
+                            </div>
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                              <span className="w-16 shrink-0 text-muted-foreground font-normal">RLE</span>
+                              <ClearanceItemStatus status={candidate.rleClearance} />
+                            </div>
                           </div>
                         </td>
 
                         {/* Action */}
-                        <td className="pl-4 pr-6 py-3 text-right">
+                        <td className="pl-4 pr-6 py-3.5 text-right">
                           <ClearanceActionButton
                             candidate={candidate}
                             isCurrentSemester={isCurrentSemester}
