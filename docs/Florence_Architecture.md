@@ -1,6 +1,6 @@
 # Florence Architecture
 
-**Version:** 1.2 · **Updated:** 2026-11-07 · **Status:** Implementation baseline
+**Version:** 1.3 · **Updated:** 2026-11-22 · **Status:** Implementation baseline
 
 ## 1. System overview
 
@@ -131,7 +131,7 @@ The app runs Next.js with `cacheComponents` and `partialPrefetching`. A link pre
 - **Show pending state where the change happens.** Prefer a dimmed row, a skeleton in the affected panel or the top progress bar over a full-screen overlay.
 - **`instant = false`.** Every page and workspace layout currently exports it, because both await the session outside `<Suspense>`. Keep it on new pages until session reads move behind Suspense or a private cache.
 - **Client cache window.** `staleTimes.dynamic` is 30 s (`next.config.ts`): returning to a page by link within 30 s reuses its last render without a server request. A user's own writes refresh it immediately through `revalidatePath`. Screens that show changes other people make (payment review, event attendance, clearance queues) render `RefreshButton` (`src/components/layout/refresh-button.tsx`) with the render time, so users can see the data's age and fetch fresh data. Add it to new screens of that kind.
-- **Preserved routes.** With Cache Components, Next.js keeps the last three visited routes alive, hidden with React `<Activity>`, and Back/Forward shows them without a server request. Do not key layout-level wrappers by pathname: re-mounting discards the preserved routes. Component state survives a return, so reset transient UI (open menus, stale success messages) explicitly. Sign-out loads `/sign-in` in full (`SignOutForm`) so no signed-in pages stay in memory.
+- **Preserved routes.** With Cache Components, Next.js keeps the last three visited routes alive, hidden with React `<Activity>`, and Back/Forward shows them without a server request. Do not key layout-level wrappers by pathname: re-mounting discards the preserved routes. Component state survives a return, so reset transient UI (open menus, stale success messages) explicitly. Sign-out loads `/sign-in` in full (`SignOutForm`) so no signed-in pages stay in memory. Effects run their cleanup when a page is hidden, so camera streams (the QR station and selfie capture) stop in effect cleanup and never keep running on a hidden page.
 - **Motion** uses React `ViewTransition` for page changes (`PageTransition`, and `DrillTransition` for list → detail inside one page) and CSS transitions for selection indicators. Principles are in [`DESIGN.md`](../DESIGN.md) and values in [Design tokens](Florence_Design_Tokens.md). Respect `prefers-reduced-motion`.
 
 ### Features and shared code
@@ -185,13 +185,20 @@ Simple authorized commands may use constrained table writes. Coordinated operati
 
 Follow the schema's shared locking and idempotency contracts for:
 - Event capture, audience/rule freezing and consequence generation.
+- Selfie attendance claim submission and review.
 - Service participation and finalization.
 - Merit use, demerit waiver and service-credit balance changes.
 - Settlement, obligation waiver, refund and payment correction.
 
 Use code-first SQL migrations under `supabase/migrations/`. Create a new migration for changes to a shared database; never rewrite applied migrations. Review `supabase migration list --linked` and `supabase db push --linked --dry-run` before pushing to the linked development project. Docker is required for a local Supabase stack, not for this remote workflow. Populate generated migration files before pushing. Regenerate database types and update DBML after database-interface changes; publishing DBML does not apply SQL.
 
-Council event consequence generation takes an explicit Office/RLE bucket selected by Executive/Operations at generation time. Retain it per event, including zero-demerit outcomes, and include it in retry identity; there is no global event bucket. The institutional timezone is `Asia/Manila`. Any active Council Executive may waive eligible Council-generated demerits regardless of original Council issuer; Faculty issuer-only restrictions and the self-waiver prohibition remain unchanged.
+Council event consequence generation takes an explicit Office/RLE bucket selected by Executive/Operations at generation time. Retain it per event, including zero-demerit outcomes, and include it in retry identity; there is no global event bucket. The institutional timezone is `Asia/Manila`.
+
+**Selfie attendance claims (FL-049, FL-050).** Claims live in `event_attendance_claims`; `event_attendance` changes only when a claim is verified.
+- Submission is one transactional RPC under the event lock. It checks the window, audience, typed student number (compared with the actor's own `university_id`, not stored), consent and duplicate claims, and sets `submitted_at` and `consented_at` from the database clock. Upload and RPC share one request key, so a retry replays the same claim.
+- Review is one transactional RPC. Verify calls the shared attendance helper with method `selfie` and `submitted_at` as the recorded time. Reject writes the student's notice and cascades a time-in rejection to the pending time-out claim. Reviewer and claimant must differ.
+- When QR, manual or CSV capture records a side with a pending claim, a trigger on `event_attendance` marks it `superseded` in the same transaction, so every capture path is covered.
+- Consequence generation refuses to run while any claim for the event is pending. Any active Council Executive may waive eligible Council-generated demerits regardless of original Council issuer; Faculty issuer-only restrictions and the self-waiver prohibition remain unchanged.
 
 RPCs that trust server authorization are executable only by the server role. Revoke default `PUBLIC`, `anon` and `authenticated` execution. Any deliberately client-callable function must perform its own actor/action checks. `SECURITY DEFINER` functions use a fixed safe `search_path` and qualified object names.
 
@@ -200,6 +207,12 @@ RPCs that trust server authorization are executable only by the server role. Rev
 ### Private files
 
 Storage helpers configure R2 and issue short-lived URLs. The owning feature authorizes each upload/download and resolves the allowed object key. Never sign arbitrary browser-provided keys, expose credentials or log signed URLs.
+
+**Selfie photos** use the `attendance_selfie` purpose and the same upload path as payment proof: client-compressed, re-encoded to WebP and stripped of metadata on the server, stored under a private key.
+- A download link is issued only to the claimant or an E/O/R reviewer, and only while the claim is `pending`.
+- The review action, and any capture action that supersedes a claim, deletes the object after its transaction commits and records `photo_deleted_at`. `files` rows stay; only the object is removed.
+- Deletion is one sweep per event (`florence_undeleted_claim_photos`) that the review, capture and consequence-generation actions run after they commit. If a deletion fails, `photo_deleted_at` stays null and the next sweep retries it; generation's sweep means no photo outlives attendance locking. There is no scheduled job.
+- Face detection (`@mediapipe/tasks-vision`, loaded on demand, model and WASM self-hosted under `public/`) runs only in the browser as a capture gate. The server never relies on it; reviewer verification is the control.
 
 ### Authentication email
 

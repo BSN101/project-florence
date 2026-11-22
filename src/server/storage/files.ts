@@ -11,7 +11,7 @@ export { UploadRejectedError, type FilePurpose };
 
 // Workspace gate only; register_file re-checks the exact role per purpose.
 const uploaderWorkspace: Record<FilePurpose, Workspace> = {
-  roster_import: "council", payment_proof: "student", payment_account_qr: "council",
+  roster_import: "council", payment_proof: "student", payment_account_qr: "council", attendance_selfie: "student",
 };
 
 /**
@@ -56,4 +56,9 @@ export async function getDownloadUrl(fileId: string, workspace: Workspace): Prom
   const file = data[0];
   if (!file) return null;
   return signedGetUrl(file.storage_key, file.purpose === "roster_import" ? { download: "roster.csv" } : {});
+}
+
+/** Removes a stored object. The `files` row stays (append-only). Never log the key. */
+export async function deleteStoredObject(storageKey: string): Promise<void> {
+  await deleteObject(storageKey);
 }

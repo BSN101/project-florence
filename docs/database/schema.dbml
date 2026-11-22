@@ -20,7 +20,7 @@ All modeled relationships use non-cascading NO ACTION. Supabase-managed auth/sto
 
 ## 1. Purpose and boundaries
 
-This document defines Florence's 32 application tables, relationships and data-integrity rules. The [function list](Project_Florence_Function_List.md) defines scope and permissions; the [architecture](Florence_Architecture.md) defines code organization. All tables, including in-app notifications, are included in V1. Validate migrations against the actual database before deployment.
+This document defines Florence's 33 application tables, relationships and data-integrity rules. The [function list](Project_Florence_Function_List.md) defines scope and permissions; the [architecture](Florence_Architecture.md) defines code organization. All tables, including in-app notifications, are included in V1. Validate migrations against the actual database before deployment.
 
 The schema follows these principles:
 
@@ -268,6 +268,8 @@ Do not create a DB function merely because an operation is important. The operat
 
 **Implemented details:** Refuses archived events that were never generated, and refuses generation until the event and both capture windows have closed. Outcomes come from the private helper `f_cmd_event_outcome(time_in, time_out, event, rules)`: absence when there is no time-in, a time-in outside its window, or (when time-out is required) a missing or out-of-window time-out; late when time-in is after the time-in opening plus `late_after_minutes`. The time-in opening is the event's actual start.
 
+**Pending claims:** generation refuses (`55000`) while any `event_attendance_claims` row for the event is `pending`; unreviewed claims are not treated as absences. The Council UI counts pending claims through the claims RLS read.
+
 **Preview:** `florence_event_consequence_preview(p_event)` — `authenticated`, Executive/Operations only (`f_access_private.council()`). Read-only; requires a published event. Returns each preserved participant with snapshot year level/status, times, outcome, fine amount and demerit days, using the same helper as generation. After generation the attendance and rules are frozen, so it lists exactly what was generated. The server action re-runs it right before generating and refuses if the totals changed since the user's review.
 
 ### 16.2 `verify_payment(payment_id, decision, actor_id?)`
@@ -412,6 +414,15 @@ All are `service_role`-only; the server resolves `p_actor` from the verified ses
 - `florence_my_events(p_semester)` — `authenticated`; returns only the signed-in student's preserved participant rows for published events in the semester (archived events only once generated). Includes times, the same live status as `florence_event_attendance`, own fine (and whether waived), active demerit days, bucket, the feedback window (`feedback_opens_at` = when attendance closes via `f_cmd_event_closes`, `feedback_closes_at` = 7 days later), eligibility (timed in) and own submission time. Read-only.
 - `submit_event_feedback(p_key, p_actor, p_event, p_responses)` — `service_role`-only; the server resolves the student from the session. Validates fixed questionnaire v1 exactly (`version` 1, `q1`–`q5` whole numbers 1–5, optional `comment` up to 1000 characters, no other keys); requires a published, unarchived event, a participant who timed in, and the 7-day window. One response per student/event via the unique key; a same-key retry replays the first result, another attempt fails with "Feedback already submitted". `event_feedback` stays append-only.
 - `florence_event_feedback(p_event)` — `authenticated`, Executive/Operations only (`f_access_private.council()`); identified responses with student name and university number. Representatives and students are refused.
+
+### 16.9 Selfie attendance claims
+
+- `submit_attendance_claim(p_key, p_actor, p_event, p_university_id, p_kind, p_file, p_consent_version)` — student. Locks the event; requires it published, unarchived and unlocked, the actor a preserved participant, the side's window open, the side not yet recorded and no `pending`/`verified` claim for it. A time-out claim needs a recorded time-in or a pending time-in claim. `p_university_id` must equal the actor's own number (a typo guard; not stored and not in the request payload). `p_file` must be the actor's `attendance_selfie` file. A blank `p_consent_version` is refused. Sets `submitted_at` and `consented_at` from the database clock; a same-key retry returns the first result.
+- `review_attendance_claim(p_key, p_actor, p_claim, p_decision, p_reason)` — Executive/Operations/Representative, never the claimant. `verify` records the side through `f_cmd_record_attendance(…, 'selfie', submitted_at)` with the reviewer as recorder, so a time-out cannot be verified before time-in is recorded. `reject` needs a reason (≤ 500 characters), records nothing, sends `attendance_claim_rejected` and also rejects the student's pending time-out claim when a time-in is rejected. Lock order: request, event, claim.
+- `f_cmd_record_attendance(p_actor, p_event, p_student, p_kind, p_method, p_at)` — private overload; `p_at` (when given) replaces the clock and is window-checked. The 5-argument form delegates with `null`.
+- `florence_undeleted_claim_photos(p_event)` → `(claim_id, storage_key)` for reviewed or superseded claims whose photo is not yet deleted; `mark_claim_photo_deleted(p_claim)` sets `photo_deleted_at` once.
+
+All are `service_role`-only.
 
 ### 16.8 Optional atomic candidates to evaluate during implementation
 
@@ -789,7 +800,7 @@ Private file metadata only. Actual objects remain in private storage.
 - `PRIMARY KEY (id)`.
 - `UNIQUE (storage_key)`.
 - Foreign key to `profiles`.
-- `CHECK (purpose IN ('roster_import','payment_proof','payment_account_qr'))`, extend only when a current FL function requires another stored file purpose.
+- `CHECK (purpose IN ('roster_import','payment_proof','payment_account_qr','attendance_selfie'))`, extend only when a current FL function requires another stored file purpose.
 - `CHECK (byte_size > 0)`.
 - MIME allowlist and upload-size policy may be enforced in application/storage code rather than encoded as large SQL checks.
 
@@ -804,8 +815,8 @@ Private file metadata only. Actual objects remain in private storage.
 
 **Functions (T-016, service role only)**
 
-- `register_file(p_key, p_actor, p_purpose, p_storage_key, p_media_type, p_byte_size)` records an object the server already stored. Upload roles: `roster_import` Executive/Operations, `payment_account_qr` Executive, `payment_proof` enrolled students. The key must be `<purpose>/<actor>/<p_key>.<ext>`, so a retry targets the same object and replays; type and size must match the purpose (`text/csv` ≤ 1 MB, `image/webp` ≤ 4 MB, `image/png` ≤ 2 MB). Result `{file_id}`.
-- `file_download_key(p_actor, p_file)` returns `storage_key, media_type, purpose` only when the active actor may read the file: roster files to Executive/Operations; payment proof to its uploader, and to Executive/Operations once a payment references it; payment-account QR to Executives, and to students while an active payment account uses it. Otherwise no row.
+- `register_file(p_key, p_actor, p_purpose, p_storage_key, p_media_type, p_byte_size)` records an object the server already stored. Upload roles: `roster_import` Executive/Operations, `payment_account_qr` Executive, `payment_proof` and `attendance_selfie` enrolled students. The key must be `<purpose>/<actor>/<p_key>.<ext>`, so a retry targets the same object and replays; type and size must match the purpose (`text/csv` ≤ 1 MB, proof `image/webp` ≤ 4 MB, `image/png` ≤ 2 MB, selfie `image/webp` ≤ 1 MB). Result `{file_id}`.
+- `file_download_key(p_actor, p_file)` returns `storage_key, media_type, purpose` only when the active actor may read the file: roster files to Executive/Operations; payment proof to its uploader, and to Executive/Operations once a payment references it; payment-account QR to Executives, and to students while an active payment account uses it; an attendance selfie to the claimant and any Council member (E/O/R) only while its claim is `pending` (an unclaimed upload to its uploader only). Otherwise no row.
 - Stored type/size describe the server-compressed object: proof is re-encoded to WebP (≤ 2000 px), QR to PNG (≤ 1024 px), metadata stripped; CSV is stored as uploaded.
 '''
 }
@@ -912,8 +923,8 @@ Table event_attendance {
   academic_status_snapshot text [not null, note: "Enrollment classification at audience freeze"]
   time_in timestamptz [null, note: "Actual time-in"]
   time_out timestamptz [null, note: "Actual time-out"]
-  time_in_method text [null, note: "`qr`, `manual`, `csv`"]
-  time_out_method text [null, note: "`qr`, `manual`, `csv`"]
+  time_in_method text [null, note: "`qr`, `manual`, `csv`, `selfie`"]
+  time_out_method text [null, note: "`qr`, `manual`, `csv`, `selfie`"]
   time_in_recorded_by uuid [null, note: "FK → `profiles.id`"]
   time_out_recorded_by uuid [null, note: "FK → `profiles.id`"]
   created_at timestamptz [not null, note: "Created time"]
@@ -944,6 +955,8 @@ One preserved participant/attendance row per student/event, including students w
 - Students read their own attendance rows.
 - Executive/Operations/Representatives may read and record attendance within FL-017 scope.
 - Representative lookup is limited to attendance-required fields and must not expose general roster/disciplinary/financial data.
+
+**Claims:** recording a side by QR, manual or CSV marks that side's pending `event_attendance_claims` row `superseded` in the same transaction (trigger `supersede_claims`). A `selfie` time is the claim's `submitted_at`, written only when a claim is verified.
 - Attendance updates must be denied after the owning event is locked through the shared parent-lock protocol. A narrow RLS predicate may reinforce this but is not a substitute for serialization.
 '''
 }
@@ -976,6 +989,46 @@ One final identified response per student/event.
 - Executive/Operations may read identified responses and summaries.
 - Representatives may not read feedback/results.
 - Students may not read another student's response.
+'''
+}
+
+Table event_attendance_claims {
+  id uuid [pk, note: "Primary key"]
+  event_id uuid [not null, note: "With `student_id`, FK → `event_attendance(event_id, student_id)`"]
+  student_id uuid [not null, note: "Claimant"]
+  kind text [not null, note: "`time_in` or `time_out`"]
+  file_id uuid [not null, unique, note: "FK → `files.id`; purpose `attendance_selfie`, uploaded by the claimant"]
+  submitted_at timestamptz [not null, note: "Database clock at submission; the time recorded on verification"]
+  consented_at timestamptz [not null, note: "Database clock when consent was given"]
+  consent_version text [not null, note: "Name of the consent notice text shown"]
+  status text [not null, note: "`pending`, `verified`, `rejected` or `superseded`"]
+  reviewed_by uuid [null, note: "FK → `profiles.id`; verifier or rejecter"]
+  reviewed_at timestamptz [null, note: "Review or supersession time"]
+  rejection_reason text [null, note: "Required when rejected"]
+  photo_deleted_at timestamptz [null, note: "When the server removed the photo object"]
+  created_at timestamptz [not null, note: "Created time"]
+  indexes {
+    (event_id, student_id, kind) [unique, note: 'event_attendance_claims_one_open where status in (pending, verified)']
+    (event_id, status) [note: 'event_attendance_claims_queue']
+  }
+  Note: '''
+### 6.5 `event_attendance_claims`
+
+Selfie attendance claims (FL-049, FL-050). A claim is not attendance: `event_attendance` changes only when a claim is verified.
+
+**Basic database checks**
+
+- `PRIMARY KEY (id)`; `UNIQUE (file_id)`.
+- Composite FK `(event_id, student_id)` → `event_attendance(event_id, student_id)`, so a claim never creates eligibility.
+- At most one `pending` or `verified` claim per student, event and side (partial unique index).
+- `reviewed_at` is set exactly when status is not `pending`; `reviewed_by` exactly when `verified` or `rejected`; `rejection_reason` exactly when `rejected`; `reviewed_by <> student_id`; `photo_deleted_at` only when not `pending`.
+- Trigger `claim_history`: no deletes, facts immutable, status leaves `pending` once, then only `photo_deleted_at` may be set once.
+
+**RLS**
+
+- Students read their own claims; any Council member (E/O/R) reads all claims. Direct writes are revoked from `authenticated`.
+
+**Photo retention:** a photo is readable only while its claim is `pending`. After review or supersession the server deletes the object and calls `mark_claim_photo_deleted`; `files` rows stay. `florence_undeleted_claim_photos(p_event)` lists anything a failed deletion left behind, and the review, capture and generation actions retry it.
 '''
 }
 
@@ -1665,7 +1718,7 @@ Permanent semester-level confirmation for one component. Absence of a row means 
 Table notifications {
   id uuid [pk, note: "Primary key"]
   recipient_id uuid [not null, note: "FK → `profiles.id`"]
-  kind text [not null, note: "Fixed safe notice category: `merit_received`, `demerit_incurred`, `service_recorded`, `obligation_due`, `obligation_waived`, `payment_verified`, `payment_rejected`, `council_access_changed`"]
+  kind text [not null, note: "Fixed safe notice category: `merit_received`, `demerit_incurred`, `service_recorded`, `obligation_due`, `obligation_waived`, `payment_verified`, `payment_rejected`, `council_access_changed`, `attendance_claim_rejected`"]
   message text [not null, note: "Minimal non-sensitive message"]
   target_type text [null, note: "Optional navigation target type"]
   target_id uuid [null, note: "Optional navigation target id"]
@@ -1678,7 +1731,7 @@ Table notifications {
   Note: '''
 ### 12.1 `notifications`
 
-Included V1 recipient-scoped in-app business notice table under FL-044/Q9. In-app delivery is adopted, not conditional. The baseline contains 31 application tables including `notifications`; Supabase-managed Auth/Storage tables are not included in that count. Business email delivery is not adopted by this decision; invitations and password recovery continue to use email.
+Included V1 recipient-scoped in-app business notice table under FL-044/Q9. In-app delivery is adopted, not conditional. The baseline contains 33 application tables including `notifications`; Supabase-managed Auth/Storage tables are not included in that count. Business email delivery is not adopted by this decision; invitations and password recovery continue to use email.
 
 **Basic database checks**
 
@@ -1725,6 +1778,9 @@ Ref: event_attendance.time_in_recorded_by > profiles.id [delete: no action, upda
 Ref: event_attendance.time_out_recorded_by > profiles.id [delete: no action, update: no action]
 Ref: event_feedback.event_id > events.id [delete: no action, update: no action]
 Ref: event_feedback.student_id > profiles.id [delete: no action, update: no action]
+Ref: event_attendance_claims.(event_id, student_id) > event_attendance.(event_id, student_id) [delete: no action, update: no action]
+Ref: event_attendance_claims.file_id - files.id [delete: no action, update: no action]
+Ref: event_attendance_claims.reviewed_by > profiles.id [delete: no action, update: no action]
 Ref: fee_definitions.created_by > profiles.id [delete: no action, update: no action]
 Ref: fine_definitions.created_by > profiles.id [delete: no action, update: no action]
 Ref: fee_publications.fee_definition_id > fee_definitions.id [delete: no action, update: no action]

@@ -8,16 +8,17 @@ import { RefreshButton } from "@/components/layout/refresh-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { recordAttendance } from "../actions";
-import type { AttendeeRow, EventDTO, EventRulesDTO, FeedbackRow } from "../contracts";
+import type { AttendeeRow, ClaimQueueRow, EventDTO, EventRulesDTO, FeedbackRow } from "../contracts";
 import { FEEDBACK_WINDOW_DAYS } from "../feedback";
 import { activityEntries, attendeeSummary, canCapture, canGenerate, closesAt, eventPhase, within } from "../event-state";
 import { AttendanceImportDialog } from "./attendance-import-dialog";
+import { ClaimReview } from "./claim-review";
 import { ConfirmEventDialog } from "./confirm-event-dialog";
 import { ConsequencePanel } from "./consequence-panel";
 import { FeedbackPanel } from "./feedback-panel";
 import { Badge, PhaseBadge, StatusBadge, methodLabel } from "./event-badges";
 
-export type EventTab = "attendance" | "activity" | "details" | "consequences" | "feedback";
+export type EventTab = "attendance" | "verification" | "activity" | "details" | "consequences" | "feedback";
 
 const date = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" });
 const time = new Intl.DateTimeFormat("en-PH", { timeStyle: "short", timeZone: "Asia/Manila" });
@@ -53,10 +54,12 @@ export function Chips<T extends string>({ label, value, options, onChange }: {
 }
 
 /** Event page: attendee list, activity, setup and (Executive/Operations) consequences. */
-export function EventDetail({ event, rules, attendees, feedback, canManage, canViewAttendance, viewerId, backHref, initialTab, now: serverNow }: {
+export function EventDetail({ event, rules, attendees, claims, feedback, canManage, canViewAttendance, viewerId, backHref, initialTab, now: serverNow }: {
   event: EventDTO;
   rules: EventRulesDTO | null;
   attendees: AttendeeRow[];
+  /** Pending selfie claims (FL-050); loaded only with the attendee list, which supplies the names. */
+  claims: ClaimQueueRow[];
   /** Identified responses; null for Representatives, who may not see feedback. */
   feedback: FeedbackRow[] | null;
   canManage: boolean;
@@ -69,7 +72,7 @@ export function EventDetail({ event, rules, attendees, feedback, canManage, canV
   now: string;
 }) {
   const tabs: (readonly [EventTab, string])[] = [
-    ...(canViewAttendance ? [["attendance", "Attendance"], ["activity", "Activity"]] as const : []),
+    ...(canViewAttendance ? [["attendance", "Attendance"], ["verification", `Verification${claims.length ? ` (${claims.length})` : ""}`], ["activity", "Activity"]] as const : []),
     ["details", "Details"],
     ...(canManage ? [["consequences", "Consequences"], ["feedback", "Feedback"]] as const : []),
   ];
@@ -143,9 +146,10 @@ export function EventDetail({ event, rules, attendees, feedback, canManage, canV
         <AttendanceTab event={event} attendees={attendees} viewerId={viewerId} closed={phase !== "open" && phase !== "upcoming"}
           timeInOpen={timeInOpen} timeOutOpen={timeOutOpen} capturing={capturing} />
       )}
+      {tab === "verification" && <ClaimReview claims={claims} attendees={attendees} viewerId={viewerId} />}
       {tab === "activity" && <ActivityTab attendees={attendees} />}
       {tab === "details" && <DetailsTab event={event} rules={rules} participants={attendees.length} closed={phase !== "open" && phase !== "upcoming"} />}
-      {tab === "consequences" && canManage && <ConsequencePanel event={event} canGenerateNow={canGenerate(event, now)} />}
+      {tab === "consequences" && canManage && <ConsequencePanel event={event} canGenerateNow={canGenerate(event, now)} pendingClaims={claims.length} />}
       {tab === "feedback" && feedback && (
         <FeedbackPanel rows={feedback} attended={attendees.filter((row) => row.time_in).length}
           opensAt={new Date(closesAt(event)).toISOString()}
@@ -370,7 +374,7 @@ function AttendanceTab({ event, attendees, viewerId, closed, timeInOpen, timeOut
 
 function ActivityTab({ attendees }: { attendees: AttendeeRow[] }) {
   const entries = useMemo(() => activityEntries(attendees), [attendees]);
-  const [method, setMethod] = useState<"all" | "qr" | "manual" | "csv">("all");
+  const [method, setMethod] = useState<"all" | "qr" | "manual" | "csv" | "selfie">("all");
   const [recorder, setRecorder] = useState("all");
   const recorders = [...new Set(entries.map((e) => e.recordedBy).filter((r): r is string => r !== null))].sort();
   const shown = entries.filter((e) => (method === "all" || e.method === method) && (recorder === "all" || e.recordedBy === recorder));
@@ -379,7 +383,7 @@ function ActivityTab({ attendees }: { attendees: AttendeeRow[] }) {
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <Chips label="Filter by method" value={method} onChange={setMethod}
-          options={[["all", "All"], ["qr", "QR"], ["manual", "Manual"], ["csv", "CSV"]]} />
+          options={[["all", "All"], ["qr", "QR"], ["manual", "Manual"], ["csv", "CSV"], ["selfie", "Selfie"]]} />
         <select aria-label="Recorded by" value={recorder} onChange={(e) => setRecorder(e.target.value)}
           className="h-9 rounded-md border border-input bg-background px-2 text-sm">
           <option value="all">Everyone</option>

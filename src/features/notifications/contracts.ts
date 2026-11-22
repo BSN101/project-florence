@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   Award,
+  CameraOff,
   CheckCircle2,
   HeartHandshake,
   Receipt,
@@ -21,6 +22,7 @@ export const NOTIFICATION_KINDS = [
   "payment_verified",
   "payment_rejected",
   "council_access_changed",
+  "attendance_claim_rejected",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -32,7 +34,7 @@ export type NotificationDTO = Pick<
 
 export type NotificationConfigItem = {
   label: string;
-  category: "merit" | "demerit" | "service" | "finance" | "access";
+  category: "merit" | "demerit" | "service" | "finance" | "access" | "attendance";
   icon: LucideIcon;
   href: string;
   badgeClass: string;
@@ -95,6 +97,13 @@ export const NOTIFICATION_CONFIG: Record<NotificationKind, NotificationConfigIte
     icon: Shield,
     href: "/student",
     badgeClass: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+  },
+  attendance_claim_rejected: {
+    label: "Attendance Photo Rejected",
+    category: "attendance",
+    icon: CameraOff,
+    href: "/student/events",
+    badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
   },
 };
 

@@ -41,4 +41,5 @@ export function StatusBadge({ status }: { status: string }) {
   return <Badge tone={tone}>{label}</Badge>;
 }
 
-export const methodLabel = (method: string | null) => (method === "qr" ? "QR" : method === "csv" ? "CSV" : method === "manual" ? "Manual" : "—");
+const methods: Record<string, string> = { qr: "QR", csv: "CSV", manual: "Manual", selfie: "Selfie" };
+export const methodLabel = (method: string | null) => (method && methods[method]) || "—";

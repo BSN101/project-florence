@@ -622,3 +622,83 @@ The instructor successfully creates a duty session and maintains an accurate, pr
 - Attendance saves pre-validate time windows and non-future constraints before invoking the server action, preventing future timestamps from reaching the database.
 - Idempotency keys (`requestKey`) are retained on retryable network errors and refreshed on deterministic rejections, preventing duplicate records or parameter drift.
 - Past-semester views, ended sessions (`ended_at IS NOT NULL`), and cold-visits with invalid query parameters redirect or disable creation/editing gracefully.
+
+## Log attendance with a selfie
+
+- **Author:** Jamir
+- **Actors:** Student (any enrolled student, including Council members as students).
+- **Starts at:** Student workspace > Events (`/student/events`); a published event the student belongs to, with its time-in or time-out window open.
+- **References:** FL-049, FL-015, FL-017; schema §6.5 (`event_attendance_claims`), §16.9, §5.1 (`files`).
+
+### Main flow
+
+1. While a window is open, the student's event row shows **Log time-in** (or **Log time-out** once time-in is recorded or awaiting verification).
+2. The student opens it and reads the consent notice: purpose, who sees the photo, storage, deletion and the QR/manual alternative. Nothing else is enabled until they tick the agreement and continue.
+3. The student types their student number (`XX-1-XXXXX`). The front camera starts; **Take photo** works only while exactly one face is in view. They can retake.
+4. The student submits. The server checks the number against their own account, re-encodes the photo and records a pending claim at the database time.
+5. The row shows the side as awaiting verification. After review it shows the recorded time, or the rejection reason.
+
+### System involvement
+
+- The browser captures an 800 px JPEG; `uploadFile` re-encodes it to WebP without metadata under purpose `attendance_selfie` (≤ 1 MB) with a server-generated key.
+- `submit_attendance_claim` locks the event and checks publication, lock, window, participation, the typed number, consent, the photo's owner and any existing pending or verified claim for that side. It stores `submitted_at`, `consented_at` and `consent_version`; the typed number is not stored.
+- Face detection runs only in the browser (self-hosted `@mediapipe/tasks-vision`); the server never relies on it.
+
+### Outcome
+
+The claim waits in the event's Council Verification tab. Attendance is recorded only if it is verified, at `submitted_at`.
+
+### Important alternatives
+
+- **Declined consent or no camera:** the student cancels, or sees a message to ask Council for QR or manual capture.
+- **Wrong student number:** refused before the photo is stored.
+- **Rejected claim:** the student gets an in-app notice and may submit again while the window is open.
+- **Retry after a lost response:** the same request key returns the first claim; the extra photo is discarded.
+- **Council records the side first (QR, manual or CSV):** the pending claim is superseded and its photo deleted.
+
+### Acceptance checks
+
+- The camera does not start before consent, and stops when the dialog closes, the photo is taken or the page is hidden.
+- The shutter stays disabled with no face or with two faces.
+- A claim outside the window, for a non-participant, with a wrong number, without consent or after locking is refused.
+- A second pending claim for the same side is refused; a time-out claim needs a recorded or pending time-in.
+- Still to verify on real devices (iOS Safari, Android Chrome): camera permission, face gate, poor signal and retry.
+
+## Verify selfie attendance claims
+
+- **Author:** Jamir
+- **Actors:** Council Executive, Operations or Representative (never the claimant).
+- **Starts at:** Council workspace > Events > an event > **Verification** tab. Representatives see it while capture is open; Executive and Operations until attendance locks.
+- **References:** FL-050, FL-018, FL-044; schema §6.5, §16.1, §16.9.
+
+### Main flow
+
+1. The reviewer opens the Verification tab, labelled with the pending count. Claims are listed oldest first with name, student number, side and submission time.
+2. The reviewer opens a claim. The photo loads through a short-lived link issued only while the claim is pending.
+3. The reviewer verifies, or rejects with a reason (quick picks or free text).
+4. The system records the decision and moves to the next claim. A verified claim records the side at `submitted_at`, method Selfie, with the reviewer as recorder. A rejected claim records nothing and notifies the student.
+5. After the decision, the photo is deleted from storage and the deletion is recorded.
+
+### System involvement
+
+- `review_attendance_claim` locks the event, refuses self-review and already-reviewed claims, and verifies through the shared attendance helper, so a time-out cannot be verified before its time-in. Rejecting a time-in also rejects the student's pending time-out claim.
+- Photo deletion runs after the transaction commits (`florence_undeleted_claim_photos`, `mark_claim_photo_deleted`). QR, manual and CSV capture and consequence generation run the same cleanup.
+- Consequence generation is refused while any claim is pending; the Consequences tab shows the count and disables **Generate and lock**.
+
+### Outcome
+
+The claim leaves the queue. The student sees the recorded time, or the rejection reason and an in-app notice. No photo remains once its claim is decided or superseded.
+
+### Important alternatives
+
+- **Own claim:** shown as "Your claim" with no review button; the database refuses self-review.
+- **Claim decided elsewhere first:** the decision is refused as already reviewed; refresh to see the current queue.
+- **Photo no longer available:** the dialog says so and verification stays disabled.
+- **Failed storage deletion:** `photo_deleted_at` stays empty and the next review, capture or generation for the event retries it.
+
+### Acceptance checks
+
+- Verify writes attendance at the submission time with method Selfie; reject writes none and sends one notice.
+- No photo link is issued after a claim is reviewed or superseded.
+- Generation is blocked while claims are pending and succeeds once they are reviewed.
+- Still to verify in a production build: Back keeps the page, the tab survives in the URL, and the queue refreshes with **Refresh**.

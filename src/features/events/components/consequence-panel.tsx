@@ -18,7 +18,8 @@ const bucketLabel = { office: "Office", rle: "RLE" } as const;
  * Review and generate an event's consequences (FL-018). Before attendance closes it is a
  * projection; after generation it is read-only and lists what was generated.
  */
-export function ConsequencePanel({ event, canGenerateNow }: { event: EventDTO; canGenerateNow: boolean }) {
+/** `pendingClaims`: selfie claims still awaiting verification; generation waits for them (FL-018). */
+export function ConsequencePanel({ event, canGenerateNow, pendingClaims }: { event: EventDTO; canGenerateNow: boolean; pendingClaims: number }) {
   const generated = event.attendance_locked_at !== null;
   const [done, setDone] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ rows: ConsequencePreviewRow[]; totals: ConsequenceTotals } | null>(null);
@@ -76,6 +77,11 @@ export function ConsequencePanel({ event, canGenerateNow }: { event: EventDTO; c
                 : "Attendance is still open, so this is a projection: students not yet timed in show as absent. Generation opens when attendance closes."}
           </p>
         </div>
+        {!generated && pendingClaims > 0 && (
+          <p role="status" className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+            {pendingClaims} attendance photo{pendingClaims === 1 ? " is" : "s are"} awaiting verification. Review them in the Verification tab before generating.
+          </p>
+        )}
         {done && (
           <div role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">{done}</div>
         )}
@@ -174,7 +180,7 @@ export function ConsequencePanel({ event, canGenerateNow }: { event: EventDTO; c
 
         {!generated && canGenerateNow && !done && (
           <div className="flex justify-end">
-            <Button type="button" onClick={handleGenerate} disabled={isPending || !preview || !bucket}>
+            <Button type="button" onClick={handleGenerate} disabled={isPending || !preview || !bucket || pendingClaims > 0}>
               {isPending && <Loader2 className="size-4 animate-spin" />}
               Generate and lock
             </Button>

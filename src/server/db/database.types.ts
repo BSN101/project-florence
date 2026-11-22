@@ -352,6 +352,79 @@ export type Database = {
           },
         ]
       }
+      event_attendance_claims: {
+        Row: {
+          consent_version: string
+          consented_at: string
+          created_at: string
+          event_id: string
+          file_id: string
+          id: string
+          kind: string
+          photo_deleted_at: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          student_id: string
+          submitted_at: string
+        }
+        Insert: {
+          consent_version: string
+          consented_at: string
+          created_at?: string
+          event_id: string
+          file_id: string
+          id?: string
+          kind: string
+          photo_deleted_at?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          student_id: string
+          submitted_at: string
+        }
+        Update: {
+          consent_version?: string
+          consented_at?: string
+          created_at?: string
+          event_id?: string
+          file_id?: string
+          id?: string
+          kind?: string
+          photo_deleted_at?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          student_id?: string
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_attendance_claims_event_id_student_id_fkey"
+            columns: ["event_id", "student_id"]
+            isOneToOne: false
+            referencedRelation: "event_attendance"
+            referencedColumns: ["event_id", "student_id"]
+          },
+          {
+            foreignKeyName: "event_attendance_claims_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: true
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_attendance_claims_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_consequence_rules: {
         Row: {
           absence_demerit_days: number
@@ -2186,16 +2259,28 @@ export type Database = {
         Returns: undefined
       }
       f_cmd_platform_admin: { Args: { p_actor: string }; Returns: undefined }
-      f_cmd_record_attendance: {
-        Args: {
-          p_actor: string
-          p_event: string
-          p_kind: string
-          p_method: string
-          p_student: string
-        }
-        Returns: string
-      }
+      f_cmd_record_attendance:
+        | {
+            Args: {
+              p_actor: string
+              p_event: string
+              p_kind: string
+              p_method: string
+              p_student: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_actor: string
+              p_at: string
+              p_event: string
+              p_kind: string
+              p_method: string
+              p_student: string
+            }
+            Returns: string
+          }
       f_cmd_role: {
         Args: { p_actor: string; p_role: string }
         Returns: boolean
@@ -2556,6 +2641,13 @@ export type Database = {
           university_id: string
         }[]
       }
+      florence_undeleted_claim_photos: {
+        Args: { p_event: string }
+        Returns: {
+          claim_id: string
+          storage_key: string
+        }[]
+      }
       freeze_event: {
         Args: { p_actor: string; p_event: string; p_key: string }
         Returns: Json
@@ -2601,6 +2693,10 @@ export type Database = {
           p_student: string
         }
         Returns: Json
+      }
+      mark_claim_photo_deleted: {
+        Args: { p_claim: string }
+        Returns: undefined
       }
       prepare_event_capture: {
         Args: { p_actor: string; p_event: string }
@@ -2714,6 +2810,16 @@ export type Database = {
         }
         Returns: Json
       }
+      review_attendance_claim: {
+        Args: {
+          p_actor: string
+          p_claim: string
+          p_decision: string
+          p_key: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       revoke_service_credit: {
         Args: {
           p_actor: string
@@ -2811,6 +2917,18 @@ export type Database = {
           p_key: string
           p_rows: Json
           p_session: string
+        }
+        Returns: Json
+      }
+      submit_attendance_claim: {
+        Args: {
+          p_actor: string
+          p_consent_version: string
+          p_event: string
+          p_file: string
+          p_key: string
+          p_kind: string
+          p_university_id: string
         }
         Returns: Json
       }
