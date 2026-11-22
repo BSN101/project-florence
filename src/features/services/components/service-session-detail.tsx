@@ -113,9 +113,9 @@ export function ServiceSessionDetail({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                 {formatDutyDate(session.duty_on)}
-              </h1>
+              </h2>
               <BucketBadge bucket={session.bucket} />
               <SessionStatusBadge endedAt={session.ended_at} />
             </div>
