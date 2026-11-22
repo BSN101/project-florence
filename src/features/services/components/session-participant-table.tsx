@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, CircleAlert, Clock, Loader2, RotateCcw, Users, X } from "lucide-react";
+import { CheckCircle2, CircleAlert, Clock, Loader2, RotateCcw, Search, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -117,6 +117,16 @@ export function SessionParticipantTable({
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [retryableError, setRetryableError] = useState(false);
+
+  // Search only hides rows: drafts on hidden rows are kept and still saved.
+  const [search, setSearch] = useState("");
+  const visibleParticipants = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return participants;
+    return participants.filter(
+      (p) => displayName(p).toLowerCase().includes(q) || p.university_id.toLowerCase().includes(q)
+    );
+  }, [participants, search]);
 
   // Identify rows modified compared to server state
   const dirtyRows = useMemo(() => {
@@ -365,6 +375,30 @@ export function SessionParticipantTable({
         </div>
       )}
 
+      {participants.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by student number or name..."
+            aria-label="Search participants"
+            className="pl-9 pr-8 text-xs sm:text-sm max-sm:min-h-11"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground max-sm:p-2"
+              aria-label="Clear search"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Table Container */}
       <Card className="overflow-hidden">
         {participants.length === 0 ? (
@@ -408,7 +442,14 @@ export function SessionParticipantTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {participants.map((p) => {
+                {visibleParticipants.length === 0 && (
+                  <tr>
+                    <td colSpan={canManage ? 7 : 6} className="px-3 py-6 text-center text-muted-foreground">
+                      No participants match your search.
+                    </td>
+                  </tr>
+                )}
+                {visibleParticipants.map((p) => {
                   const d = drafts[p.student_id];
                   const previewStatus = getPreviewStatus(p, d);
                   const isExcluded = d?.excluded ?? Boolean(p.excluded_at);
