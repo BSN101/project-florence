@@ -15,10 +15,11 @@ import {
   buildFacultyClearanceCandidates,
   type StudentDisciplineMetrics,
 } from "./candidates";
-import type {
-  CouncilClearanceCandidate,
-  FacultyClearanceCandidate,
-  FacultyClearanceComponent,
+import {
+  FACULTY_CLEARANCE_CONFIG,
+  type CouncilClearanceCandidate,
+  type FacultyClearanceCandidate,
+  type FacultyClearanceComponent,
 } from "./contracts";
 
 export async function assertAuthorizedCouncilClearanceManager() {
@@ -110,140 +111,73 @@ export const getCouncilClearanceCandidates = cache(async function getCouncilClea
 /**
  * Loads all candidates for Faculty clearance for the given semester and component (FL-041).
  * Gated to Academic Coordinator for 'academic' and RLE Coordinator for 'rle'.
- * Reads Council clearance confirmations (prerequisite) and specific bucket disciplinary records.
+ * Reads the semester's clearances and the component's bucket disciplinary records.
  * Memoized per server request via React.cache.
  */
 export const getFacultyClearanceCandidates = cache(async function getFacultyClearanceCandidates(
   semesterId: string,
-  component: FacultyClearanceComponent,
-  bucket: "office" | "rle"
+  component: FacultyClearanceComponent
 ): Promise<FacultyClearanceCandidate[]> {
   const context = await assertAuthorizedFacultyClearanceManager(component);
+  const { bucket } = FACULTY_CLEARANCE_CONFIG[component];
   const client = await createUserClient();
 
   const roster = await getRoster(semesterId, "faculty");
   if (roster.length === 0) return [];
 
-  const candidateIds = roster.map((student) => student.student_id);
+  const [semesterClearances, balances] = await Promise.all([
+    allRows(
+      (from, to) =>
+        client
+          .from("clearances")
+          .select("student_id, component, confirmed_at, confirmed_by")
+          .eq("semester_id", semesterId)
+          .order("id")
+          .range(from, to),
+      "Unable to load semester clearances"
+    ),
+    // Cumulative bucket counts per enrolled student (all semesters, FL-029), computed in the database.
+    allRows(
+      (from, to) =>
+        client
+          .rpc("florence_bucket_balances", { p_semester: semesterId, p_bucket: bucket })
+          .order("student_id")
+          .range(from, to),
+      "Unable to load disciplinary balances"
+    ),
+  ]);
 
-  // Run all clearances for the semester, and bucket disciplinary records strictly scoped to candidateIds in parallel.
-  const [semesterClearances, demerits, applications, serviceCredits] =
-    await Promise.all([
-      allRows(
-        (from, to) =>
-          client
-            .from("clearances")
-            .select("student_id, component, confirmed_at, confirmed_by")
-            .eq("semester_id", semesterId)
-            .order("student_id")
-            .range(from, to),
-        "Unable to load semester clearances"
-      ),
-      allRows(
-        (from, to) =>
-          client
-            .from("demerits")
-            .select("student_id, bucket, waived_at")
-            .eq("bucket", bucket)
-            .is("waived_at", null)
-            .in("student_id", candidateIds)
-            .order("id")
-            .range(from, to),
-        "Unable to load active demerits"
-      ),
-      allRows(
-        (from, to) =>
-          client
-            .from("merit_applications")
-            .select("student_id, bucket")
-            .eq("bucket", bucket)
-            .in("student_id", candidateIds)
-            .order("id")
-            .range(from, to),
-        "Unable to load merit applications"
-      ),
-      allRows(
-        (from, to) =>
-          client
-            .from("service_credits")
-            .select("student_id, bucket, revoked_at")
-            .eq("bucket", bucket)
-            .is("revoked_at", null)
-            .in("student_id", candidateIds)
-            .order("id")
-            .range(from, to),
-        "Unable to load active service credits"
-      ),
-    ]);
-
-  // Resolve confirming officer profile UUIDs to formatted names (FL-042)
-  const confirmerIds = Array.from(
-    new Set(semesterClearances.map((c) => c.confirmed_by).filter(Boolean))
-  );
-
-  const confirmerMap = new Map<string, string>();
+  // Confirmer names via the restricted projection; own_profile RLS blocks a profiles read.
+  const confirmerIds = [...new Set(semesterClearances.map((c) => c.confirmed_by))];
+  const names = new Map<string, string>();
   if (confirmerIds.length > 0) {
-    const { data: profiles } = await client
-      .from("profiles")
-      .select("id, first_name, middle_name, last_name, suffix")
-      .in("id", confirmerIds);
-
-    for (const p of profiles ?? []) {
-      confirmerMap.set(p.id, displayName(p));
-    }
+    const { data, error } = await client.rpc("florence_clearance_names", { p_ids: confirmerIds });
+    if (error) throw new Error("Unable to load names");
+    for (const row of data) names.set(row.id, displayName(row));
   }
 
-  // Partition clearances by component with resolved actor names
-  const councilClearances = [];
-  const academicClearances = [];
-  const rleClearances = [];
+  const byComponent = (component: string) =>
+    semesterClearances
+      .filter((c) => c.component === component)
+      .map((c) => ({ ...c, confirmed_by_name: names.get(c.confirmed_by) ?? null }));
 
-  for (const c of semesterClearances) {
-    const entry = {
-      student_id: c.student_id,
-      confirmed_at: c.confirmed_at,
-      confirmed_by: c.confirmed_by,
-      confirmed_by_name: confirmerMap.get(c.confirmed_by) ?? null,
-    };
-    if (c.component === "council") councilClearances.push(entry);
-    else if (c.component === "academic") academicClearances.push(entry);
-    else if (c.component === "rle") rleClearances.push(entry);
-  }
-
-  // Aggregate bucket discipline counts per student (cumulative across all semesters, FL-029 / T-041)
-  const disciplineMap = new Map<string, StudentDisciplineMetrics>();
-  const getMetrics = (studentId: string): StudentDisciplineMetrics => {
-    let m = disciplineMap.get(studentId);
-    if (!m) {
-      m = { activeDemerits: 0, appliedMerits: 0, serviceCredits: 0, netBalance: 0 };
-      disciplineMap.set(studentId, m);
-    }
-    return m;
-  };
-
-  for (const d of demerits) {
-    getMetrics(d.student_id).activeDemerits++;
-  }
-  for (const a of applications) {
-    getMetrics(a.student_id).appliedMerits++;
-  }
-  for (const c of serviceCredits) {
-    getMetrics(c.student_id).serviceCredits++;
-  }
-
-  for (const m of disciplineMap.values()) {
-    m.netBalance = m.activeDemerits - m.appliedMerits - m.serviceCredits;
-  }
+  const disciplineMap = new Map<string, StudentDisciplineMetrics>(
+    balances.map((b) => [b.student_id, {
+      activeDemerits: b.active_demerits,
+      appliedMerits: b.applied_merits,
+      serviceCredits: b.active_service_credits,
+      netBalance: b.active_demerits - b.applied_merits - b.active_service_credits,
+    }])
+  );
 
   return buildFacultyClearanceCandidates({
     roster: roster.map((student) => ({ ...student, name: displayName(student) })),
-    councilClearances,
-    academicClearances,
-    rleClearances,
+    councilClearances: byComponent("council"),
+    academicClearances: byComponent("academic"),
+    rleClearances: byComponent("rle"),
     disciplineMap,
     actorProfileId: context.profile.id,
     component,
     bucket,
   });
 });
-

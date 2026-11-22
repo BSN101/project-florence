@@ -34,12 +34,11 @@ export async function FacultyClearancePageContent({
     : ready.currentSemester ?? ready.semesters[0];
 
   const semesterId = selectedSemester?.id;
-  const isCurrentSemester = Boolean(selectedSemester?.is_current);
 
   const isAuthorized = ready ? isAuthorizedFacultyClearanceRole(ready.roles, component) : false;
   const candidates =
     semesterId && isAuthorized
-      ? await getFacultyClearanceCandidates(semesterId, component, config.bucket)
+      ? await getFacultyClearanceCandidates(semesterId, component)
       : null;
 
   return (
@@ -53,7 +52,6 @@ export async function FacultyClearancePageContent({
             candidates={candidates}
             semesterId={semesterId}
             component={component}
-            isCurrentSemester={isCurrentSemester}
           />
         </>
       )}
