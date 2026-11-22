@@ -95,12 +95,12 @@ export function FilterSelect({
 /** Fixed-height, scrolling frame with generous spacing and responsiveness across screens. */
 export function TableFrame({ filters, pager, children }: { filters: ReactNode; pager: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3.5">
-      <div className="flex flex-wrap items-center gap-2.5">{filters}</div>
-      <div className="min-h-[20rem] max-h-[28rem] overflow-auto rounded-xl border border-border bg-card shadow-xs clearance-scrollbar">
+    <div className="flex flex-col gap-3.5 min-w-0 max-w-full overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2.5 min-w-0 max-w-full">{filters}</div>
+      <div className="min-h-[20rem] max-h-[28rem] w-full max-w-full overflow-x-auto overflow-y-auto rounded-xl border border-border bg-card shadow-xs clearance-scrollbar">
         {children}
       </div>
-      {pager}
+      <div className="min-w-0 max-w-full">{pager}</div>
     </div>
   );
 }

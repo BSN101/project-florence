@@ -59,21 +59,21 @@ export function DemeritsTable({
 
   return (
     <TableFrame filters={filters} pager={pager}>
-      <table className="w-full min-w-[720px] table-fixed text-left text-xs">
+      <table className="w-full min-w-[840px] table-fixed text-left text-xs">
         <colgroup>
+          <col className="w-[15%]" />
+          <col className="w-[13%]" />
+          <col className="w-[32%]" />
           <col className="w-[16%]" />
-          <col className="w-[14%]" />
-          <col className="w-[36%]" />
-          <col className="w-[14%]" />
-          <col className="w-[20%]" />
+          <col className="w-[24%]" />
         </colgroup>
         <thead className={THEAD_CLASS}>
           <tr>
             <th className="px-4.5 py-3.5 font-medium">Incident Date</th>
             <th className="px-4.5 py-3.5 font-medium">Bucket</th>
             <th className="px-4.5 py-3.5 font-medium">Misconduct & Description</th>
-            <th className="px-4.5 py-3.5 font-medium">Status</th>
-            <th className="px-4.5 py-3.5 font-medium">Issuer / Source</th>
+            <th className="pl-4.5 pr-8 py-3.5 font-medium">Status</th>
+            <th className="pl-8 pr-6 py-3.5 font-medium">Issuer / Source</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
@@ -112,12 +112,12 @@ export function DemeritsTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4.5 py-3.5 whitespace-nowrap">
+                <td className="pl-4.5 pr-8 py-3.5 whitespace-nowrap">
                   <DemeritStatusBadge waived={isWaived} />
                 </td>
-                <td className="px-4.5 py-3.5 text-muted-foreground whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <User className="size-3.5 text-muted-foreground/70" />
+                <td className="pl-8 pr-6 py-3.5 text-muted-foreground whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <User className="size-3.5 text-muted-foreground/70 shrink-0" />
                     <span className="truncate">
                       {d.external_source_name
                         ? `External: ${d.external_source_name}`

@@ -52,13 +52,13 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 min-w-0 max-w-full overflow-hidden">
       {/* Coordinator View */}
       {data.isCoordinator && data.summary && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary">
+        <div className="flex flex-col gap-3 min-w-0 max-w-full">
+          <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary min-w-0">
             <ShieldCheck className="size-4 shrink-0" />
-            <span>Coordinator View · Cumulative Student Disciplinary Balances</span>
+            <span className="truncate">Coordinator View · Cumulative Student Disciplinary Balances</span>
           </div>
           <DisciplinaryBalanceCards summary={data.summary} />
         </div>
@@ -66,7 +66,7 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
 
       {/* Ordinary Instructor Scoped View Note */}
       {!data.isCoordinator && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3.5 text-xs text-muted-foreground">
+        <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3.5 text-xs text-muted-foreground min-w-0 max-w-full">
           <User className="size-4 text-primary mt-0.5 shrink-0" />
           <div>
             <strong className="text-foreground">Instructor-Scoped Activity (FL-029):</strong>
@@ -79,8 +79,8 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
       )}
 
       {/* Tabs */}
-      <div className="flex flex-col gap-3.5">
-        <div className="flex items-center gap-2 border-b border-border pb-2">
+      <div className="flex flex-col gap-3.5 min-w-0 max-w-full">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 border-b border-border pb-2.5">
           <Button
             type="button"
             variant={activeTab === "demerits" ? "default" : "ghost"}
@@ -115,7 +115,7 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
           </Button>
         </div>
 
-        <div>
+        <div className="min-w-0 max-w-full overflow-hidden">
           {activeTab === "demerits" && <DemeritsTable demerits={data.demerits} />}
           {activeTab === "merits" && <MeritsTable merits={data.merits} />}
           {activeTab === "services" && <ServiceCreditsTable credits={data.serviceCredits} />}

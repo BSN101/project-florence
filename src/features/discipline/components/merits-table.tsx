@@ -59,21 +59,21 @@ export function MeritsTable({
 
   return (
     <TableFrame filters={filters} pager={pager}>
-      <table className="w-full min-w-[720px] table-fixed text-left text-xs">
+      <table className="w-full min-w-[840px] table-fixed text-left text-xs">
         <colgroup>
-          <col className="w-[16%]" />
-          <col className="w-[34%]" />
-          <col className="w-[20%]" />
-          <col className="w-[12%]" />
+          <col className="w-[15%]" />
+          <col className="w-[31%]" />
           <col className="w-[18%]" />
+          <col className="w-[16%]" />
+          <col className="w-[20%]" />
         </colgroup>
         <thead className={THEAD_CLASS}>
           <tr>
             <th className="px-4.5 py-3.5 font-medium">Award Date</th>
             <th className="px-4.5 py-3.5 font-medium">Description</th>
             <th className="px-4.5 py-3.5 font-medium">Validity / Expiry</th>
-            <th className="px-4.5 py-3.5 font-medium">Status</th>
-            <th className="px-4.5 py-3.5 font-medium">Awarded By / Source</th>
+            <th className="pl-4.5 pr-8 py-3.5 font-medium">Status</th>
+            <th className="pl-8 pr-6 py-3.5 font-medium">Awarded By / Source</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
@@ -96,7 +96,7 @@ export function MeritsTable({
                   <span>Valid until {m.expires_on}</span>
                 </div>
               </td>
-              <td className="px-4.5 py-3.5 whitespace-nowrap">
+              <td className="pl-4.5 pr-8 py-3.5 whitespace-nowrap">
                 {hasStatus ? (
                   <MeritStatusBadge
                     isApplied={m.isApplied}
@@ -107,9 +107,9 @@ export function MeritsTable({
                   <span className="text-muted-foreground">—</span>
                 )}
               </td>
-              <td className="px-4.5 py-3.5 text-muted-foreground whitespace-nowrap">
-                <div className="flex items-center gap-1.5">
-                  <User className="size-3.5 text-muted-foreground/70" />
+              <td className="pl-8 pr-6 py-3.5 text-muted-foreground whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                  <User className="size-3.5 text-muted-foreground/70 shrink-0" />
                   <span className="truncate">
                     {m.external_source_name
                       ? `External: ${m.external_source_name}`

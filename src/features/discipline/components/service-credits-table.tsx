@@ -47,19 +47,19 @@ export function ServiceCreditsTable({
 
   return (
     <TableFrame filters={filters} pager={pager}>
-      <table className="w-full min-w-[660px] table-fixed text-left text-xs">
+      <table className="w-full min-w-[780px] table-fixed text-left text-xs">
         <colgroup>
-          <col className="w-[20%]" />
           <col className="w-[18%]" />
+          <col className="w-[16%]" />
           <col className="w-[28%]" />
-          <col className="w-[34%]" />
+          <col className="w-[38%]" />
         </colgroup>
         <thead className={THEAD_CLASS}>
           <tr>
             <th className="px-4.5 py-3.5 font-medium">Issued Date</th>
             <th className="px-4.5 py-3.5 font-medium">Duty Bucket</th>
-            <th className="px-4.5 py-3.5 font-medium">Status</th>
-            <th className="px-4.5 py-3.5 font-medium">Supervisor / Issuer</th>
+            <th className="pl-4.5 pr-8 py-3.5 font-medium">Status</th>
+            <th className="pl-8 pr-6 py-3.5 font-medium">Supervisor / Issuer</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
@@ -75,7 +75,7 @@ export function ServiceCreditsTable({
                 <td className="px-4.5 py-3.5 whitespace-nowrap">
                   <BucketBadge bucket={c.bucket} />
                 </td>
-                <td className="px-4.5 py-3.5">
+                <td className="pl-4.5 pr-8 py-3.5">
                   <div className="flex flex-col gap-1">
                     <ServiceCreditBadge revoked={isRevoked} />
                     {isRevoked && c.revocation_reason && (
@@ -88,9 +88,9 @@ export function ServiceCreditsTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4.5 py-3.5 text-muted-foreground whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <User className="size-3.5 text-muted-foreground/70" />
+                <td className="pl-8 pr-6 py-3.5 text-muted-foreground whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <User className="size-3.5 text-muted-foreground/70 shrink-0" />
                     <span className="truncate">{c.issuer_name ?? "Instructor"}</span>
                   </div>
                 </td>
