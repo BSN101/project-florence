@@ -8,3 +8,14 @@ export const confirmCouncilClearanceSchema = z.object({
 });
 
 export type ConfirmCouncilClearanceInput = z.infer<typeof confirmCouncilClearanceSchema>;
+
+export const confirmFacultyClearanceSchema = z.object({
+  studentId: z.string().uuid("Invalid student ID format"),
+  semesterId: z.string().uuid("Invalid semester ID format"),
+  component: z.enum(["academic", "rle"]),
+  /** Made when the dialog opens, so a retry of the same confirmation replays instead of repeating. */
+  requestKey: z.string().uuid("Invalid request key"),
+});
+
+export type ConfirmFacultyClearanceInput = z.infer<typeof confirmFacultyClearanceSchema>;
+

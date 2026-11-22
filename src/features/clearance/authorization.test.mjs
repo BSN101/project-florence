@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { canConfirmCouncilClearance, isAuthorizedCouncilClearanceRole } from "./authorization.ts";
+import {
+  canConfirmCouncilClearance,
+  canConfirmFacultyClearance,
+  isAuthorizedCouncilClearanceRole,
+  isAuthorizedFacultyClearanceRole,
+} from "./authorization.ts";
 
 describe("Task T-052 / FL-040: Council Clearance Authorization Rules", () => {
   test("isAuthorizedCouncilClearanceRole authorizes executive and operations only", () => {
@@ -79,3 +84,97 @@ describe("Task T-052 / FL-040: Council Clearance Authorization Rules", () => {
     assert.equal(result.reason, "self_clearance_prohibited");
   });
 });
+
+describe("Task T-053 / FL-041: Faculty Clearance Authorization Rules", () => {
+  const coordinatorId = "11111111-1111-4111-8111-111111111111";
+  const studentId = "22222222-2222-4222-8222-222222222222";
+
+  test("isAuthorizedFacultyClearanceRole checks specific coordinator role", () => {
+    assert.equal(isAuthorizedFacultyClearanceRole(["Academic Coordinator"], "academic"), true);
+    assert.equal(isAuthorizedFacultyClearanceRole(["Academic Coordinator"], "rle"), false);
+    assert.equal(isAuthorizedFacultyClearanceRole(["RLE Coordinator"], "rle"), true);
+    assert.equal(isAuthorizedFacultyClearanceRole(["RLE Coordinator"], "academic"), false);
+    assert.equal(isAuthorizedFacultyClearanceRole(["Academic Instructor"], "academic"), false);
+    assert.equal(isAuthorizedFacultyClearanceRole(["Clinical Instructor"], "rle"), false);
+    assert.equal(isAuthorizedFacultyClearanceRole([], "academic"), false);
+    assert.equal(isAuthorizedFacultyClearanceRole(null, "academic"), false);
+    assert.equal(isAuthorizedFacultyClearanceRole(undefined, "rle"), false);
+  });
+
+  test("Academic Coordinator is permitted when Council clearance is confirmed and semester is current", () => {
+    const result = canConfirmFacultyClearance({
+      actorProfileId: coordinatorId,
+      studentId,
+      roles: ["Academic Coordinator", "Academic Instructor"],
+      component: "academic",
+      councilCleared: true,
+      isCurrentSemester: true,
+    });
+    assert.equal(result.allowed, true);
+  });
+
+  test("RLE Coordinator is permitted when Council clearance is confirmed and semester is current", () => {
+    const result = canConfirmFacultyClearance({
+      actorProfileId: coordinatorId,
+      studentId,
+      roles: ["RLE Coordinator", "Clinical Instructor"],
+      component: "rle",
+      councilCleared: true,
+      isCurrentSemester: true,
+    });
+    assert.equal(result.allowed, true);
+  });
+
+  test("Denied if Council clearance is not yet confirmed", () => {
+    const result = canConfirmFacultyClearance({
+      actorProfileId: coordinatorId,
+      studentId,
+      roles: ["Academic Coordinator"],
+      component: "academic",
+      councilCleared: false,
+      isCurrentSemester: true,
+    });
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "council_clearance_required");
+  });
+
+  test("Strict Anti-Self-Clearance: Coordinator cannot clear their own student profile", () => {
+    const result = canConfirmFacultyClearance({
+      actorProfileId: coordinatorId,
+      studentId: coordinatorId,
+      roles: ["Academic Coordinator"],
+      component: "academic",
+      councilCleared: true,
+      isCurrentSemester: true,
+    });
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "self_clearance_prohibited");
+  });
+
+  test("Historical semester guard: Past semester is strictly read-only", () => {
+    const result = canConfirmFacultyClearance({
+      actorProfileId: coordinatorId,
+      studentId,
+      roles: ["Academic Coordinator"],
+      component: "academic",
+      councilCleared: true,
+      isCurrentSemester: false,
+    });
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "historical_semester_readonly");
+  });
+
+  test("Unauthorized role without coordinator assignment is denied", () => {
+    const result = canConfirmFacultyClearance({
+      actorProfileId: coordinatorId,
+      studentId,
+      roles: ["Academic Instructor"],
+      component: "academic",
+      councilCleared: true,
+      isCurrentSemester: true,
+    });
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "unauthorized_role");
+  });
+});
+
