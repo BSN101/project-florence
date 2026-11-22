@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { RefreshButton } from "@/components/layout/refresh-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BucketBadge } from "@/features/discipline/components/disciplinary-badges";
@@ -74,6 +75,7 @@ export function ServiceSessionDetail({
   session,
   availableStudents,
   studentsLoadFailed,
+  renderedAt,
   canManage,
   isOwner,
   isCurrentSemester,
@@ -82,6 +84,7 @@ export function ServiceSessionDetail({
   session: ServiceSessionDetailType;
   availableStudents: AvailableServiceStudent[];
   studentsLoadFailed: boolean;
+  renderedAt: string;
   canManage: boolean;
   isOwner: boolean;
   isCurrentSemester: boolean;
@@ -148,15 +151,16 @@ export function ServiceSessionDetail({
             </div>
           </div>
 
-          {canManage ? (
-            <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <RefreshButton renderedAt={renderedAt} />
+            {canManage ? (
               <AddParticipantsDialog
                 sessionId={session.id}
                 availableStudents={availableStudents}
                 loadFailed={studentsLoadFailed}
               />
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
 

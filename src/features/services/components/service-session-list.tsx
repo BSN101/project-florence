@@ -11,6 +11,7 @@ import {
   User,
 } from "lucide-react";
 
+import { RefreshButton } from "@/components/layout/refresh-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BucketBadge } from "@/features/discipline/components/disciplinary-badges";
@@ -41,6 +42,7 @@ export function ServiceSessionList({
   hasInstructorRole,
   showCreator = false,
   baseHref,
+  renderedAt,
 }: {
   sessions: ServiceSessionSummary[];
   canCreate: boolean;
@@ -48,6 +50,7 @@ export function ServiceSessionList({
   hasInstructorRole: boolean;
   showCreator?: boolean;
   baseHref: string;
+  renderedAt: string;
 }) {
   const ineligibleReasonId = useId();
 
@@ -74,11 +77,14 @@ export function ServiceSessionList({
           <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
             Service Sessions
           </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {sessions.length}{" "}
-            {sessions.length === 1 ? "service session" : "service sessions"}{" "}
-            recorded
-          </p>
+          <div className="mt-0.5 flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              {sessions.length}{" "}
+              {sessions.length === 1 ? "service session" : "service sessions"}{" "}
+              recorded
+            </p>
+            <RefreshButton renderedAt={renderedAt} />
+          </div>
         </div>
 
         <div className="flex shrink-0 flex-col gap-1 max-sm:w-full sm:items-end">

@@ -81,7 +81,8 @@ export default async function FacultyServiceSessionsPage({
     access.roles.includes("Academic Coordinator") ||
     access.roles.includes("RLE Coordinator");
 
-  const baseHref = filter.data?.semester
+  const renderedAt = new Date().toISOString();
+  const baseHref = filter.data.semester
     ? `${path}?semester=${filter.data.semester}`
     : path;
 
@@ -152,6 +153,7 @@ export default async function FacultyServiceSessionsPage({
           session={detail}
           availableStudents={availableStudents}
           studentsLoadFailed={studentsLoadFailed}
+          renderedAt={renderedAt}
           canManage={canManage}
           isOwner={isOwner}
           isCurrentSemester={isSessionCurrentSemester}
@@ -217,6 +219,7 @@ export default async function FacultyServiceSessionsPage({
           hasInstructorRole={allowedBuckets.length > 0}
           showCreator={isCoordinator}
           baseHref={baseHref}
+          renderedAt={renderedAt}
         />
       );
     }
