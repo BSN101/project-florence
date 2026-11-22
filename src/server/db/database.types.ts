@@ -2361,6 +2361,28 @@ export type Database = {
           year_level: number
         }[]
       }
+      florence_bucket_balances: {
+        Args: {
+          p_bucket: Database["public"]["Enums"]["bucket"]
+          p_semester: string
+        }
+        Returns: {
+          active_demerits: number
+          active_service_credits: number
+          applied_merits: number
+          student_id: string
+        }[]
+      }
+      florence_clearance_names: {
+        Args: { p_ids: string[] }
+        Returns: {
+          first_name: string
+          id: string
+          last_name: string
+          middle_name: string
+          suffix: string
+        }[]
+      }
       florence_council_candidate: {
         Args: { p_university_id: string }
         Returns: {
