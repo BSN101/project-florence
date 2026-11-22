@@ -62,6 +62,17 @@ export default async function FacultyServiceSessionsPage({
     ? access.semesters.find((s) => s.id === filter.data.semester)
     : access.semesters.find((s) => s.is_current) ?? access.semesters[0];
 
+  // Invalid or unknown semester: let WorkspaceShell return 404 before any redirect below runs.
+  if (!filter.success || (filter.data.semester && !selected)) {
+    return (
+      <WorkspaceShell
+        workspace="faculty"
+        destination="service-sessions"
+        semester={semester}
+      />
+    );
+  }
+
   const semesterId = selected?.id;
   const isCurrentSemester = Boolean(selected?.is_current);
   const allowedBuckets = allowedServiceBuckets(access.roles);
