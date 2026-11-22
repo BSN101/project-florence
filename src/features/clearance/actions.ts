@@ -4,17 +4,32 @@ import { revalidatePath } from "next/cache";
 
 import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
-import { canConfirmCouncilClearance } from "./authorization";
-import type { ConfirmCouncilClearanceResult } from "./contracts";
-import { assertAuthorizedCouncilClearanceManager } from "./queries";
-import { confirmCouncilClearanceSchema } from "./schemas";
+import {
+  canConfirmCouncilClearance,
+  canConfirmFacultyClearance,
+} from "./authorization";
+import type {
+  ConfirmCouncilClearanceResult,
+  ConfirmFacultyClearanceResult,
+} from "./contracts";
+import {
+  assertAuthorizedCouncilClearanceManager,
+  assertAuthorizedFacultyClearanceManager,
+} from "./queries";
+import {
+  confirmCouncilClearanceSchema,
+  confirmFacultyClearanceSchema,
+} from "./schemas";
 
 const RPC_MESSAGES: [string, string][] = [
   ["Self clearance forbidden", "You can't confirm your own clearance."],
   ["Council action not authorized", "Your Council access no longer allows confirming clearance."],
+  ["Matching coordinator assignment required", "You must have the matching Coordinator role to confirm this clearance."],
+  ["Council clearance for same semester is required", "Council clearance must be confirmed first for this student in this semester."],
   ["Active Auth-linked human actor required", "Your account is not active. Sign in again."],
   ["Student enrollment in the specified semester required", "This student is not enrolled in the selected semester."],
   ["Request key reused", "This confirmation was already sent with different details. Refresh and try again."],
+  ["Invalid clearance component", "Invalid clearance component."],
 ];
 
 // Database messages are not shown as-is; unknown ones get a generic message.
@@ -64,3 +79,65 @@ export async function confirmCouncilClearanceAction(rawInput: unknown): Promise<
     return rejected("Unable to reach the server. Try again.");
   }
 }
+
+/**
+ * Permanently records Faculty clearance (Academic or RLE) for a student and semester (FL-041).
+ * Requires matching Coordinator role, prerequisite Council clearance, and current active semester.
+ * Disciplinary balance remains visible but is not an automatic blocker.
+ */
+export async function confirmFacultyClearanceAction(rawInput: unknown): Promise<ConfirmFacultyClearanceResult> {
+  const parsed = confirmFacultyClearanceSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid clearance details. Refresh and try again." };
+  }
+  const { studentId, semesterId, component, requestKey } = parsed.data;
+
+  let context: Awaited<ReturnType<typeof assertAuthorizedFacultyClearanceManager>>;
+  try {
+    context = await assertAuthorizedFacultyClearanceManager(component);
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof AccessDeniedError ? "You are not permitted to confirm clearance." : "Unable to verify your access. Try again.",
+    };
+  }
+
+  const isCurrentSemester = context.currentSemester?.id === semesterId;
+  const preCheck = canConfirmFacultyClearance({
+    actorProfileId: context.profile.id,
+    studentId,
+    roles: context.roles,
+    component,
+    councilCleared: true, // Will also be verified atomically inside PostgreSQL RPC
+    isCurrentSemester,
+  });
+
+  if (!preCheck.allowed) {
+    if (preCheck.reason === "historical_semester_readonly") {
+      return { success: false, error: "Clearance can only be confirmed for the active current semester." };
+    }
+    if (preCheck.reason === "self_clearance_prohibited") {
+      return { success: false, error: "You can't confirm your own clearance." };
+    }
+    return { success: false, error: "You are not permitted to confirm clearance." };
+  }
+
+  try {
+    const { data, error } = await createCommandClient().rpc("confirm_clearance", {
+      p_key: requestKey,
+      p_actor: context.profile.id,
+      p_student: studentId,
+      p_semester: semesterId,
+      p_component: component,
+    });
+    if (error) return { success: false, error: formatRpcError(error.message) };
+
+    const targetPath = component === "academic" ? "/faculty/academic-clearance" : "/faculty/rle-clearance";
+    revalidatePath(targetPath);
+    const record = data as { clearance_id: string; confirmed_at: string };
+    return { success: true, clearanceId: record.clearance_id, confirmedAt: record.confirmed_at };
+  } catch {
+    return { success: false, error: "Unable to reach the server. Try again." };
+  }
+}
+

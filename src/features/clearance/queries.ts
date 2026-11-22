@@ -4,14 +4,40 @@ import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-works
 import { createUserClient } from "@/server/db/user-client";
 import { fromCents, toCents } from "@/features/finance/calculations";
 import { allRows, getCouncilFinancialRoster } from "@/features/finance/queries";
+import { getRoster } from "@/features/students/queries";
 import { displayName } from "@/lib/format-name";
-import { isAuthorizedCouncilClearanceRole } from "./authorization";
-import { buildCouncilClearanceCandidates } from "./candidates";
-import type { CouncilClearanceCandidate } from "./contracts";
+import {
+  isAuthorizedCouncilClearanceRole,
+  isAuthorizedFacultyClearanceRole,
+} from "./authorization";
+import {
+  buildCouncilClearanceCandidates,
+  buildFacultyClearanceCandidates,
+  type StudentDisciplineMetrics,
+} from "./candidates";
+import type {
+  CouncilClearanceCandidate,
+  FacultyClearanceCandidate,
+  FacultyClearanceComponent,
+} from "./contracts";
 
 export async function assertAuthorizedCouncilClearanceManager() {
   const context = await requireWorkspace("council");
   if (!isAuthorizedCouncilClearanceRole(context.councilRole)) {
+    throw new AccessDeniedError("forbidden");
+  }
+  return context;
+}
+
+/**
+ * Access guard for Faculty clearance management (FL-041).
+ * Verifies authenticated Faculty workspace access and enforces role matching:
+ * - Academic clearance requires Academic Coordinator role.
+ * - RLE clearance requires RLE Coordinator role.
+ */
+export async function assertAuthorizedFacultyClearanceManager(component: FacultyClearanceComponent) {
+  const context = await requireWorkspace("faculty");
+  if (!isAuthorizedFacultyClearanceRole(context.roles, component)) {
     throw new AccessDeniedError("forbidden");
   }
   return context;
@@ -80,3 +106,114 @@ export const getCouncilClearanceCandidates = cache(async function getCouncilClea
     actorProfileId: context.profile.id,
   });
 });
+
+/**
+ * Loads all candidates for Faculty clearance for the given semester and component (FL-041).
+ * Gated to Academic Coordinator for 'academic' and RLE Coordinator for 'rle'.
+ * Reads Council clearance confirmations (prerequisite) and specific bucket disciplinary records.
+ * Memoized per server request via React.cache.
+ */
+export const getFacultyClearanceCandidates = cache(async function getFacultyClearanceCandidates(
+  semesterId: string,
+  component: FacultyClearanceComponent,
+  bucket: "office" | "rle"
+): Promise<FacultyClearanceCandidate[]> {
+  const context = await assertAuthorizedFacultyClearanceManager(component);
+  const client = await createUserClient();
+
+  // Run roster, Council clearances (prerequisite), Faculty clearances, and bucket disciplinary records in parallel.
+  const [roster, councilClearances, facultyClearances, demerits, applications, serviceCredits] =
+    await Promise.all([
+      getRoster(semesterId, "faculty"),
+      allRows(
+        (from, to) =>
+          client
+            .from("clearances")
+            .select("student_id, confirmed_at, confirmed_by")
+            .eq("semester_id", semesterId)
+            .eq("component", "council")
+            .order("student_id")
+            .range(from, to),
+        "Unable to load Council clearances"
+      ),
+      allRows(
+        (from, to) =>
+          client
+            .from("clearances")
+            .select("student_id, confirmed_at, confirmed_by")
+            .eq("semester_id", semesterId)
+            .eq("component", component)
+            .order("student_id")
+            .range(from, to),
+        `Unable to load ${component} clearances`
+      ),
+      allRows(
+        (from, to) =>
+          client
+            .from("demerits")
+            .select("student_id, bucket, waived_at")
+            .eq("bucket", bucket)
+            .is("waived_at", null)
+            .order("id")
+            .range(from, to),
+        "Unable to load active demerits"
+      ),
+      allRows(
+        (from, to) =>
+          client
+            .from("merit_applications")
+            .select("student_id, bucket")
+            .eq("bucket", bucket)
+            .order("id")
+            .range(from, to),
+        "Unable to load merit applications"
+      ),
+      allRows(
+        (from, to) =>
+          client
+            .from("service_credits")
+            .select("student_id, bucket, revoked_at")
+            .eq("bucket", bucket)
+            .is("revoked_at", null)
+            .order("id")
+            .range(from, to),
+        "Unable to load active service credits"
+      ),
+    ]);
+
+  // Aggregate bucket discipline counts per student (cumulative across all semesters, FL-029 / T-041)
+  const disciplineMap = new Map<string, StudentDisciplineMetrics>();
+  const getMetrics = (studentId: string): StudentDisciplineMetrics => {
+    let m = disciplineMap.get(studentId);
+    if (!m) {
+      m = { activeDemerits: 0, appliedMerits: 0, serviceCredits: 0, netBalance: 0 };
+      disciplineMap.set(studentId, m);
+    }
+    return m;
+  };
+
+  for (const d of demerits) {
+    getMetrics(d.student_id).activeDemerits++;
+  }
+  for (const a of applications) {
+    getMetrics(a.student_id).appliedMerits++;
+  }
+  for (const c of serviceCredits) {
+    getMetrics(c.student_id).serviceCredits++;
+  }
+
+  for (const m of disciplineMap.values()) {
+    m.netBalance = m.activeDemerits - m.appliedMerits - m.serviceCredits;
+  }
+
+  return buildFacultyClearanceCandidates({
+    roster: roster.map((student) => ({ ...student, name: displayName(student) })),
+    councilClearances,
+    facultyClearances,
+    disciplineMap,
+    actorProfileId: context.profile.id,
+    component,
+    bucket,
+  });
+});
+
