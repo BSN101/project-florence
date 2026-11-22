@@ -198,7 +198,8 @@ export function SessionParticipantTable({
         time_out: timeOut,
         excluded_at: null,
       },
-      session
+      session,
+      new Date().toISOString()
     );
   }
 
@@ -207,6 +208,18 @@ export function SessionParticipantTable({
 
     setError(null);
     setSuccessNotice(null);
+
+    // Now stamps are minute-precision, so two stamps in the same minute are equal and rejected.
+    const sameMinute = dirtyRows.find((p) => {
+      const d = drafts[p.student_id];
+      return d.timeInHHmm !== "" && d.timeInHHmm === d.timeOutHHmm;
+    });
+    if (sameMinute) {
+      setError(
+        `Time-in and time-out for ${displayName(sameMinute)} are both ${drafts[sameMinute.student_id].timeInHHmm}. Time-out must be at least one minute after time-in.`
+      );
+      return;
+    }
 
     const rowsPayload = dirtyRows.map((p) => {
       const d = drafts[p.student_id];
