@@ -16,12 +16,10 @@ export function FacultyClearanceView({
   candidates,
   semesterId,
   component,
-  isCurrentSemester,
 }: {
   candidates: FacultyClearanceCandidate[];
   semesterId: string;
   component: FacultyClearanceComponent;
-  isCurrentSemester: boolean;
 }) {
   const config = FACULTY_CLEARANCE_CONFIG[component];
   const componentLabel = config.label;
@@ -98,14 +96,6 @@ export function FacultyClearanceView({
           Council clearance is a prerequisite for {componentLabel} clearance. Disciplinary balances remain visible
           for review but do not automatically block confirmation.
         </p>
-        {!isCurrentSemester && (
-          <div className="mt-1 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-            <AlertCircle className="size-4 shrink-0" />
-            <span>
-              You are viewing a historical semester. Clearance confirmations are permitted only during the active current semester.
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Summary Stat Cards - 1 big card + 2x2 grid on mobile/tablet (< lg), 5 cols on desktop (>= lg) */}
@@ -149,7 +139,6 @@ export function FacultyClearanceView({
         candidates={candidates}
         semesterId={semesterId}
         component={component}
-        isCurrentSemester={isCurrentSemester}
       />
     </div>
   );

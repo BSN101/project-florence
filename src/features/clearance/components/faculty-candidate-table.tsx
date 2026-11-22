@@ -1,10 +1,8 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import {
-  AlertCircle,
   Check,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -122,9 +120,7 @@ function ClearanceItemStatus({ status }: { status: ClearanceStatus }) {
         className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap"
         title={
           status.confirmedAt
-            ? status.confirmedByName
-              ? `Confirmed by ${status.confirmedByName} on ${confirmedFormat.format(new Date(status.confirmedAt))}`
-              : `Confirmed on ${confirmedFormat.format(new Date(status.confirmedAt))}`
+            ? `Confirmed${status.confirmedByName ? ` by ${status.confirmedByName}` : ""} on ${confirmedFormat.format(new Date(status.confirmedAt))}`
             : "Cleared"
         }
       >
@@ -142,14 +138,44 @@ function ClearanceItemStatus({ status }: { status: ClearanceStatus }) {
   );
 }
 
+function DisabledAction({
+  children,
+  reason,
+  className,
+}: {
+  children: ReactNode;
+  reason: string;
+  className: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            role="button"
+            tabIndex={0}
+            aria-disabled="true"
+            className={cn(
+              buttonVariants({ size: "sm", variant: "outline" }),
+              "cursor-not-allowed border-dashed text-xs text-muted-foreground opacity-60",
+              className
+            )}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="top">{reason}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ClearanceActionButton({
   candidate,
-  isCurrentSemester,
   onSelect,
   fullWidth = false,
 }: {
   candidate: FacultyClearanceCandidate;
-  isCurrentSemester: boolean;
   onSelect: (candidate: FacultyClearanceCandidate) => void;
   fullWidth?: boolean;
 }) {
@@ -168,81 +194,19 @@ function ClearanceActionButton({
 
   if (candidate.isSelf) {
     return (
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span
-              role="button"
-              tabIndex={0}
-              aria-disabled="true"
-              className={cn(
-                buttonVariants({ size: "sm", variant: "outline" }),
-                "cursor-not-allowed border-dashed text-xs text-muted-foreground opacity-60",
-                buttonWidthClass
-              )}
-            />
-          }
-        >
-          <ShieldX className="mr-1.5 size-3.5 text-destructive" />
-          Your record
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          Coordinators cannot confirm clearance for their own student profile.
-        </TooltipContent>
-      </Tooltip>
+      <DisabledAction className={buttonWidthClass} reason="Coordinators cannot confirm clearance for their own student profile.">
+        <ShieldX className="mr-1.5 size-3.5 text-destructive" />
+        Your record
+      </DisabledAction>
     );
   }
 
   if (!candidate.councilCleared) {
     return (
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span
-              role="button"
-              tabIndex={0}
-              aria-disabled="true"
-              className={cn(
-                buttonVariants({ size: "sm", variant: "outline" }),
-                "cursor-not-allowed border-dashed text-xs text-muted-foreground opacity-60",
-                buttonWidthClass
-              )}
-            />
-          }
-        >
-          <Clock className="mr-1.5 size-3.5 text-muted-foreground" />
-          Needs Council
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          Council clearance must be confirmed first for this student and semester.
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  if (!isCurrentSemester) {
-    return (
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span
-              role="button"
-              tabIndex={0}
-              aria-disabled="true"
-              className={cn(
-                buttonVariants({ size: "sm", variant: "outline" }),
-                "cursor-not-allowed text-xs text-muted-foreground opacity-60",
-                buttonWidthClass
-              )}
-            />
-          }
-        >
-          Read-only
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          Past semesters are read-only; clearances can only be confirmed in the active semester.
-        </TooltipContent>
-      </Tooltip>
+      <DisabledAction className={buttonWidthClass} reason="Council clearance must be confirmed first for this student and semester.">
+        <Clock className="mr-1.5 size-3.5 text-muted-foreground" />
+        Needs Council
+      </DisabledAction>
     );
   }
 
@@ -262,12 +226,10 @@ export function FacultyCandidateTable({
   candidates,
   semesterId,
   component,
-  isCurrentSemester,
 }: {
   candidates: FacultyClearanceCandidate[];
   semesterId: string;
   component: FacultyClearanceComponent;
-  isCurrentSemester: boolean;
 }) {
   const searchId = useId();
   const [search, setSearch] = useState("");
@@ -283,7 +245,6 @@ export function FacultyCandidateTable({
   const config = FACULTY_CLEARANCE_CONFIG[component];
   const componentLabel = config.label;
   const bucketLabel = config.bucketLabel;
-  const counterpartLabel = config.counterpartLabel;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -564,7 +525,6 @@ export function FacultyCandidateTable({
                       <div className="pt-2">
                         <ClearanceActionButton
                           candidate={candidate}
-                          isCurrentSemester={isCurrentSemester}
                           onSelect={setSelectedCandidate}
                           fullWidth
                         />
@@ -640,7 +600,6 @@ export function FacultyCandidateTable({
                         <td className="pl-4 pr-6 py-3.5 text-right">
                           <ClearanceActionButton
                             candidate={candidate}
-                            isCurrentSemester={isCurrentSemester}
                             onSelect={setSelectedCandidate}
                           />
                         </td>
