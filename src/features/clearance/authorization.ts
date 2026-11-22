@@ -7,17 +7,6 @@ export type CanConfirmClearanceResult =
   | { allowed: true }
   | { allowed: false; reason: "unauthorized_role" | "self_clearance_prohibited" };
 
-export type CanConfirmFacultyClearanceResult =
-  | { allowed: true }
-  | {
-      allowed: false;
-      reason:
-        | "unauthorized_role"
-        | "self_clearance_prohibited"
-        | "council_clearance_required"
-        | "historical_semester_readonly";
-    };
-
 /**
  * Authorized roles for Council clearance management (FL-040).
  * Only Executive and Operations officers have discretion to confirm clearances.
@@ -67,31 +56,23 @@ export function canConfirmCouncilClearance({
 }
 
 /**
- * Checks whether an actor is authorized to confirm Faculty clearance for a student (FL-041).
- * - Role-scoped: Academic Coordinator for 'academic', RLE Coordinator for 'rle'.
- * - Council Clearance Prerequisite: Council clearance must already be confirmed for the same student & semester.
- * - Strict Anti-Self-Clearance: Coordinators cannot confirm clearance for their own student record.
- * - Historical Semester Guard: Confirmation permitted only on the active current semester.
+ * Checks whether an actor may confirm Faculty clearance for a student (FL-041).
+ * - Academic Coordinator for 'academic', RLE Coordinator for 'rle'.
+ * - No self-clearance.
+ * Any semester the student is enrolled in is allowed, like Council clearance. The Council
+ * prerequisite and enrollment are enforced by `confirm_clearance` under its lock.
  */
 export function canConfirmFacultyClearance({
   actorProfileId,
   studentId,
   roles,
   component,
-  councilCleared,
-  isCurrentSemester,
 }: {
   actorProfileId: string;
   studentId: string;
   roles?: readonly string[] | null;
   component: FacultyClearanceComponent;
-  councilCleared: boolean;
-  isCurrentSemester?: boolean;
-}): CanConfirmFacultyClearanceResult {
-  if (isCurrentSemester !== undefined && !isCurrentSemester) {
-    return { allowed: false, reason: "historical_semester_readonly" };
-  }
-
+}): CanConfirmClearanceResult {
   if (!isAuthorizedFacultyClearanceRole(roles, component)) {
     return { allowed: false, reason: "unauthorized_role" };
   }
@@ -100,10 +81,5 @@ export function canConfirmFacultyClearance({
     return { allowed: false, reason: "self_clearance_prohibited" };
   }
 
-  if (!councilCleared) {
-    return { allowed: false, reason: "council_clearance_required" };
-  }
-
   return { allowed: true };
 }
-
