@@ -73,6 +73,7 @@ function getReadOnlyReason(
 export function ServiceSessionDetail({
   session,
   availableStudents,
+  studentsLoadFailed,
   canManage,
   isOwner,
   isCurrentSemester,
@@ -80,6 +81,7 @@ export function ServiceSessionDetail({
 }: {
   session: ServiceSessionDetailType;
   availableStudents: AvailableServiceStudent[];
+  studentsLoadFailed: boolean;
   canManage: boolean;
   isOwner: boolean;
   isCurrentSemester: boolean;
@@ -151,6 +153,7 @@ export function ServiceSessionDetail({
               <AddParticipantsDialog
                 sessionId={session.id}
                 availableStudents={availableStudents}
+                loadFailed={studentsLoadFailed}
               />
             </div>
           ) : null}

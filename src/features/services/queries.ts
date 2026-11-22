@@ -137,7 +137,8 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
       .from("service_participants")
       .select(serviceParticipantColumns)
       .eq("session_id", session.id),
-    getRoster(session.semester_id, "faculty").catch(() => []),
+    // No fallback: rows without names would let attendance be recorded against unidentified students.
+    getRoster(session.semester_id, "faculty"),
   ]);
 
   if (participantsRes.error) {

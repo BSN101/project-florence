@@ -134,6 +134,7 @@ export default async function FacultyServiceSessionsPage({
 
       // Least-privilege optimization: only fetch eligible student candidates when session can be managed
       let availableStudents: AvailableServiceStudent[] = [];
+      let studentsLoadFailed = false;
       if (canManage) {
         try {
           const participantIds = detail.participants.map((p) => p.student_id);
@@ -142,7 +143,7 @@ export default async function FacultyServiceSessionsPage({
             participantIds
           );
         } catch {
-          availableStudents = [];
+          studentsLoadFailed = true;
         }
       }
 
@@ -150,6 +151,7 @@ export default async function FacultyServiceSessionsPage({
         <ServiceSessionDetail
           session={detail}
           availableStudents={availableStudents}
+          studentsLoadFailed={studentsLoadFailed}
           canManage={canManage}
           isOwner={isOwner}
           isCurrentSemester={isSessionCurrentSemester}

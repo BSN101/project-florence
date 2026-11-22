@@ -25,11 +25,13 @@ import type { AvailableServiceStudent } from "../contracts";
 export function AddParticipantsDialog({
   sessionId,
   availableStudents,
+  loadFailed = false,
   disabled = false,
   triggerLabel = "Add participants",
 }: {
   sessionId: string;
   availableStudents: AvailableServiceStudent[];
+  loadFailed?: boolean;
   disabled?: boolean;
   triggerLabel?: string;
 }) {
@@ -273,7 +275,9 @@ export function AddParticipantsDialog({
         <div className="flex-1 overflow-y-auto border rounded-lg divide-y max-h-72">
           {filtered.length === 0 ? (
             <div className="p-6 text-center text-xs text-muted-foreground">
-              {availableStudents.length === 0
+              {loadFailed
+                ? "Unable to load eligible students. Close this dialog and refresh the page to try again."
+                : availableStudents.length === 0
                 ? "All eligible students in this semester are already assigned to this session."
                 : "No students match your search filter."}
             </div>
