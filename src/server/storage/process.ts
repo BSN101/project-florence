@@ -1,13 +1,15 @@
 // No secrets here (and sharp can't run in a browser), so no server-only marker: node --test imports it.
 import sharp from "sharp";
 
-export type FilePurpose = "roster_import" | "payment_proof" | "payment_account_qr";
+export type FilePurpose = "roster_import" | "payment_proof" | "payment_account_qr" | "attendance_selfie";
 
 /** Upload rules per purpose. `maxBytes` is the request limit; stored files are re-encoded and smaller. */
 export const filePurposes = {
   roster_import: { maxBytes: 1024 * 1024, ext: "csv", mediaType: "text/csv" },
   payment_proof: { maxBytes: 4 * 1024 * 1024, ext: "webp", mediaType: "image/webp" },
   payment_account_qr: { maxBytes: 2 * 1024 * 1024, ext: "png", mediaType: "image/png" },
+  // A canvas capture is ~50–150 KB; anything near 1 MB did not come from the capture flow.
+  attendance_selfie: { maxBytes: 1024 * 1024, ext: "webp", mediaType: "image/webp" },
 } as const satisfies Record<FilePurpose, { maxBytes: number; ext: string; mediaType: string }>;
 
 export class UploadRejectedError extends Error {}
@@ -16,11 +18,13 @@ type Encode = (image: ReturnType<typeof sharp>) => ReturnType<typeof sharp>;
 
 // Best quality first. Re-encoding can grow an already-compressed upload, so later steps trade quality for size.
 // QR dithering stays off: it scatters noise that compresses badly and adds nothing to a QR's hard edges.
-const encodings: Record<"payment_proof" | "payment_account_qr", Encode[]> = {
+const encodings: Record<Exclude<FilePurpose, "roster_import">, Encode[]> = {
   // Quality 60 is the floor that keeps receipt text readable.
   payment_proof: [80, 70, 60].map((quality): Encode => (i) => i.webp({ quality })),
   // QRs only need to scan: 16 colours keeps logos recognisable (with some banding) at a few KB.
   payment_account_qr: [(i) => i.png({ compressionLevel: 9, palette: true, colours: 16, dither: 0 })],
+  // A reviewer only needs to see a face.
+  attendance_selfie: [70, 60].map((quality): Encode => (i) => i.webp({ quality })),
 };
 
 /** First encoding no larger than the upload; if none is, the smallest. Always re-encodes, so metadata never survives. */
@@ -64,9 +68,8 @@ export async function processUpload(purpose: FilePurpose, input: Uint8Array): Pr
   // rotate() applies EXIF orientation; sharp drops all metadata (including GPS) by default.
   const upright = image.rotate();
   try {
-    const resized = purpose === "payment_proof"
-      ? upright.resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
-      : upright.resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true });
+    const edge = { payment_proof: 2000, payment_account_qr: 1024, attendance_selfie: 800 }[purpose];
+    const resized = upright.resize({ width: edge, height: edge, fit: "inside", withoutEnlargement: true });
     return await smallestEncoding(resized, encodings[purpose], input.byteLength);
   } catch {
     throw new UploadRejectedError("The image couldn't be processed. Try a different file.");

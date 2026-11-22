@@ -1,6 +1,6 @@
 # Project Florence — Navigation Map
 
-**Version:** 0.1 · **Date:** 2026-11-07 · **Status:** V1 navigation guide
+**Version:** 0.2 · **Date:** 2026-11-22 · **Status:** V1 navigation guide
 
 ## Purpose and boundaries
 
@@ -80,7 +80,7 @@ All student views are limited to the signed-in student's records.
 | Destination | What belongs here | Related FL IDs |
 |---|---|---|
 | Home | Summary, quick links and university-number attendance QR; profile through shared account controls | FL-004, FL-012, FL-043 |
-| Events | Upcoming/past eligible events, own attendance and identified post-event feedback submission | FL-015, FL-019 |
+| Events | Upcoming/past eligible events, own attendance and claim status, selfie attendance claims with consent while a window is open, and identified post-event feedback submission | FL-015, FL-019, FL-049 |
 | Fees & fines | Semester-specific obligations, transfer submission, payment history and outcomes | FL-022–023 |
 | Conduct | Own Office/RLE records and balances, merit application and own disciplinary report | FL-029, FL-036, FL-045 |
 | Clearance | Own Council, Academic and RLE semester confirmations | FL-042 |
@@ -95,7 +95,7 @@ Notifications uses FL-044 in-app delivery. Business email, read-state and notifi
 | Destination | Visible to | What belongs here | Related FL IDs |
 |---|---|---|---|
 | Students | E, O | Roster import/add/edit, invitations and directory; contextual links to permitted student records | FL-007–009 |
-| Events | E, O, R | All events and attendance capture. E/O also manage events, configure/generate consequences and view identified feedback/results. R has no event-management, consequence-generation or feedback-result access | FL-013, FL-015–019 |
+| Events | E, O, R | All events, attendance capture and the event Verification tab for selfie claims. E/O also manage events, configure/generate consequences and view identified feedback/results. R has no event-management, consequence-generation or feedback-result access | FL-013, FL-015–019, FL-050 |
 | Fees & fines | E, O | Fee/fine definitions, fee publication, student obligations and unpaid-obligation waiver | FL-014, FL-020–022, FL-026 |
 | Payments | E, O | Transfer review, cash recording, actual refunds, payment correction and histories | FL-022, FL-024–025, FL-027–028 |
 | Conduct | E, O | Council-origin endorsements/awards and generated demerits; submit endorsements. Only E may waive Council-generated demerits | FL-029, FL-031, FL-034 |
@@ -105,7 +105,7 @@ Notifications uses FL-044 in-app delivery. Business email, read-state and notifi
 | Council members | E | Maintain non-Executive membership/assignments and position labels; Executive assignment changes belong to Platform Admin | FL-010 |
 | Payment accounts | E | Add/edit/archive transfer destinations and instructions | FL-047 |
 
-Representatives' student lookup stays inside attendance capture. It is not a shortcut to a general student directory. Council disciplinary destinations do not expose Faculty incidents, service histories or whole-ledger balances.
+Representatives' student lookup stays inside attendance capture, and claim photos appear only in the Verification tab. It is not a shortcut to a general student directory. Council disciplinary destinations do not expose Faculty incidents, service histories or whole-ledger balances.
 
 ## Faculty destinations
 
@@ -155,6 +155,6 @@ Faculty and Platform administration use the sidebar drawer on phones. A workspac
 
 ## Implementation
 
-All FL-001–048 capabilities are mapped above. A destination may cover several functions, and a function may appear in several authorized contexts. Names and grouping do not prescribe layouts or route counts.
+All FL-001–050 capabilities are mapped above. A destination may cover several functions, and a function may appear in several authorized contexts. Names and grouping do not prescribe layouts or route counts.
 
 Use the schema and architecture for shared data contracts, and short implementation tasks for feature details and acceptance checks. Document finalized goal-based flows using the [user-journey guide](Project_Florence_User_Journeys.md); this navigation map remains focused on destinations and visibility. Verify the separate application and database before implementation or migration; this map does not claim either has been inspected or changed.

@@ -2,26 +2,32 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
 import { createUserClient } from "@/server/db/user-client";
+import { deleteStoredObject, getDownloadUrl, uploadFile, UploadRejectedError } from "@/server/storage/files";
 
 import { mergeImportFindings, parseAttendanceCsv, type ImportRowResult } from "./attendance-import";
 import { feedbackSchema, toResponses, type FeedbackInput } from "./feedback";
 import type { ConsequencePreviewRow, ConsequenceTotals, EventActionResult } from "./contracts";
 import { consequenceTotals, sameTotals } from "./event-state";
 import {
+  attendanceClaimSchema,
   attendanceImportSchema,
+  claimIdSchema,
   eventIdSchema,
   generateConsequencesSchema,
   qrAttendanceSchema,
   recordAttendanceSchema,
+  reviewClaimSchema,
   saveEventSchema,
   type AttendanceImportInput,
   type GenerateConsequencesInput,
   type QrAttendanceInput,
   type RecordAttendanceInput,
+  type ReviewClaimInput,
   type SaveEventInput,
 } from "./schemas";
 
@@ -139,6 +145,8 @@ export async function recordAttendance(input: RecordAttendanceInput): Promise<Ev
       p_kind: parsed.data.kind,
     });
     if (error) return { success: false, error: error.message };
+    // Capture may have superseded a selfie claim; delete its photo without slowing the response.
+    after(() => sweepClaimPhotos(parsed.data.eventId));
     revalidatePath(path);
     return { success: true, message: parsed.data.kind === "time_in" ? "Time-in recorded" : "Time-out recorded" };
   } catch (err) {
@@ -163,6 +171,7 @@ export async function recordAttendanceByQr(input: QrAttendanceInput): Promise<Ev
       p_kind: parsed.data.kind,
     });
     if (error) return { success: false, error: `${parsed.data.universityId}: ${error.message}` };
+    after(() => sweepClaimPhotos(parsed.data.eventId));
     revalidatePath(path);
     const { first_name, last_name } = data as { first_name: string; last_name: string };
     const side = parsed.data.kind === "time_in" ? "Time-in" : "Time-out";
@@ -244,6 +253,7 @@ export async function importAttendance(input: AttendanceImportInput): Promise<Ev
       p_rows: parsed.rows, p_apply: true,
     });
     if (error) return { success: false, error: error.message };
+    after(() => sweepClaimPhotos(parsed.input.eventId));
     revalidatePath(path);
     const { recorded, skipped } = data as { recorded: number; skipped: number };
     return { success: true, message: `Imported ${recorded} row${recorded === 1 ? "" : "s"}; ${skipped} skipped` };
@@ -293,6 +303,8 @@ export async function generateConsequences(input: GenerateConsequencesInput): Pr
       p_key: requestKey, p_actor: context.profile.id, p_event: eventId, p_bucket: bucket,
     });
     if (error) return { success: false, error: error.message };
+    // Backstop: attendance is now locked, so remove every photo an earlier sweep missed.
+    await sweepClaimPhotos(eventId);
     revalidatePath(path);
     const { obligation_count: fines, demerit_count: demerits } = data as { obligation_count: number; demerit_count: number };
     const label = bucket === "office" ? "Office" : "RLE";
@@ -317,6 +329,121 @@ export async function submitFeedback(input: FeedbackInput): Promise<EventActionR
     if (error) return { success: false, error: error.message };
     revalidatePath("/student/events");
     return { success: true, message: "Thank you. Your feedback was submitted." };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** Removes the object of an upload that no claim will use. */
+async function discardUpload(fileId: string) {
+  const { data } = await createCommandClient().from("files").select("storage_key")
+    .eq("id", fileId).eq("purpose", "attendance_selfie").maybeSingle();
+  if (data) await deleteStoredObject(data.storage_key).catch(() => {});
+}
+
+/**
+ * FL-049: a student's selfie claim for one side. The student is the session profile.
+ * The request key makes the claim idempotent; the photo always gets a fresh server key,
+ * so a retry can never overwrite a photo that is already under review.
+ */
+export async function submitAttendanceClaim(formData: FormData): Promise<EventActionResult> {
+  try {
+    const context = await requireWorkspace("student");
+    const parsed = attendanceClaimSchema.safeParse({
+      eventId: formData.get("eventId"), kind: formData.get("kind"), universityId: formData.get("universityId"),
+      consentVersion: formData.get("consentVersion"), requestKey: formData.get("requestKey"),
+    });
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check your details" };
+    const photo = formData.get("photo");
+    if (!(photo instanceof File)) return { success: false, error: "Take a photo first." };
+    // Checked before uploading; the database checks it again under the event lock.
+    if (parsed.data.universityId !== context.profile.university_id) {
+      return { success: false, error: "That student number doesn't match your account." };
+    }
+
+    let fileId: string;
+    try {
+      fileId = await uploadFile("attendance_selfie", photo, randomUUID());
+    } catch (err) {
+      if (err instanceof UploadRejectedError) return { success: false, error: err.message };
+      throw err;
+    }
+    const { error } = await createCommandClient().rpc("submit_attendance_claim", {
+      p_key: parsed.data.requestKey,
+      p_actor: context.profile.id,
+      p_event: parsed.data.eventId,
+      p_university_id: parsed.data.universityId,
+      p_kind: parsed.data.kind,
+      p_file: fileId,
+      p_consent_version: parsed.data.consentVersion,
+    });
+    if (error) {
+      await discardUpload(fileId);
+      // A retry after a lost response: the first submission went through with its own photo.
+      if (!error.message.includes("Request key reused")) return { success: false, error: error.message };
+    }
+    revalidatePath("/student/events");
+    revalidatePath(path);
+    return { success: true, message: "Photo sent. Council will verify your attendance." };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/**
+ * Deletes every photo of a reviewed or superseded claim for the event, then records it.
+ * Runs after the deciding transaction commits; a failure is retried by the next sweep,
+ * and consequence generation always sweeps, so no photo outlives attendance locking.
+ */
+async function sweepClaimPhotos(eventId: string) {
+  const client = createCommandClient();
+  const { data, error } = await client.rpc("florence_undeleted_claim_photos", { p_event: eventId });
+  if (error) return;
+  for (const photo of data) {
+    try {
+      await deleteStoredObject(photo.storage_key);
+      await client.rpc("mark_claim_photo_deleted", { p_claim: photo.claim_id });
+    } catch {
+      // Left for the next sweep. Never log the storage key.
+    }
+  }
+}
+
+/** FL-050: verify or reject one claim. Any Council role; never the claimant (the RPC refuses). */
+export async function reviewAttendanceClaim(input: ReviewClaimInput): Promise<EventActionResult> {
+  try {
+    const context = await requireWorkspace("council");
+    const parsed = reviewClaimSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid review" };
+    const { claimId, decision, reason, requestKey } = parsed.data;
+    const { data, error } = await createCommandClient().rpc("review_attendance_claim", {
+      p_key: requestKey, p_actor: context.profile.id, p_claim: claimId, p_decision: decision,
+      // Generated RPC args are non-null; the function takes SQL NULL when verifying.
+      p_reason: (reason ?? null) as string,
+    });
+    if (error) return { success: false, error: error.message };
+    const eventId = (data as { event_id: string }).event_id;
+    after(() => sweepClaimPhotos(eventId));
+    revalidatePath(path);
+    revalidatePath("/student/events");
+    return { success: true, message: decision === "verify" ? "Attendance verified" : "Claim rejected" };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** A 5-minute link to a pending claim's photo; file_download_key refuses once it is reviewed. */
+export async function getClaimPhotoUrl(
+  input: { claimId: string },
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    await requireWorkspace("council");
+    const parsed = claimIdSchema.safeParse(input);
+    if (!parsed.success) return { success: false, error: "Invalid claim" };
+    const client = await createUserClient();
+    const { data } = await client.from("event_attendance_claims").select("file_id").eq("id", parsed.data.claimId).maybeSingle();
+    const url = data ? await getDownloadUrl(data.file_id, "council") : null;
+    return url ? { success: true, url } : { success: false, error: "This photo is no longer available." };
   } catch (err) {
     return failure(err);
   }

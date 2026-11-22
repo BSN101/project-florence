@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquareText } from "lucide-react";
+import { Camera, MessageSquareText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { MyEventRow } from "../contracts";
+import type { MyClaim, MyEventRow } from "../contracts";
 import type { FeedbackResponses } from "../feedback";
 import { Badge, StatusBadge } from "./event-badges";
+import { AttendanceClaimDialog } from "./attendance-claim-dialog";
 import { FeedbackDialog } from "./feedback-dialog";
 
 const date = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" });
@@ -15,15 +16,58 @@ const fmt = (value: string | null, f = time) => (value ? f.format(new Date(value
 const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
 type Group = "ongoing" | "upcoming" | "past";
+type Side = "time_in" | "time_out";
+const sideLabel = { time_in: "Time-in", time_out: "Time-out" } as const;
 
-/** A student's own events (FL-015) with feedback (FL-019). `feedback_opens_at` is when attendance closes. */
-export function StudentEvents({ events, feedback, now: serverNow }: {
+/**
+ * A student's own events (FL-015) with selfie attendance claims (FL-049) and feedback (FL-019).
+ * `feedback_opens_at` is when attendance closes. `claims` is newest first.
+ */
+export function StudentEvents({ events, feedback, claims, now: serverNow }: {
   events: MyEventRow[];
   feedback: Record<string, FeedbackResponses>;
+  claims: MyClaim[];
   now: string;
 }) {
   const [open, setOpen] = useState<{ event: MyEventRow; submitted?: FeedbackResponses } | null>(null);
+  const [claiming, setClaiming] = useState<{ event: MyEventRow; kind: Side } | null>(null);
   const now = Date.parse(serverNow);
+  const latest = (e: MyEventRow, kind: Side) => claims.find((c) => c.event_id === e.event_id && c.kind === kind);
+  const within = (from: string | null, until: string | null) => !!from && !!until && now >= Date.parse(from) && now <= Date.parse(until);
+
+  /** The side a selfie can be logged for now, if any. The server re-checks everything. */
+  function claimableSide(e: MyEventRow): Side | null {
+    if (e.attendance_locked_at) return null;
+    const open = (c?: MyClaim) => c?.status === "pending" || c?.status === "verified";
+    const timeIn = latest(e, "time_in");
+    if (!e.time_in && within(e.time_in_from, e.time_in_until) && !open(timeIn)) return "time_in";
+    if (!e.time_out && within(e.time_out_from, e.time_out_until) && !open(latest(e, "time_out"))
+      && (e.time_in || timeIn?.status === "pending")) return "time_out";
+    return null;
+  }
+
+  function claimArea(e: MyEventRow) {
+    const notes = (["time_in", "time_out"] as const).flatMap((kind) => {
+      const c = latest(e, kind);
+      if (c?.status === "pending") return [<Badge key={kind} tone="warning">{sideLabel[kind]} photo awaiting verification</Badge>];
+      if (c?.status === "rejected") {
+        return [<p key={kind} className="text-xs text-destructive">{sideLabel[kind]} photo rejected: {c.rejection_reason}</p>];
+      }
+      return [];
+    });
+    const side = claimableSide(e);
+    if (!notes.length && !side) return null;
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col items-start gap-1">{notes}</div>
+        {side && (
+          <Button size="sm" className="gap-1.5" onClick={() => setClaiming({ event: e, kind: side })}>
+            <Camera className="size-4" /> Log {side === "time_in" ? "time-in" : "time-out"}
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   const group = (e: MyEventRow): Group =>
     e.time_in_from && now < Date.parse(e.time_in_from) ? "upcoming"
@@ -98,6 +142,7 @@ export function StudentEvents({ events, feedback, now: serverNow }: {
                       Time in {fmt(e.time_in)} · Time out {e.time_out_from ? fmt(e.time_out) : "not required"}
                     </p>
                   )}
+                  {claimArea(e)}
                   {consequences(e)}
                   {feedbackArea(e)}
                 </li>
@@ -107,6 +152,10 @@ export function StudentEvents({ events, feedback, now: serverNow }: {
         );
       })}
 
+      {claiming && (
+        <AttendanceClaimDialog key={`${claiming.event.event_id}:${claiming.kind}`} eventId={claiming.event.event_id}
+          eventName={claiming.event.name} kind={claiming.kind} onClose={() => setClaiming(null)} />
+      )}
       {open && (
         <FeedbackDialog key={open.event.event_id} eventId={open.event.event_id} eventName={open.event.name}
           submitted={open.submitted} onClose={() => setOpen(null)} />

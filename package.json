@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node -e \"const fs=require('fs');fs.mkdirSync('public/mediapipe/wasm',{recursive:true});for(const f of ['vision_wasm_internal.js','vision_wasm_internal.wasm'])fs.copyFileSync('node_modules/@mediapipe/tasks-vision/wasm/'+f,'public/mediapipe/wasm/'+f)\"",
     "dev": "next dev",
     "dev:https": "next dev -H 0.0.0.0 --experimental-https --experimental-https-key certificates/dev-key.pem --experimental-https-cert certificates/dev-cert.pem",
+    "prebuild": "node -e \"const fs=require('fs');fs.mkdirSync('public/mediapipe/wasm',{recursive:true});for(const f of ['vision_wasm_internal.js','vision_wasm_internal.wasm'])fs.copyFileSync('node_modules/@mediapipe/tasks-vision/wasm/'+f,'public/mediapipe/wasm/'+f)\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -14,6 +16,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@mediapipe/tasks-vision": "1.2.2",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
     "aws4fetch": "^1.0.20",

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { isoToManilaInput, manilaInputToIso, qrAttendanceSchema, recordAttendanceSchema, saveEventSchema } from "./schemas.ts";
+import {
+  attendanceClaimSchema, reviewClaimSchema, isoToManilaInput, manilaInputToIso, qrAttendanceSchema, recordAttendanceSchema, saveEventSchema,
+  SELFIE_CONSENT_VERSION,
+} from "./schemas.ts";
 
 const uuid = "11111111-1111-4111-8111-111111111111";
 const valid = {
@@ -73,4 +76,25 @@ test("QR attendance accepts only a trimmed university number payload", () => {
   for (const bad of ["21-1-0001", "21-2-00001", "https://example.com/21-1-00001", '{"id":"21-1-00001"}', ""]) {
     assert.equal(scan(bad).success, false, bad);
   }
+});
+
+test("selfie claims need the student-number format and the current consent version", () => {
+  const claim = { eventId: uuid, kind: "time_in", universityId: " 23-1-01234 ", consentVersion: SELFIE_CONSENT_VERSION, requestKey: uuid };
+  const parsed = attendanceClaimSchema.safeParse(claim);
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.universityId, "23-1-01234");
+  assert.equal(attendanceClaimSchema.safeParse({ ...claim, universityId: "2310123" }).success, false);
+  assert.equal(attendanceClaimSchema.safeParse({ ...claim, consentVersion: "" }).success, false);
+  assert.equal(attendanceClaimSchema.safeParse({ ...claim, consentVersion: "selfie-consent-old" }).success, false);
+  assert.equal(attendanceClaimSchema.safeParse({ ...claim, kind: "late" }).success, false);
+});
+
+test("rejecting a claim needs a reason and verifying takes none", () => {
+  const review = (decision, reason) => reviewClaimSchema.safeParse({ claimId: uuid, decision, reason, requestKey: uuid }).success;
+  assert.equal(review("verify"), true);
+  assert.equal(review("reject", "  Face not clearly visible "), true);
+  assert.equal(review("reject"), false);
+  assert.equal(review("reject", "   "), false);
+  assert.equal(review("verify", "Looks fine"), false);
+  assert.equal(review("reject", "x".repeat(501)), false);
 });

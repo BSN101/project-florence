@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createUserClient } from "@/server/db/user-client";
-import type { AttendanceSummary, AttendeeRow, EventCounts, EventDTO, EventRulesDTO, FeedbackRow, MyEventRow } from "./contracts";
+import type { AttendanceSummary, AttendeeRow, EventCounts, EventDTO, EventRulesDTO, ClaimQueueRow, FeedbackRow, MyClaim, MyEventRow } from "./contracts";
 import type { FeedbackResponses } from "./feedback";
 
 const eventFields =
@@ -87,5 +87,27 @@ export async function getEventFeedback(eventId: string): Promise<FeedbackRow[]> 
   const client = await createUserClient();
   const { data, error } = await client.rpc("florence_event_feedback", { p_event: eventId });
   if (error) throw new Error(`Failed to fetch feedback: ${error.message}`);
+  return data;
+}
+
+/** The student's claims for these events, newest first; the UI shows the latest per side. */
+export async function getMyClaims(studentId: string, eventIds: string[]): Promise<MyClaim[]> {
+  if (eventIds.length === 0) return [];
+  const client = await createUserClient();
+  // RLS also lets Council read every claim, so a Council member viewing as a student needs this filter.
+  const { data, error } = await client.from("event_attendance_claims")
+    .select("id, event_id, kind, status, submitted_at, rejection_reason")
+    .eq("student_id", studentId).in("event_id", eventIds).order("submitted_at", { ascending: false });
+  if (error) throw new Error(`Failed to fetch your attendance claims: ${error.message}`);
+  return data;
+}
+
+/** Pending claims for one event, oldest first. RLS lets any Council role read them. */
+export async function getPendingClaims(eventId: string): Promise<ClaimQueueRow[]> {
+  const client = await createUserClient();
+  const { data, error } = await client.from("event_attendance_claims")
+    .select("id, student_id, kind, submitted_at")
+    .eq("event_id", eventId).eq("status", "pending").order("submitted_at", { ascending: true });
+  if (error) throw new Error(`Failed to fetch attendance claims: ${error.message}`);
   return data;
 }

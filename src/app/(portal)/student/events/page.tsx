@@ -2,7 +2,7 @@ import { connection } from "next/server";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { StudentEvents } from "@/features/events/components/student-events";
-import { getMyEvents, getMyFeedback } from "@/features/events/queries";
+import { getMyClaims, getMyEvents, getMyFeedback } from "@/features/events/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 
@@ -31,7 +31,8 @@ export default async function StudentEventsPage({ searchParams }: {
     const [events, allFeedback] = await Promise.all([getMyEvents(semesterId), getMyFeedback(access.profile.id)]);
     // Only this semester's answers reach the client.
     const feedback = Object.fromEntries(events.filter((e) => allFeedback[e.event_id]).map((e) => [e.event_id, allFeedback[e.event_id]]));
-    content = <StudentEvents events={events} feedback={feedback} now={new Date().toISOString()} />;
+    const claims = await getMyClaims(access.profile.id, events.map((e) => e.event_id));
+    content = <StudentEvents events={events} feedback={feedback} claims={claims} now={new Date().toISOString()} />;
   }
 
   return (
