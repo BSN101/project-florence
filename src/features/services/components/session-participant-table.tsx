@@ -238,7 +238,8 @@ export function SessionParticipantTable({
 
     for (const p of dirtyRows) {
       const d = drafts[p.student_id];
-      if (!d || d.excluded) continue;
+      // Excluded rows keep their times and the database still validates them.
+      if (!d) continue;
 
       const studentName = displayName(p);
 
@@ -562,13 +563,7 @@ export function SessionParticipantTable({
                               variant="ghost"
                               size="xs"
                               disabled={locked}
-                              onClick={() =>
-                                updateDraft(p.student_id, {
-                                  excluded: true,
-                                  timeInHHmm: "",
-                                  timeOutHHmm: "",
-                                })
-                              }
+                              onClick={() => updateDraft(p.student_id, { excluded: true })}
                               className="text-muted-foreground hover:text-destructive max-sm:min-h-11"
                             >
                               Exclude

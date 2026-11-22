@@ -479,6 +479,17 @@ test("participantAttendanceRowSchema validates attendance and ordering constrain
     true
   );
 
+  // Excluded rows keep recorded times, so re-including restores attendance
+  assert.equal(
+    participantAttendanceRowSchema.safeParse({
+      studentId: STUDENT_A,
+      timeIn: "2026-11-25T08:05:00+08:00",
+      timeOut: "2026-11-25T16:45:00+08:00",
+      excluded: true,
+    }).success,
+    true
+  );
+
   // Valid time-in only (in progress)
   assert.equal(
     participantAttendanceRowSchema.safeParse({
