@@ -63,6 +63,12 @@ export function AddParticipantsDialog({
     });
   }, [availableStudents, searchQuery, selectedYear]);
 
+  // Only students still available may be sent: a stale ID would overwrite that row's attendance.
+  const selected = useMemo(
+    () => availableStudents.filter((s) => selectedIds.has(s.student_id)).map((s) => s.student_id),
+    [availableStudents, selectedIds]
+  );
+
   function startOver() {
     setLocked(false);
     setError(null);
@@ -95,12 +101,12 @@ export function AddParticipantsDialog({
   }
 
   function handleAdd() {
-    if (selectedIds.size === 0 || (locked && !retryableError)) return;
+    if (selected.length === 0 || (locked && !retryableError)) return;
 
     setError(null);
     setLocked(true);
 
-    const rows = [...selectedIds].map((id) => ({
+    const rows = selected.map((id) => ({
       studentId: id,
       timeIn: null,
       timeOut: null,
@@ -165,6 +171,7 @@ export function AddParticipantsDialog({
             } else {
               setError(null);
             }
+            setSelectedIds(new Set());
           }
         }
       }}
@@ -240,7 +247,7 @@ export function AddParticipantsDialog({
         <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
           <span>
             Showing {filtered.length} eligible student{filtered.length === 1 ? "" : "s"}
-            {selectedIds.size > 0 && ` (${selectedIds.size} selected)`}
+            {selected.length > 0 && ` (${selected.length} selected)`}
           </span>
           <div className="flex items-center gap-3">
             <button
@@ -254,7 +261,7 @@ export function AddParticipantsDialog({
             <button
               type="button"
               onClick={clearSelection}
-              disabled={locked || selectedIds.size === 0}
+              disabled={locked || selected.length === 0}
               className="text-muted-foreground hover:underline disabled:opacity-50"
             >
               Clear
@@ -361,7 +368,7 @@ export function AddParticipantsDialog({
               <Button
                 type="button"
                 size="sm"
-                disabled={selectedIds.size === 0 || locked || isPending}
+                disabled={selected.length === 0 || locked || isPending}
                 onClick={handleAdd}
                 className="max-sm:min-h-11 gap-1.5"
               >
@@ -370,7 +377,7 @@ export function AddParticipantsDialog({
                     <Loader2 className="size-4 animate-spin" /> Adding...
                   </>
                 ) : (
-                  `Add selected (${selectedIds.size})`
+                  `Add selected (${selected.length})`
                 )}
               </Button>
             </div>
