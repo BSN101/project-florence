@@ -705,7 +705,7 @@ The claim leaves the queue. The student sees the recorded time, or the rejection
 
 ## Confirm Faculty clearance
 
-- **Author:** Jamir
+- **Author:** Israel
 - **Actors:** Academic Coordinator (Academic clearance) or RLE Coordinator (RLE clearance).
 - **Starts at:** Faculty workspace > Academic Clearance (`/faculty/academic-clearance`) or RLE Clearance (`/faculty/rle-clearance`), defaulting to the current semester; any listed semester can be selected.
 - **References:** FL-041, FL-042, FL-029; schema §11.1 (`clearances`), `florence_bucket_balances`, `florence_clearance_names`.
