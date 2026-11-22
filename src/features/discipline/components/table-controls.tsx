@@ -92,12 +92,14 @@ export function FilterSelect({
   );
 }
 
-/** Fixed-height, scrolling frame so switching tabs or filters never resizes the page. */
+/** Fixed-height, scrolling frame with generous spacing and responsiveness across screens. */
 export function TableFrame({ filters, pager, children }: { filters: ReactNode; pager: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">{filters}</div>
-      <div className="h-[26rem] overflow-auto rounded-xl border border-border bg-card">{children}</div>
+    <div className="flex flex-col gap-3.5">
+      <div className="flex flex-wrap items-center gap-2.5">{filters}</div>
+      <div className="min-h-[20rem] max-h-[28rem] overflow-auto rounded-xl border border-border bg-card shadow-xs clearance-scrollbar">
+        {children}
+      </div>
       {pager}
     </div>
   );
@@ -115,12 +117,12 @@ export function TableEmpty({
   filtered: boolean;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-      <Icon className="size-8 text-muted-foreground/60" />
+    <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-2.5 p-8 text-center">
+      <Icon className="size-8 text-muted-foreground/50" />
       <p className="text-sm font-medium text-foreground">{filtered ? "No records match these filters" : title}</p>
       <p className="text-xs text-muted-foreground">{filtered ? "Change or clear the filters above." : text}</p>
     </div>
   );
 }
 
-export const THEAD_CLASS = "sticky top-0 z-10 border-b border-border bg-muted font-medium text-muted-foreground";
+export const THEAD_CLASS = "sticky top-0 z-10 border-b border-border bg-muted/90 backdrop-blur-xs font-medium text-muted-foreground text-xs";

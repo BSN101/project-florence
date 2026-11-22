@@ -59,35 +59,42 @@ export function DemeritsTable({
 
   return (
     <TableFrame filters={filters} pager={pager}>
-      <table className="w-full text-left text-xs">
+      <table className="w-full min-w-[720px] table-fixed text-left text-xs">
+        <colgroup>
+          <col className="w-[16%]" />
+          <col className="w-[14%]" />
+          <col className="w-[36%]" />
+          <col className="w-[14%]" />
+          <col className="w-[20%]" />
+        </colgroup>
         <thead className={THEAD_CLASS}>
           <tr>
-            <th className="px-4 py-3">Incident Date</th>
-            <th className="px-4 py-3">Bucket</th>
-            <th className="px-4 py-3">Misconduct & Description</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Issuer / Source</th>
+            <th className="px-4.5 py-3.5 font-medium">Incident Date</th>
+            <th className="px-4.5 py-3.5 font-medium">Bucket</th>
+            <th className="px-4.5 py-3.5 font-medium">Misconduct & Description</th>
+            <th className="px-4.5 py-3.5 font-medium">Status</th>
+            <th className="px-4.5 py-3.5 font-medium">Issuer / Source</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
           {pageRows.map((d) => {
             const isWaived = d.waived_at !== null;
             return (
-              <tr key={d.id} className="hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono text-muted-foreground whitespace-nowrap">
+              <tr key={d.id} className="transition-colors hover:bg-muted/30">
+                <td className="px-4.5 py-3.5 font-mono text-muted-foreground whitespace-nowrap">
                   {d.incident_on}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
+                <td className="px-4.5 py-3.5 whitespace-nowrap">
                   <BucketBadge bucket={d.bucket} />
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-col gap-0.5">
+                <td className="px-4.5 py-3.5">
+                  <div className="flex flex-col gap-1">
                     {d.misconduct_label && (
                       <span className="font-semibold text-foreground">
                         {d.misconduct_label}
                       </span>
                     )}
-                    <span className="text-muted-foreground">{d.description}</span>
+                    <span className="text-muted-foreground leading-relaxed">{d.description}</span>
                     {d.consequence_outcome && (
                       <span className="text-[11px] font-medium text-muted-foreground">
                         Council consequence:{" "}
@@ -95,8 +102,8 @@ export function DemeritsTable({
                       </span>
                     )}
                     {isWaived && d.waiver_reason && (
-                      <div className="mt-1 flex items-start gap-1 rounded bg-muted/60 p-1.5 text-[11px] text-muted-foreground">
-                        <AlertCircle className="size-3 text-primary mt-0.5 shrink-0" />
+                      <div className="mt-1 flex items-start gap-1.5 rounded-lg border border-border/50 bg-muted/60 p-2 text-[11px] text-muted-foreground">
+                        <AlertCircle className="size-3.5 text-primary mt-0.5 shrink-0" />
                         <span>
                           <strong>Waiver reason:</strong> {d.waiver_reason}
                           {d.waived_by_name && ` (by ${d.waived_by_name})`}
@@ -105,13 +112,13 @@ export function DemeritsTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
+                <td className="px-4.5 py-3.5 whitespace-nowrap">
                   <DemeritStatusBadge waived={isWaived} />
                 </td>
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                <td className="px-4.5 py-3.5 text-muted-foreground whitespace-nowrap">
                   <div className="flex items-center gap-1.5">
-                    <User className="size-3 text-muted-foreground/70" />
-                    <span>
+                    <User className="size-3.5 text-muted-foreground/70" />
+                    <span className="truncate">
                       {d.external_source_name
                         ? `External: ${d.external_source_name}`
                         : d.issuer_name ?? (d.source === "council" ? "Council" : "Faculty")}

@@ -28,15 +28,17 @@ export function StudentDisciplineDrilldownDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader className="gap-1 text-left">
-          <DialogTitle className="font-heading text-lg font-medium text-foreground flex items-center gap-2">
-            <FileText className="size-4.5 text-primary" />
-            Disciplinary Ledger & Obligations
+      <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] overflow-y-auto sm:max-w-4xl lg:max-w-5xl p-4 sm:p-6">
+        <DialogHeader className="gap-1.5 text-left pb-2 border-b border-border/60">
+          <DialogTitle className="font-heading text-lg sm:text-xl font-semibold text-foreground flex items-center gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FileText className="size-4.5" />
+            </div>
+            <span>Disciplinary Ledger & Obligations</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
+          <DialogDescription className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
             Complete disciplinary records, merits, demerits, and service credits for{" "}
-            <span className="font-medium text-foreground">{studentName ?? "Student"}</span>
+            <span className="font-semibold text-foreground">{studentName ?? "Student"}</span>
             {studentNumber && (
               <span className="font-mono text-muted-foreground"> ({studentNumber})</span>
             )}
@@ -44,7 +46,7 @@ export function StudentDisciplineDrilldownDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-2">
+        <div className="pt-3 pb-1">
           <FacultyStudentDisciplinaryPanel studentId={studentId} />
         </div>
       </DialogContent>
