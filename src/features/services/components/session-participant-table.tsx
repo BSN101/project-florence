@@ -400,9 +400,10 @@ export function SessionParticipantTable({
       )}
 
       {/* Table Container */}
-      <Card className="overflow-hidden">
+      {/* Fixed height like the events and payment tables: the roster scrolls under a sticky header. */}
+      <Card className="h-[28rem] gap-0 py-0">
         {participants.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center text-sm text-muted-foreground">
+          <div className="flex h-full flex-col items-center justify-center p-8 text-center text-sm text-muted-foreground">
             <Users className="size-8 text-muted-foreground/50 mb-2" />
             <p className="font-medium text-foreground">No participants assigned yet</p>
             <p className="text-xs text-muted-foreground max-w-sm mt-1">
@@ -412,10 +413,10 @@ export function SessionParticipantTable({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="h-full overflow-auto overscroll-contain">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b bg-muted/50 text-muted-foreground font-medium">
+                <tr className="sticky top-0 z-10 border-b bg-muted text-muted-foreground font-medium">
                   <th scope="col" className="px-3 py-2.5">
                     Student Number
                   </th>
