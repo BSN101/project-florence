@@ -72,9 +72,9 @@ export function FacultyClearanceView({
       valueColor: "text-emerald-600 dark:text-emerald-400",
     },
     {
-      title: "Pending Clearance",
+      title: `${componentLabel} Pending`,
       value: stats.pending,
-      description: "Awaiting coordinator action",
+      description: `Awaiting ${componentLabel.toLowerCase()} action`,
       icon: Clock,
       iconBg: "bg-amber-500/10",
       iconColor: "text-amber-600 dark:text-amber-400",

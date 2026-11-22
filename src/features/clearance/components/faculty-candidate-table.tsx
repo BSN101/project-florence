@@ -115,55 +115,45 @@ function BucketBalanceBadge({
   );
 }
 
-function FacultyClearanceStatusBadge({ status }: { status: ClearanceStatus }) {
-  if (status.cleared && status.confirmedAt) {
-    return (
-      <span className="inline-flex flex-col items-start gap-0.5">
-        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-          <Check className="size-3" />
-          Cleared
-        </span>
-        <span className="text-[11px] text-muted-foreground">
-          {confirmedFormat.format(new Date(status.confirmedAt))}
-        </span>
-        {status.confirmedByName && (
-          <span className="text-[10px] text-muted-foreground/80 truncate max-w-[140px]" title={`Confirmed by ${status.confirmedByName}`}>
-            by {status.confirmedByName}
-          </span>
-        )}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-      <Clock className="size-3" />
-      Pending
-    </span>
-  );
-}
-
-function CounterpartClearanceBadge({
+function ClearanceStatusBadge({
   label,
   status,
+  showMeta = false,
 }: {
   label: string;
   status: ClearanceStatus;
+  showMeta?: boolean;
 }) {
   if (status.cleared && status.confirmedAt) {
     return (
-      <span
-        className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium"
-        title={status.confirmedByName ? `Confirmed by ${status.confirmedByName}` : "Confirmed"}
-      >
-        <Check className="size-3 shrink-0" />
-        {label}: Cleared
-      </span>
+      <div className="flex flex-col items-start gap-0.5">
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+          title={status.confirmedByName ? `Confirmed by ${status.confirmedByName}` : "Cleared"}
+        >
+          <Check className="size-3 shrink-0 stroke-[2.5]" />
+          <span>{label}: Cleared</span>
+        </span>
+        {showMeta && (
+          <span className="text-[11px] text-muted-foreground pl-1">
+            {confirmedFormat.format(new Date(status.confirmedAt))}
+          </span>
+        )}
+        {showMeta && status.confirmedByName && (
+          <span
+            className="text-[10px] text-muted-foreground/80 truncate max-w-[140px] pl-1"
+            title={`Confirmed by ${status.confirmedByName}`}
+          >
+            by {status.confirmedByName}
+          </span>
+        )}
+      </div>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-      <span className="size-1.5 shrink-0 rounded-full border border-muted-foreground/60" aria-hidden="true" />
-      {label}: Pending
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+      <Clock className="size-3 shrink-0" />
+      <span>{label}: Pending</span>
     </span>
   );
 }
@@ -310,6 +300,7 @@ export function FacultyCandidateTable({
   const [inspectingCandidate, setInspectingCandidate] = useState<FacultyClearanceCandidate | null>(null);
 
   const config = FACULTY_CLEARANCE_CONFIG[component];
+  const componentLabel = config.label;
   const bucketLabel = config.bucketLabel;
   const counterpartLabel = config.counterpartLabel;
 
@@ -346,10 +337,10 @@ export function FacultyCandidateTable({
     status === "all" ? "Status: All Statuses" : status === "regular" ? "Status: Regular" : "Status: Irregular";
   const clearanceLabel =
     clearanceState === "all"
-      ? "Clearance: All"
+      ? `${componentLabel}: All`
       : clearanceState === "cleared"
-      ? "Clearance: Cleared"
-      : "Clearance: Pending";
+      ? `${componentLabel}: Cleared`
+      : `${componentLabel}: Pending`;
   const councilLabel =
     councilFilter === "all"
       ? "Council: All"
@@ -472,9 +463,9 @@ export function FacultyCandidateTable({
                     <span className="truncate">{clearanceLabel}</span>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Clearance</SelectItem>
-                    <SelectItem value="cleared">Cleared</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="all">All {componentLabel}</SelectItem>
+                    <SelectItem value="cleared">{componentLabel} Cleared</SelectItem>
+                    <SelectItem value="pending">{componentLabel} Pending</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -554,26 +545,26 @@ export function FacultyCandidateTable({
                       </div>
 
                       <div className="shrink-0">
-                        <FacultyClearanceStatusBadge status={candidate.status} />
+                        <ClearanceStatusBadge label={componentLabel} status={candidate.status} />
                       </div>
                     </div>
 
                     <div className="flex flex-col gap-2 border-t border-border/60 pt-3 text-xs">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground">Council Clearance:</span>
                         <CouncilPrerequisiteBadge
                           cleared={candidate.councilCleared}
                           confirmedAt={candidate.councilConfirmedAt}
                         />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">{counterpartLabel} Clearance:</span>
-                        <CounterpartClearanceBadge
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{counterpartLabel} Status:</span>
+                        <ClearanceStatusBadge
                           label={counterpartLabel}
                           status={component === "academic" ? candidate.rleClearance : candidate.academicClearance}
                         />
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground">{bucketLabel} Balance:</span>
                         <BucketBalanceBadge candidate={candidate} onInspect={setInspectingCandidate} />
                       </div>
@@ -641,14 +632,17 @@ export function FacultyCandidateTable({
 
                         {/* Faculty Clearance Status & Counterpart Indicator */}
                         <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1">
-                            <FacultyClearanceStatusBadge status={candidate.status} />
-                            <div className="pt-0.5 border-t border-border/40">
-                              <CounterpartClearanceBadge
-                                label={counterpartLabel}
-                                status={component === "academic" ? candidate.rleClearance : candidate.academicClearance}
-                              />
-                            </div>
+                          <div className="flex flex-col items-start gap-1.5">
+                            <ClearanceStatusBadge
+                              label={componentLabel}
+                              status={candidate.status}
+                              showMeta
+                            />
+                            <ClearanceStatusBadge
+                              label={counterpartLabel}
+                              status={component === "academic" ? candidate.rleClearance : candidate.academicClearance}
+                              showMeta
+                            />
                           </div>
                         </td>
 
