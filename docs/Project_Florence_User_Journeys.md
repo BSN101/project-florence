@@ -702,3 +702,44 @@ The claim leaves the queue. The student sees the recorded time, or the rejection
 - No photo link is issued after a claim is reviewed or superseded.
 - Generation is blocked while claims are pending and succeeds once they are reviewed.
 - Still to verify in a production build: Back keeps the page, the tab survives in the URL, and the queue refreshes with **Refresh**.
+
+## Confirm Faculty clearance
+
+- **Author:** Jamir
+- **Actors:** Academic Coordinator (Academic clearance) or RLE Coordinator (RLE clearance).
+- **Starts at:** Faculty workspace > Academic Clearance (`/faculty/academic-clearance`) or RLE Clearance (`/faculty/rle-clearance`), defaulting to the current semester; any listed semester can be selected.
+- **References:** FL-041, FL-042, FL-029; schema §11.1 (`clearances`), `florence_bucket_balances`, `florence_clearance_names`.
+
+### Main flow
+
+1. The coordinator opens their clearance page. Summary cards show enrolled students, Council cleared, cleared and pending for the component, and students with debt in the matching bucket (Office for Academic, RLE for RLE).
+2. Each row shows the student, year level and status, the bucket balance, and separate Academic and RLE statuses. A cleared status shows who confirmed it and when.
+3. The coordinator may open the student's disciplinary ledger (merits, demerits, service credits) from the balance.
+4. For a student with Council clearance in that semester, the coordinator selects **Grant clearance**, reviews the student, Council status and any outstanding balance, and confirms.
+5. The row shows **Granted**; the clearance is permanent.
+
+### System involvement
+
+- Balances are cumulative across semesters and computed by `florence_bucket_balances` under the caller's RLS. Confirmer names come from `florence_clearance_names`; no university numbers are returned.
+- `confirmFacultyClearanceAction` validates input, requires the matching Coordinator role and refuses self-clearance. `confirm_clearance` re-checks the role, enrollment and same-semester Council clearance under a per-student lock, and is idempotent per request key.
+- The action revalidates the component's page. The page has **Refresh** because Council and other coordinators change clearances too.
+
+### Outcome
+
+A permanent Academic or RLE clearance for that student and semester, with the actual confirmer and time. Later balance changes do not reverse it.
+
+### Important alternatives
+
+- **No Council clearance yet:** the action shows **Needs Council** and is disabled; the database also refuses it.
+- **Own student record:** shown as **Your record** and disabled; the database refuses self-clearance.
+- **Outstanding balance:** shown as a warning in the dialog; it does not block confirmation.
+- **Past semester:** allowed, like Council clearance, if the student was enrolled in it.
+- **Retry after a lost response:** the same request key returns the first confirmation.
+
+### Acceptance checks
+
+- Only the matching coordinator can open each page and confirm; other faculty, Council and signed-out users are denied.
+- Confirmation without same-semester Council clearance, or for oneself, is refused.
+- Academic and RLE clearances do not depend on each other.
+- Balances match the student's ledger for the bucket.
+- Still to verify in a production build: Back keeps the page, and the confirmer name appears in the status tooltip.
