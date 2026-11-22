@@ -104,34 +104,36 @@ export function FacultyClearanceView({
       </div>
 
       {/* Summary Stat Cards - 1 big card + 2x2 grid on mobile/tablet (< lg), 5 cols on desktop (>= lg) */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-5 xl:gap-4 min-w-0 max-w-full">
         {statCards.map((card, index) => (
           <Card
             key={card.title}
             className={cn(
-              "flex flex-col justify-between rounded-xl border border-border bg-card p-3 sm:p-4 shadow-xs",
+              "flex flex-col justify-between rounded-xl border border-border bg-card p-3 sm:p-3.5 xl:p-4 shadow-xs min-w-0 w-full",
               index === 0 && "col-span-2 lg:col-span-1"
             )}
           >
-            <div className="flex items-center justify-between gap-2 pb-2">
-              <span className="text-xs font-medium text-muted-foreground truncate">
+            <div className="flex items-center justify-between gap-1.5 pb-2 min-w-0">
+              <span className="text-xs font-medium text-muted-foreground leading-tight min-w-0 break-words">
                 {card.title}
               </span>
               <div
-                className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${card.iconBg} ${card.iconColor}`}
+                className={`flex size-7.5 shrink-0 items-center justify-center rounded-lg sm:size-8 ${card.iconBg} ${card.iconColor}`}
               >
-                <card.icon className="size-4" />
+                <card.icon className="size-3.5 sm:size-4" />
               </div>
             </div>
-            <div>
+            <div className="min-w-0">
               <div
                 className={`font-heading text-2xl font-bold tracking-tight tabular-nums ${card.valueColor}`}
               >
                 {card.value}
               </div>
-              <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
-                {card.description}
-              </p>
+              <div className="mt-1 min-h-[2rem] flex items-start">
+                <p className="text-[11px] text-muted-foreground leading-snug break-words">
+                  {card.description}
+                </p>
+              </div>
             </div>
           </Card>
         ))}
