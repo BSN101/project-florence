@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
@@ -144,6 +145,8 @@ export async function recordAttendance(input: RecordAttendanceInput): Promise<Ev
       p_kind: parsed.data.kind,
     });
     if (error) return { success: false, error: error.message };
+    // Capture may have superseded a selfie claim; delete its photo without slowing the response.
+    after(() => sweepClaimPhotos(parsed.data.eventId));
     revalidatePath(path);
     return { success: true, message: parsed.data.kind === "time_in" ? "Time-in recorded" : "Time-out recorded" };
   } catch (err) {
@@ -168,6 +171,7 @@ export async function recordAttendanceByQr(input: QrAttendanceInput): Promise<Ev
       p_kind: parsed.data.kind,
     });
     if (error) return { success: false, error: `${parsed.data.universityId}: ${error.message}` };
+    after(() => sweepClaimPhotos(parsed.data.eventId));
     revalidatePath(path);
     const { first_name, last_name } = data as { first_name: string; last_name: string };
     const side = parsed.data.kind === "time_in" ? "Time-in" : "Time-out";
@@ -249,6 +253,7 @@ export async function importAttendance(input: AttendanceImportInput): Promise<Ev
       p_rows: parsed.rows, p_apply: true,
     });
     if (error) return { success: false, error: error.message };
+    after(() => sweepClaimPhotos(parsed.input.eventId));
     revalidatePath(path);
     const { recorded, skipped } = data as { recorded: number; skipped: number };
     return { success: true, message: `Imported ${recorded} row${recorded === 1 ? "" : "s"}; ${skipped} skipped` };
@@ -298,6 +303,8 @@ export async function generateConsequences(input: GenerateConsequencesInput): Pr
       p_key: requestKey, p_actor: context.profile.id, p_event: eventId, p_bucket: bucket,
     });
     if (error) return { success: false, error: error.message };
+    // Backstop: attendance is now locked, so remove every photo an earlier sweep missed.
+    await sweepClaimPhotos(eventId);
     revalidatePath(path);
     const { obligation_count: fines, demerit_count: demerits } = data as { obligation_count: number; demerit_count: number };
     const label = bucket === "office" ? "Office" : "RLE";
@@ -415,7 +422,8 @@ export async function reviewAttendanceClaim(input: ReviewClaimInput): Promise<Ev
       p_reason: (reason ?? null) as string,
     });
     if (error) return { success: false, error: error.message };
-    await sweepClaimPhotos((data as { event_id: string }).event_id);
+    const eventId = (data as { event_id: string }).event_id;
+    after(() => sweepClaimPhotos(eventId));
     revalidatePath(path);
     revalidatePath("/student/events");
     return { success: true, message: decision === "verify" ? "Attendance verified" : "Claim rejected" };

@@ -149,7 +149,7 @@ export function EventDetail({ event, rules, attendees, claims, feedback, canMana
       {tab === "verification" && <ClaimReview claims={claims} attendees={attendees} viewerId={viewerId} />}
       {tab === "activity" && <ActivityTab attendees={attendees} />}
       {tab === "details" && <DetailsTab event={event} rules={rules} participants={attendees.length} closed={phase !== "open" && phase !== "upcoming"} />}
-      {tab === "consequences" && canManage && <ConsequencePanel event={event} canGenerateNow={canGenerate(event, now)} />}
+      {tab === "consequences" && canManage && <ConsequencePanel event={event} canGenerateNow={canGenerate(event, now)} pendingClaims={claims.length} />}
       {tab === "feedback" && feedback && (
         <FeedbackPanel rows={feedback} attended={attendees.filter((row) => row.time_in).length}
           opensAt={new Date(closesAt(event)).toISOString()}
