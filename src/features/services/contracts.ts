@@ -6,11 +6,30 @@ type Tables = Database["public"]["Tables"];
 /** Duty bucket for service sessions: Office Duty ("office") or Clinical/RLE Duty ("rle"). */
 export type ServiceBucket = Database["public"]["Enums"]["bucket"];
 
-/** Service session row as stored in the database. */
-export type ServiceSessionRecord = Tables["service_sessions"]["Row"];
+/** Service session fields the faculty views read (see `serviceSessionColumns`). */
+export type ServiceSessionRecord = Pick<
+  Tables["service_sessions"]["Row"],
+  | "id"
+  | "semester_id"
+  | "bucket"
+  | "duty_on"
+  | "scheduled_start"
+  | "scheduled_end"
+  | "location"
+  | "late_after_minutes"
+  | "time_in_from"
+  | "time_in_until"
+  | "time_out_from"
+  | "time_out_until"
+  | "created_by"
+  | "ended_at"
+>;
 
-/** Participant row linking a student to a service session. */
-export type ServiceParticipantRecord = Tables["service_participants"]["Row"];
+/** Participant fields the faculty views read (see `serviceParticipantColumns`). */
+export type ServiceParticipantRecord = Pick<
+  Tables["service_participants"]["Row"],
+  "session_id" | "student_id" | "time_in" | "time_out" | "excluded_at"
+>;
 
 /**
  * Attendance status for a service participant in an open or ended session:

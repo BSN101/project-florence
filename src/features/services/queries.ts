@@ -17,6 +17,11 @@ import type {
 
 const uuidSchema = z.string().uuid();
 
+// Explicit projections: actor columns (recorded_by, excluded_by, ended_by) are not sent to the client.
+const serviceSessionColumns =
+  "id, semester_id, bucket, duty_on, scheduled_start, scheduled_end, location, late_after_minutes, time_in_from, time_in_until, time_out_from, time_out_until, created_by, ended_at";
+const serviceParticipantColumns = "session_id, student_id, time_in, time_out, excluded_at";
+
 /**
  * Service sessions in one semester for faculty listing.
  * - Ordinary instructors see their own sessions.
@@ -33,7 +38,7 @@ export async function getMyServiceSessions(semesterId: string): Promise<ServiceS
 
   let query = client
     .from("service_sessions")
-    .select("*")
+    .select(serviceSessionColumns)
     .eq("semester_id", parsedSemester.data);
 
   if (!isCoordinator) {
@@ -69,7 +74,7 @@ export async function getMyServiceSessions(semesterId: string): Promise<ServiceS
   const sessionIds = sessions.map((s) => s.id);
   const { data: participants, error: participantsError } = await client
     .from("service_participants")
-    .select("*")
+    .select(serviceParticipantColumns)
     .in("session_id", sessionIds);
 
   if (participantsError) throw new Error(`Failed to load service participants: ${participantsError.message}`);
@@ -107,7 +112,7 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
   const client = await createUserClient();
   const { data: session, error: sessionError } = await client
     .from("service_sessions")
-    .select("*")
+    .select(serviceSessionColumns)
     .eq("id", parsedId.data)
     .maybeSingle();
 
@@ -130,7 +135,7 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
   const [participantsRes, roster] = await Promise.all([
     client
       .from("service_participants")
-      .select("*")
+      .select(serviceParticipantColumns)
       .eq("session_id", session.id),
     getRoster(session.semester_id, "faculty").catch(() => []),
   ]);
