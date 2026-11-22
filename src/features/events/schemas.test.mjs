@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  attendanceClaimSchema, isoToManilaInput, manilaInputToIso, qrAttendanceSchema, recordAttendanceSchema, saveEventSchema,
+  attendanceClaimSchema, reviewClaimSchema, isoToManilaInput, manilaInputToIso, qrAttendanceSchema, recordAttendanceSchema, saveEventSchema,
   SELFIE_CONSENT_VERSION,
 } from "./schemas.ts";
 
@@ -87,4 +87,14 @@ test("selfie claims need the student-number format and the current consent versi
   assert.equal(attendanceClaimSchema.safeParse({ ...claim, consentVersion: "" }).success, false);
   assert.equal(attendanceClaimSchema.safeParse({ ...claim, consentVersion: "selfie-consent-old" }).success, false);
   assert.equal(attendanceClaimSchema.safeParse({ ...claim, kind: "late" }).success, false);
+});
+
+test("rejecting a claim needs a reason and verifying takes none", () => {
+  const review = (decision, reason) => reviewClaimSchema.safeParse({ claimId: uuid, decision, reason, requestKey: uuid }).success;
+  assert.equal(review("verify"), true);
+  assert.equal(review("reject", "  Face not clearly visible "), true);
+  assert.equal(review("reject"), false);
+  assert.equal(review("reject", "   "), false);
+  assert.equal(review("verify", "Looks fine"), false);
+  assert.equal(review("reject", "x".repeat(501)), false);
 });

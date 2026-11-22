@@ -94,7 +94,18 @@ export const attendanceClaimSchema = z.object({
   requestKey: id,
 });
 
+// FL-050. A reason is required to reject and not accepted to verify.
+export const reviewClaimSchema = z.object({
+  claimId: id,
+  decision: z.enum(["verify", "reject"]),
+  reason: z.string().trim().max(500, "Keep the reason under 500 characters").optional(),
+  requestKey: id,
+}).refine((d) => (d.decision === "reject") === !!d.reason, { message: "Give a reason for rejecting", path: ["reason"] });
+
+export const claimIdSchema = z.object({ claimId: id });
+
 export type SaveEventInput = z.input<typeof saveEventSchema>;
+export type ReviewClaimInput = z.input<typeof reviewClaimSchema>;
 export type AttendanceClaimInput = z.infer<typeof attendanceClaimSchema>;
 export type RecordAttendanceInput = z.infer<typeof recordAttendanceSchema>;
 export type QrAttendanceInput = z.infer<typeof qrAttendanceSchema>;

@@ -7,7 +7,7 @@ import { EventDetail, type EventTab } from "@/features/events/components/event-d
 import { EventList } from "@/features/events/components/event-list";
 import { RepresentativeEvents } from "@/features/events/components/representative-events";
 import { canCapture } from "@/features/events/event-state";
-import { getAttendanceCounts, getEvent, getEventAttendance, getEventFeedback, getEventRules, getEvents } from "@/features/events/queries";
+import { getAttendanceCounts, getEvent, getEventAttendance, getEventFeedback, getEventRules, getEvents, getPendingClaims } from "@/features/events/queries";
 import { eventIdSchema } from "@/features/events/schemas";
 import { getActiveFineDefinitions } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
@@ -43,14 +43,15 @@ export default async function CouncilEventsPage({ searchParams }: {
   if (semesterId && selected) {
     // Representatives see participants only while capture is open (florence_event_attendance enforces it).
     const canViewAttendance = canManage || canCapture(selected);
-    const [attendees, rules, feedback] = await Promise.all([
+    const [attendees, claims, rules, feedback] = await Promise.all([
       canViewAttendance ? getEventAttendance(selected.id) : Promise.resolve([]),
+      canViewAttendance ? getPendingClaims(selected.id) : Promise.resolve([]),
       canManage ? getEventRules([selected.id]) : Promise.resolve([]),
       canManage ? getEventFeedback(selected.id) : Promise.resolve(null),
     ]);
-    const tabs: EventTab[] = ["attendance", "activity", "details", "consequences", "feedback"];
+    const tabs: EventTab[] = ["attendance", "verification", "activity", "details", "consequences", "feedback"];
     content = (
-      <EventDetail event={selected} rules={rules[0] ?? null} attendees={attendees} feedback={feedback}
+      <EventDetail event={selected} rules={rules[0] ?? null} attendees={attendees} claims={claims} feedback={feedback}
         canManage={canManage} canViewAttendance={canViewAttendance}
         viewerId={access.profile.id} backHref={backHref} now={new Date().toISOString()}
         initialTab={tabs.find((t) => t === tab) ?? "attendance"} />

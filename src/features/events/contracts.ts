@@ -49,3 +49,6 @@ export type MyClaim = Pick<
   "id" | "event_id" | "kind" | "status" | "submitted_at" | "rejection_reason"
 >;
 
+
+/** A pending claim in the Council verification queue; names come from the attendee list. */
+export type ClaimQueueRow = Pick<Tables["event_attendance_claims"]["Row"], "id" | "student_id" | "kind" | "submitted_at">;

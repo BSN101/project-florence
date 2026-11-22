@@ -8,7 +8,7 @@ import { notificationIdSchema } from "./schemas.ts";
 describe("Notification kinds & route mappings", () => {
   test("matches the database trigger allowlist", () => {
     const guard = readFileSync(
-      new URL("../../../supabase/migrations/20261120100000_obligation_waiver_notice.sql", import.meta.url),
+      new URL("../../../supabase/migrations/20261122100000_selfie_attendance_claims.sql", import.meta.url),
       "utf8",
     );
     const allowlist = guard.match(/new\.kind not in \(([^)]*)\)/)[1].match(/'([^']+)'/g).map((s) => s.slice(1, -1));
