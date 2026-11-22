@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
@@ -92,12 +93,27 @@ export function FilterSelect({
   );
 }
 
-/** Fixed-height, scrolling frame with generous spacing and responsiveness across screens. */
-export function TableFrame({ filters, pager, children }: { filters: ReactNode; pager: ReactNode; children: ReactNode }) {
+/** Scrolling table frame that adapts naturally to content height up to max-height. */
+export function TableFrame({
+  filters,
+  pager,
+  children,
+  className,
+}: {
+  filters: ReactNode;
+  pager: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <div className="flex flex-col gap-3.5 min-w-0 max-w-full overflow-hidden">
       <div className="flex flex-wrap items-center gap-2.5 min-w-0 max-w-full">{filters}</div>
-      <div className="min-h-[20rem] max-h-[28rem] w-full max-w-full overflow-x-auto overflow-y-auto rounded-xl border border-border bg-card shadow-xs clearance-scrollbar">
+      <div
+        className={cn(
+          "max-h-[28rem] w-full max-w-full overflow-x-auto overflow-y-auto rounded-xl border border-border bg-card shadow-xs clearance-scrollbar",
+          className
+        )}
+      >
         {children}
       </div>
       <div className="min-w-0 max-w-full">{pager}</div>
@@ -117,7 +133,7 @@ export function TableEmpty({
   filtered: boolean;
 }) {
   return (
-    <div className="flex h-full min-h-[16rem] flex-col items-center justify-center gap-2.5 p-8 text-center">
+    <div className="flex min-h-[13rem] flex-col items-center justify-center gap-2.5 p-8 text-center">
       <Icon className="size-8 text-muted-foreground/50" />
       <p className="text-sm font-medium text-foreground">{filtered ? "No records match these filters" : title}</p>
       <p className="text-xs text-muted-foreground">{filtered ? "Change or clear the filters above." : text}</p>
