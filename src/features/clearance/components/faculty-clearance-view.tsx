@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { AlertCircle, CheckCircle2, Clock, ShieldCheck, Users } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { FacultyClearanceCandidate, FacultyClearanceComponent } from "../contracts";
 import { FacultyCandidateTable } from "./faculty-candidate-table";
 
@@ -102,12 +103,15 @@ export function FacultyClearanceView({
         )}
       </div>
 
-      {/* Summary Stat Cards - 1 col mobile, 2 cols tablet, 5 cols desktop */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 sm:gap-4">
-        {statCards.map((card) => (
+      {/* Summary Stat Cards - 1 big card + 2x2 grid on mobile/tablet (< lg), 5 cols on desktop (>= lg) */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 sm:gap-4">
+        {statCards.map((card, index) => (
           <Card
             key={card.title}
-            className="flex flex-col justify-between rounded-xl border border-border bg-card p-4 shadow-xs"
+            className={cn(
+              "flex flex-col justify-between rounded-xl border border-border bg-card p-3 sm:p-4 shadow-xs",
+              index === 0 && "col-span-2 lg:col-span-1"
+            )}
           >
             <div className="flex items-center justify-between gap-2 pb-2">
               <span className="text-xs font-medium text-muted-foreground truncate">

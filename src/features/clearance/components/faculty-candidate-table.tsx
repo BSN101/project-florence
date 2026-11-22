@@ -49,24 +49,24 @@ function CouncilPrerequisiteBadge({
 }) {
   if (cleared) {
     return (
-      <span className="inline-flex flex-col items-start gap-0.5">
-        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-          <Check className="size-3" />
-          Council Cleared
+      <div className="flex flex-col items-start leading-tight">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+          <Check className="size-3.5 shrink-0 stroke-[2.5]" />
+          Council cleared
         </span>
         {confirmedAt && (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground pl-4.5">
             {confirmedFormat.format(new Date(confirmedAt))}
           </span>
         )}
-      </span>
+      </div>
     );
   }
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-      <Clock className="size-3" />
-      Awaiting Council
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className="size-2 shrink-0 rounded-full border border-muted-foreground/60" aria-hidden="true" />
+      Awaiting council
     </span>
   );
 }
@@ -79,23 +79,30 @@ function BucketBalanceBadge({
   onInspect: (candidate: FacultyClearanceCandidate) => void;
 }) {
   const hasDebt = candidate.netBalance > 0;
+  const daysText = `${candidate.netBalance} ${candidate.netBalance === 1 ? "day" : "days"}`;
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="inline-flex items-center gap-1.5">
       {hasDebt ? (
-        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-          <AlertCircle className="size-3" />
-          {candidate.netBalance} day(s) debt
-        </span>
+        <div className="flex flex-col items-start leading-tight">
+          <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+            {daysText}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            in debt
+          </span>
+        </div>
       ) : (
-        <span className="font-mono text-xs text-muted-foreground">0 days</span>
+        <span className="text-xs text-muted-foreground font-normal">
+          0 days
+        </span>
       )}
       <button
         type="button"
         onClick={() => onInspect(candidate)}
         aria-label={`Inspect disciplinary history for ${candidate.name}`}
         title="View disciplinary history"
-        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        className="rounded-md p-1 text-muted-foreground/40 hover:bg-muted hover:text-foreground transition-colors"
       >
         <ExternalLink className="size-3.5" />
       </button>
@@ -196,7 +203,7 @@ function ClearanceActionButton({
             />
           }
         >
-          <Clock className="mr-1.5 size-3.5 text-amber-600" />
+          <Clock className="mr-1.5 size-3.5 text-muted-foreground" />
           Needs Council
         </TooltipTrigger>
         <TooltipContent side="top">
