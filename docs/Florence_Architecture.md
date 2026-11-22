@@ -197,7 +197,7 @@ Council event consequence generation takes an explicit Office/RLE bucket selecte
 **Selfie attendance claims (FL-049, FL-050).** Claims live in `event_attendance_claims`; `event_attendance` changes only when a claim is verified.
 - Submission is one transactional RPC under the event lock. It checks the window, audience, typed student number (compared with the actor's own `university_id`, not stored), consent and duplicate claims, and sets `submitted_at` and `consented_at` from the database clock. Upload and RPC share one request key, so a retry replays the same claim.
 - Review is one transactional RPC. Verify calls the shared attendance helper with method `selfie` and `submitted_at` as the recorded time. Reject writes the student's notice and cascades a time-in rejection to the pending time-out claim. Reviewer and claimant must differ.
-- When QR, manual or CSV capture records a side with a pending claim, the shared helper marks it `superseded` in the same transaction.
+- When QR, manual or CSV capture records a side with a pending claim, a trigger on `event_attendance` marks it `superseded` in the same transaction, so every capture path is covered.
 - Consequence generation refuses to run while any claim for the event is pending. Any active Council Executive may waive eligible Council-generated demerits regardless of original Council issuer; Faculty issuer-only restrictions and the self-waiver prohibition remain unchanged.
 
 RPCs that trust server authorization are executable only by the server role. Revoke default `PUBLIC`, `anon` and `authenticated` execution. Any deliberately client-callable function must perform its own actor/action checks. `SECURITY DEFINER` functions use a fixed safe `search_path` and qualified object names.
@@ -211,7 +211,7 @@ Storage helpers configure R2 and issue short-lived URLs. The owning feature auth
 **Selfie photos** use the `attendance_selfie` purpose and the same upload path as payment proof: client-compressed, re-encoded to WebP and stripped of metadata on the server, stored under a private key.
 - A download link is issued only to the claimant or an E/O/R reviewer, and only while the claim is `pending`.
 - The review action, and any capture action that supersedes a claim, deletes the object after its transaction commits and records `photo_deleted_at`. `files` rows stay; only the object is removed.
-- If a deletion fails, `photo_deleted_at` stays null and consequence generation retries every undeleted photo for the event, so no photo outlives attendance locking. This sweep runs inside that action; there is no scheduled job.
+- Deletion is one sweep per event (`florence_undeleted_claim_photos`) that the review, capture and consequence-generation actions run after they commit. If a deletion fails, `photo_deleted_at` stays null and the next sweep retries it; generation's sweep means no photo outlives attendance locking. There is no scheduled job.
 - Face detection (`@mediapipe/tasks-vision`, loaded on demand, model and WASM self-hosted under `public/`) runs only in the browser as a capture gate. The server never relies on it; reviewer verification is the control.
 
 ### Authentication email
