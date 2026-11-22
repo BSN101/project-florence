@@ -20,7 +20,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { FacultyClearanceCandidate, FacultyClearanceComponent } from "../contracts";
+import {
+  FACULTY_CLEARANCE_CONFIG,
+  type ClearanceStatus,
+  type FacultyClearanceCandidate,
+  type FacultyClearanceComponent,
+} from "../contracts";
 import { ConfirmFacultyClearanceDialog } from "./confirm-faculty-clearance-dialog";
 import { StudentDisciplineDrilldownDialog } from "./student-discipline-drilldown-dialog";
 
@@ -55,7 +60,7 @@ function CouncilPrerequisiteBadge({
           Council cleared
         </span>
         {confirmedAt && (
-          <span className="text-[11px] text-muted-foreground pl-4.5">
+          <span className="text-[11px] text-muted-foreground pl-4">
             {confirmedFormat.format(new Date(confirmedAt))}
           </span>
         )}
@@ -102,7 +107,7 @@ function BucketBalanceBadge({
         onClick={() => onInspect(candidate)}
         aria-label={`Inspect disciplinary history for ${candidate.name}`}
         title="View disciplinary history"
-        className="rounded-md p-1 text-muted-foreground/40 hover:bg-muted hover:text-foreground transition-colors"
+        className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground/40 hover:bg-muted hover:text-foreground transition-colors max-md:min-h-11 max-md:min-w-11 md:p-1"
       >
         <ExternalLink className="size-3.5" />
       </button>
@@ -110,8 +115,8 @@ function BucketBalanceBadge({
   );
 }
 
-function FacultyClearanceStatusBadge({ confirmedAt }: { confirmedAt: string | null }) {
-  if (confirmedAt) {
+function FacultyClearanceStatusBadge({ status }: { status: ClearanceStatus }) {
+  if (status.cleared && status.confirmedAt) {
     return (
       <span className="inline-flex flex-col items-start gap-0.5">
         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
@@ -119,8 +124,13 @@ function FacultyClearanceStatusBadge({ confirmedAt }: { confirmedAt: string | nu
           Cleared
         </span>
         <span className="text-[11px] text-muted-foreground">
-          {confirmedFormat.format(new Date(confirmedAt))}
+          {confirmedFormat.format(new Date(status.confirmedAt))}
         </span>
+        {status.confirmedByName && (
+          <span className="text-[10px] text-muted-foreground/80 truncate max-w-[140px]" title={`Confirmed by ${status.confirmedByName}`}>
+            by {status.confirmedByName}
+          </span>
+        )}
       </span>
     );
   }
@@ -128,6 +138,32 @@ function FacultyClearanceStatusBadge({ confirmedAt }: { confirmedAt: string | nu
     <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
       <Clock className="size-3" />
       Pending
+    </span>
+  );
+}
+
+function CounterpartClearanceBadge({
+  label,
+  status,
+}: {
+  label: string;
+  status: ClearanceStatus;
+}) {
+  if (status.cleared && status.confirmedAt) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium"
+        title={status.confirmedByName ? `Confirmed by ${status.confirmedByName}` : "Confirmed"}
+      >
+        <Check className="size-3 shrink-0" />
+        {label}: Cleared
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+      <span className="size-1.5 shrink-0 rounded-full border border-muted-foreground/60" aria-hidden="true" />
+      {label}: Pending
     </span>
   );
 }
@@ -273,7 +309,9 @@ export function FacultyCandidateTable({
   const [selectedCandidate, setSelectedCandidate] = useState<FacultyClearanceCandidate | null>(null);
   const [inspectingCandidate, setInspectingCandidate] = useState<FacultyClearanceCandidate | null>(null);
 
-  const bucketLabel = component === "academic" ? "Office" : "RLE";
+  const config = FACULTY_CLEARANCE_CONFIG[component];
+  const bucketLabel = config.bucketLabel;
+  const counterpartLabel = config.counterpartLabel;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -358,7 +396,7 @@ export function FacultyCandidateTable({
             </div>
 
             {/* Filter selects */}
-            <div className="grid w-full grid-cols-1 gap-2.5 shrink-0 sm:grid-cols-2 xl:flex xl:w-auto xl:items-center xl:gap-2.5">
+            <div className="grid w-full grid-cols-1 gap-3 shrink-0 sm:grid-cols-2 xl:flex xl:w-auto xl:items-center xl:gap-3">
               {/* Year Filter */}
               <div className="w-full xl:w-[140px]">
                 <Select
@@ -516,7 +554,7 @@ export function FacultyCandidateTable({
                       </div>
 
                       <div className="shrink-0">
-                        <FacultyClearanceStatusBadge confirmedAt={candidate.status.confirmedAt} />
+                        <FacultyClearanceStatusBadge status={candidate.status} />
                       </div>
                     </div>
 
@@ -526,6 +564,13 @@ export function FacultyCandidateTable({
                         <CouncilPrerequisiteBadge
                           cleared={candidate.councilCleared}
                           confirmedAt={candidate.councilConfirmedAt}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">{counterpartLabel} Clearance:</span>
+                        <CounterpartClearanceBadge
+                          label={counterpartLabel}
+                          status={component === "academic" ? candidate.rleClearance : candidate.academicClearance}
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -554,19 +599,19 @@ export function FacultyCandidateTable({
                   <CandidateTableColgroup />
                   <thead className="sticky top-0 z-10 border-b border-border bg-muted text-xs font-medium text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3.5 font-medium">Student</th>
-                      <th className="px-4 py-3.5 font-medium">Year & Status</th>
-                      <th className="px-4 py-3.5 font-medium">Council Prerequisite</th>
-                      <th className="px-4 py-3.5 font-medium">{bucketLabel} Bucket Balance</th>
-                      <th className="px-4 py-3.5 font-medium">Clearance Status</th>
-                      <th className="pl-4 pr-6 py-3.5 text-right font-medium">Action</th>
+                      <th className="px-4 py-3 font-medium">Student</th>
+                      <th className="px-4 py-3 font-medium">Year & Status</th>
+                      <th className="px-4 py-3 font-medium">Council Prerequisite</th>
+                      <th className="px-4 py-3 font-medium">{bucketLabel} Bucket Balance</th>
+                      <th className="px-4 py-3 font-medium">Clearance Status</th>
+                      <th className="pl-4 pr-6 py-3 text-right font-medium">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {paged.map((candidate) => (
                       <tr key={candidate.studentId} className="transition-colors hover:bg-muted/40">
                         {/* Student Info */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3">
                           <div className="flex flex-col">
                             <span className="font-medium text-foreground">{candidate.name}</span>
                             <span className="font-mono text-xs text-muted-foreground">
@@ -576,13 +621,13 @@ export function FacultyCandidateTable({
                         </td>
 
                         {/* Year & Status */}
-                        <td className="px-4 py-3.5 text-xs text-foreground">
+                        <td className="px-4 py-3 text-xs text-foreground">
                           <div>Year {candidate.yearLevel}</div>
                           <div className="capitalize text-muted-foreground">{candidate.academicStatus}</div>
                         </td>
 
                         {/* Council Clearance Prerequisite */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3">
                           <CouncilPrerequisiteBadge
                             cleared={candidate.councilCleared}
                             confirmedAt={candidate.councilConfirmedAt}
@@ -590,17 +635,25 @@ export function FacultyCandidateTable({
                         </td>
 
                         {/* Disciplinary Bucket Balance & Ledger Link */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3">
                           <BucketBalanceBadge candidate={candidate} onInspect={setInspectingCandidate} />
                         </td>
 
-                        {/* Faculty Clearance Status */}
-                        <td className="px-4 py-3.5">
-                          <FacultyClearanceStatusBadge confirmedAt={candidate.status.confirmedAt} />
+                        {/* Faculty Clearance Status & Counterpart Indicator */}
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                            <FacultyClearanceStatusBadge status={candidate.status} />
+                            <div className="pt-0.5 border-t border-border/40">
+                              <CounterpartClearanceBadge
+                                label={counterpartLabel}
+                                status={component === "academic" ? candidate.rleClearance : candidate.academicClearance}
+                              />
+                            </div>
+                          </div>
                         </td>
 
                         {/* Action */}
-                        <td className="pl-4 pr-6 py-3.5 text-right">
+                        <td className="pl-4 pr-6 py-3 text-right">
                           <ClearanceActionButton
                             candidate={candidate}
                             isCurrentSemester={isCurrentSemester}

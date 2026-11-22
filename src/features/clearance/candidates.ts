@@ -17,6 +17,7 @@ export type ClearanceEntry = {
   student_id: string;
   confirmed_at: string;
   confirmed_by: string;
+  confirmed_by_name?: string | null;
 };
 
 export type StudentDisciplineMetrics = {
@@ -76,17 +77,19 @@ export function buildCouncilClearanceCandidates({
 }
 
 /**
- * Pure aggregation function for Faculty Clearance candidates (FL-041).
+ * Pure aggregation function for Faculty Clearance candidates (FL-041 / FL-042).
  * Combines semester roster with:
  * - Prerequisite Council clearance confirmations for the same student & semester.
- * - Existing Faculty clearance confirmations for the given component ('academic' | 'rle').
+ * - Both Academic and RLE faculty clearances for complete transparency across components.
  * - Cumulative disciplinary balances for the specific bucket ('office' | 'rle').
+ * - Formatted confirming officer name for administrative traceability.
  * - Anti-self-clearance flag for the currently active coordinator.
  */
 export function buildFacultyClearanceCandidates({
   roster,
   councilClearances,
-  facultyClearances,
+  academicClearances,
+  rleClearances,
   disciplineMap,
   actorProfileId,
   component,
@@ -94,7 +97,8 @@ export function buildFacultyClearanceCandidates({
 }: {
   roster: RosterEntry[];
   councilClearances: ClearanceEntry[];
-  facultyClearances: ClearanceEntry[];
+  academicClearances: ClearanceEntry[];
+  rleClearances: ClearanceEntry[];
   disciplineMap: Map<string, StudentDisciplineMetrics>;
   actorProfileId: string;
   component: FacultyClearanceComponent;
@@ -105,14 +109,21 @@ export function buildFacultyClearanceCandidates({
     councilMap.set(c.student_id, c);
   }
 
-  const facultyMap = new Map<string, ClearanceEntry>();
-  for (const f of facultyClearances) {
-    facultyMap.set(f.student_id, f);
+  const academicMap = new Map<string, ClearanceEntry>();
+  for (const a of academicClearances) {
+    academicMap.set(a.student_id, a);
+  }
+
+  const rleMap = new Map<string, ClearanceEntry>();
+  for (const r of rleClearances) {
+    rleMap.set(r.student_id, r);
   }
 
   return roster.map((student) => {
     const councilClearance = councilMap.get(student.student_id);
-    const facultyClearance = facultyMap.get(student.student_id);
+    const academicClearance = academicMap.get(student.student_id);
+    const rleClearance = rleMap.get(student.student_id);
+    const currentFacultyClearance = component === "academic" ? academicClearance : rleClearance;
     const discipline = disciplineMap.get(student.student_id) ?? {
       activeDemerits: 0,
       appliedMerits: 0,
@@ -135,9 +146,22 @@ export function buildFacultyClearanceCandidates({
       netBalance: discipline.netBalance,
       isSelf: student.student_id === actorProfileId,
       status: {
-        cleared: Boolean(facultyClearance),
-        confirmedAt: facultyClearance?.confirmed_at ?? null,
-        confirmedBy: facultyClearance?.confirmed_by ?? null,
+        cleared: Boolean(currentFacultyClearance),
+        confirmedAt: currentFacultyClearance?.confirmed_at ?? null,
+        confirmedBy: currentFacultyClearance?.confirmed_by ?? null,
+        confirmedByName: currentFacultyClearance?.confirmed_by_name ?? null,
+      },
+      academicClearance: {
+        cleared: Boolean(academicClearance),
+        confirmedAt: academicClearance?.confirmed_at ?? null,
+        confirmedBy: academicClearance?.confirmed_by ?? null,
+        confirmedByName: academicClearance?.confirmed_by_name ?? null,
+      },
+      rleClearance: {
+        cleared: Boolean(rleClearance),
+        confirmedAt: rleClearance?.confirmed_at ?? null,
+        confirmedBy: rleClearance?.confirmed_by ?? null,
+        confirmedByName: rleClearance?.confirmed_by_name ?? null,
       },
     };
   });

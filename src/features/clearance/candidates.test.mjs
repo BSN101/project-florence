@@ -169,11 +169,21 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
     // student4Id is intentionally missing from Council clearances!
   ];
 
-  const mockFacultyClearances = [
+  const mockAcademicClearances = [
     {
       student_id: student2Id,
       confirmed_at: "2026-11-16T14:00:00Z",
       confirmed_by: coordinatorId,
+      confirmed_by_name: "Dr. Maria Santos",
+    },
+  ];
+
+  const mockRleClearances = [
+    {
+      student_id: student1Id,
+      confirmed_at: "2026-11-17T09:30:00Z",
+      confirmed_by: "rle-coordinator-1",
+      confirmed_by_name: "Prof. Juan Dela Cruz",
     },
   ];
 
@@ -184,11 +194,12 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
     [student4Id, { activeDemerits: 0, appliedMerits: 0, serviceCredits: 0, netBalance: 0 }],
   ]);
 
-  test("accurately maps Council prerequisite, Faculty clearance, and bucket disciplinary balance", () => {
+  test("accurately maps Council prerequisite, Faculty clearance, counterpart clearance, and bucket disciplinary balance", () => {
     const candidates = buildFacultyClearanceCandidates({
       roster: mockRoster,
       councilClearances: mockCouncilClearances,
-      facultyClearances: mockFacultyClearances,
+      academicClearances: mockAcademicClearances,
+      rleClearances: mockRleClearances,
       disciplineMap: mockDisciplineMap,
       actorProfileId: coordinatorId,
       component: "academic",
@@ -197,17 +208,20 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
 
     assert.equal(candidates.length, 4);
 
-    // Candidate 1 (Coordinator themselves)
+    // Candidate 1 (Coordinator themselves, Academic pending, RLE cleared)
     const c1 = candidates.find((c) => c.studentId === student1Id);
     assert.ok(c1);
     assert.equal(c1.isSelf, true);
     assert.equal(c1.councilCleared, true);
     assert.equal(c1.councilConfirmedAt, "2026-11-15T10:00:00Z");
     assert.equal(c1.status.cleared, false);
+    assert.equal(c1.academicClearance.cleared, false);
+    assert.equal(c1.rleClearance.cleared, true);
+    assert.equal(c1.rleClearance.confirmedByName, "Prof. Juan Dela Cruz");
     assert.equal(c1.bucket, "office");
     assert.equal(c1.netBalance, 0);
 
-    // Candidate 2 (Fully cleared in Council and Academic)
+    // Candidate 2 (Fully cleared in Council and Academic, has offset history)
     const c2 = candidates.find((c) => c.studentId === student2Id);
     assert.ok(c2);
     assert.equal(c2.isSelf, false);
@@ -215,6 +229,9 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
     assert.equal(c2.status.cleared, true);
     assert.equal(c2.status.confirmedAt, "2026-11-16T14:00:00Z");
     assert.equal(c2.status.confirmedBy, coordinatorId);
+    assert.equal(c2.status.confirmedByName, "Dr. Maria Santos");
+    assert.equal(c2.academicClearance.cleared, true);
+    assert.equal(c2.rleClearance.cleared, false);
     assert.equal(c2.activeDemerits, 1);
     assert.equal(c2.appliedMerits, 1);
     assert.equal(c2.serviceCredits, 0);
@@ -246,7 +263,8 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
     const candidates = buildFacultyClearanceCandidates({
       roster: [mockRoster[3]],
       councilClearances: [],
-      facultyClearances: [],
+      academicClearances: [],
+      rleClearances: [],
       disciplineMap: new Map(),
       actorProfileId: "other-actor",
       component: "rle",
@@ -258,6 +276,8 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
     assert.equal(candidates[0].councilCleared, false);
     assert.equal(candidates[0].councilConfirmedAt, null);
     assert.equal(candidates[0].status.cleared, false);
+    assert.equal(candidates[0].academicClearance.cleared, false);
+    assert.equal(candidates[0].rleClearance.cleared, false);
     assert.equal(candidates[0].activeDemerits, 0);
     assert.equal(candidates[0].appliedMerits, 0);
     assert.equal(candidates[0].serviceCredits, 0);

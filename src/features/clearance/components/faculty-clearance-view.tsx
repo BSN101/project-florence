@@ -5,7 +5,11 @@ import { AlertCircle, CheckCircle2, Clock, ShieldCheck, Users } from "lucide-rea
 
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { FacultyClearanceCandidate, FacultyClearanceComponent } from "../contracts";
+import {
+  FACULTY_CLEARANCE_CONFIG,
+  type FacultyClearanceCandidate,
+  type FacultyClearanceComponent,
+} from "../contracts";
 import { FacultyCandidateTable } from "./faculty-candidate-table";
 
 export function FacultyClearanceView({
@@ -19,8 +23,9 @@ export function FacultyClearanceView({
   component: FacultyClearanceComponent;
   isCurrentSemester: boolean;
 }) {
-  const componentLabel = component === "academic" ? "Academic" : "RLE";
-  const bucketLabel = component === "academic" ? "Office" : "RLE";
+  const config = FACULTY_CLEARANCE_CONFIG[component];
+  const componentLabel = config.label;
+  const bucketLabel = config.bucketLabel;
 
   const stats = useMemo(() => {
     let cleared = 0;
@@ -104,28 +109,28 @@ export function FacultyClearanceView({
       </div>
 
       {/* Summary Stat Cards - 1 big card + 2x2 grid on mobile/tablet (< lg), 5 cols on desktop (>= lg) */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-5 xl:gap-4 min-w-0 max-w-full">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5 min-w-0 max-w-full">
         {statCards.map((card, index) => (
           <Card
             key={card.title}
             className={cn(
-              "flex flex-col justify-between rounded-xl border border-border bg-card p-3 sm:p-3.5 xl:p-4 shadow-xs min-w-0 w-full",
+              "flex flex-col justify-between rounded-xl border border-border bg-card p-3 sm:p-4 shadow-xs min-w-0 w-full",
               index === 0 && "col-span-2 lg:col-span-1"
             )}
           >
-            <div className="flex items-center justify-between gap-1.5 pb-2 min-w-0">
+            <div className="flex items-center justify-between gap-2 pb-2 min-w-0">
               <span className="text-xs font-medium text-muted-foreground leading-tight min-w-0 break-words">
                 {card.title}
               </span>
               <div
-                className={`flex size-7.5 shrink-0 items-center justify-center rounded-lg sm:size-8 ${card.iconBg} ${card.iconColor}`}
+                className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${card.iconBg} ${card.iconColor}`}
               >
-                <card.icon className="size-3.5 sm:size-4" />
+                <card.icon className="size-4" />
               </div>
             </div>
             <div className="min-w-0">
               <div
-                className={`font-heading text-2xl font-bold tracking-tight tabular-nums ${card.valueColor}`}
+                className={`font-heading text-2xl font-semibold tracking-tight tabular-nums ${card.valueColor}`}
               >
                 {card.value}
               </div>

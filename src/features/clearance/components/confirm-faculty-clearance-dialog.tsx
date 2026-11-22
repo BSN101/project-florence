@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Loader2, ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { confirmFacultyClearanceAction } from "../actions";
-import type { FacultyClearanceCandidate, FacultyClearanceComponent } from "../contracts";
+import {
+  FACULTY_CLEARANCE_CONFIG,
+  type FacultyClearanceCandidate,
+  type FacultyClearanceComponent,
+} from "../contracts";
 
 const confirmedFormat = new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" });
 
@@ -39,9 +43,12 @@ export function ConfirmFacultyClearanceDialog({
 
   if (!candidate) return null;
 
-  const componentLabel = component === "academic" ? "Academic" : "RLE";
-  const bucketLabel = candidate.bucket === "office" ? "Office" : "RLE";
+  const config = FACULTY_CLEARANCE_CONFIG[component];
+  const componentLabel = config.label;
+  const bucketLabel = config.bucketLabel;
   const hasDebt = candidate.netBalance > 0;
+  const hasDisciplineHistory =
+    candidate.activeDemerits > 0 || candidate.appliedMerits > 0 || candidate.serviceCredits > 0;
 
   function handleConfirm() {
     if (!candidate) return;
@@ -123,17 +130,21 @@ export function ConfirmFacultyClearanceDialog({
               <div className="flex flex-col rounded-lg border border-border/60 bg-muted/30 p-2">
                 <span className="text-[11px] text-muted-foreground">{bucketLabel} Bucket Balance</span>
                 <span className={hasDebt ? "font-semibold text-amber-600 dark:text-amber-400" : "font-medium text-foreground"}>
-                  {candidate.netBalance > 0 ? `${candidate.netBalance} day(s) debt` : "Clear (0 days)"}
+                  {candidate.netBalance > 0
+                    ? `${candidate.netBalance} day(s) debt`
+                    : hasDisciplineHistory
+                    ? "0 days (balanced)"
+                    : "0 days"}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Advisory Warning if Student Has Disciplinary Debt */}
+          {/* Disciplinary Summary (Warning if active debt; Informational if offset/balanced history) */}
           {hasDebt && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-950 dark:text-amber-200">
+            <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-950 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-1">
                 <span className="font-semibold text-amber-900 dark:text-amber-300">
                   Non-Zero Disciplinary Balance
                 </span>
@@ -146,10 +157,24 @@ export function ConfirmFacultyClearanceDialog({
             </div>
           )}
 
+          {!hasDebt && hasDisciplineHistory && (
+            <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-muted/40 p-4 text-xs text-muted-foreground">
+              <FileText className="mt-0.5 size-4 shrink-0 text-primary" />
+              <div className="flex flex-col gap-1">
+                <span className="font-semibold text-foreground">
+                  Satisfied Disciplinary Obligations (Net: 0 days)
+                </span>
+                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                  This student previously had disciplinary records ({candidate.activeDemerits} demerits) that have been offset by {candidate.appliedMerits} applied merits and {candidate.serviceCredits} service credits.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Permanent Invariant Notice */}
-          <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card/60 p-3.5 text-xs">
-            <div className="flex items-center gap-1.5 font-heading font-semibold text-foreground">
-              <ShieldAlert className="size-3.5 text-primary" />
+          <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card/60 p-4 text-xs">
+            <div className="flex items-center gap-2 font-heading font-semibold text-foreground">
+              <ShieldAlert className="size-4 text-primary" />
               <h4>Permanent record</h4>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -158,7 +183,7 @@ export function ConfirmFacultyClearanceDialog({
           </div>
         </div>
 
-        <DialogFooter className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2.5">
+        <DialogFooter className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button
             type="button"
             variant="outline"

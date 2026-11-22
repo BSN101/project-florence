@@ -4,13 +4,15 @@ import { revalidatePath } from "next/cache";
 
 import { AccessDeniedError } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
+import { createUserClient } from "@/server/db/user-client";
 import {
   canConfirmCouncilClearance,
   canConfirmFacultyClearance,
 } from "./authorization";
-import type {
-  ConfirmCouncilClearanceResult,
-  ConfirmFacultyClearanceResult,
+import {
+  FACULTY_CLEARANCE_CONFIG,
+  type ConfirmCouncilClearanceResult,
+  type ConfirmFacultyClearanceResult,
 } from "./contracts";
 import {
   assertAuthorizedCouncilClearanceManager,
@@ -103,12 +105,23 @@ export async function confirmFacultyClearanceAction(rawInput: unknown): Promise<
   }
 
   const isCurrentSemester = context.currentSemester?.id === semesterId;
+
+  // Prerequisite check: Council clearance must already be confirmed (FL-041)
+  const client = await createUserClient();
+  const { data: councilClearance } = await client
+    .from("clearances")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("semester_id", semesterId)
+    .eq("component", "council")
+    .maybeSingle();
+
   const preCheck = canConfirmFacultyClearance({
     actorProfileId: context.profile.id,
     studentId,
     roles: context.roles,
     component,
-    councilCleared: true, // Will also be verified atomically inside PostgreSQL RPC
+    councilCleared: Boolean(councilClearance),
     isCurrentSemester,
   });
 
@@ -118,6 +131,9 @@ export async function confirmFacultyClearanceAction(rawInput: unknown): Promise<
     }
     if (preCheck.reason === "self_clearance_prohibited") {
       return { success: false, error: "You can't confirm your own clearance." };
+    }
+    if (preCheck.reason === "council_clearance_required") {
+      return { success: false, error: "Council clearance is required before faculty clearance can be confirmed." };
     }
     return { success: false, error: "You are not permitted to confirm clearance." };
   }
@@ -132,7 +148,7 @@ export async function confirmFacultyClearanceAction(rawInput: unknown): Promise<
     });
     if (error) return { success: false, error: formatRpcError(error.message) };
 
-    const targetPath = component === "academic" ? "/faculty/academic-clearance" : "/faculty/rle-clearance";
+    const targetPath = FACULTY_CLEARANCE_CONFIG[component].path;
     revalidatePath(targetPath);
     const record = data as { clearance_id: string; confirmed_at: string };
     return { success: true, clearanceId: record.clearance_id, confirmedAt: record.confirmed_at };

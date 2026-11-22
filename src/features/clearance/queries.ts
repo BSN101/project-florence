@@ -121,31 +121,23 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
   const context = await assertAuthorizedFacultyClearanceManager(component);
   const client = await createUserClient();
 
-  // Run roster, Council clearances (prerequisite), Faculty clearances, and bucket disciplinary records in parallel.
-  const [roster, councilClearances, facultyClearances, demerits, applications, serviceCredits] =
+  const roster = await getRoster(semesterId, "faculty");
+  if (roster.length === 0) return [];
+
+  const candidateIds = roster.map((student) => student.student_id);
+
+  // Run all clearances for the semester, and bucket disciplinary records strictly scoped to candidateIds in parallel.
+  const [semesterClearances, demerits, applications, serviceCredits] =
     await Promise.all([
-      getRoster(semesterId, "faculty"),
       allRows(
         (from, to) =>
           client
             .from("clearances")
-            .select("student_id, confirmed_at, confirmed_by")
+            .select("student_id, component, confirmed_at, confirmed_by")
             .eq("semester_id", semesterId)
-            .eq("component", "council")
             .order("student_id")
             .range(from, to),
-        "Unable to load Council clearances"
-      ),
-      allRows(
-        (from, to) =>
-          client
-            .from("clearances")
-            .select("student_id, confirmed_at, confirmed_by")
-            .eq("semester_id", semesterId)
-            .eq("component", component)
-            .order("student_id")
-            .range(from, to),
-        `Unable to load ${component} clearances`
+        "Unable to load semester clearances"
       ),
       allRows(
         (from, to) =>
@@ -154,6 +146,7 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
             .select("student_id, bucket, waived_at")
             .eq("bucket", bucket)
             .is("waived_at", null)
+            .in("student_id", candidateIds)
             .order("id")
             .range(from, to),
         "Unable to load active demerits"
@@ -164,6 +157,7 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
             .from("merit_applications")
             .select("student_id, bucket")
             .eq("bucket", bucket)
+            .in("student_id", candidateIds)
             .order("id")
             .range(from, to),
         "Unable to load merit applications"
@@ -175,11 +169,46 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
             .select("student_id, bucket, revoked_at")
             .eq("bucket", bucket)
             .is("revoked_at", null)
+            .in("student_id", candidateIds)
             .order("id")
             .range(from, to),
         "Unable to load active service credits"
       ),
     ]);
+
+  // Resolve confirming officer profile UUIDs to formatted names (FL-042)
+  const confirmerIds = Array.from(
+    new Set(semesterClearances.map((c) => c.confirmed_by).filter(Boolean))
+  );
+
+  const confirmerMap = new Map<string, string>();
+  if (confirmerIds.length > 0) {
+    const { data: profiles } = await client
+      .from("profiles")
+      .select("id, first_name, middle_name, last_name, suffix")
+      .in("id", confirmerIds);
+
+    for (const p of profiles ?? []) {
+      confirmerMap.set(p.id, displayName(p));
+    }
+  }
+
+  // Partition clearances by component with resolved actor names
+  const councilClearances = [];
+  const academicClearances = [];
+  const rleClearances = [];
+
+  for (const c of semesterClearances) {
+    const entry = {
+      student_id: c.student_id,
+      confirmed_at: c.confirmed_at,
+      confirmed_by: c.confirmed_by,
+      confirmed_by_name: confirmerMap.get(c.confirmed_by) ?? null,
+    };
+    if (c.component === "council") councilClearances.push(entry);
+    else if (c.component === "academic") academicClearances.push(entry);
+    else if (c.component === "rle") rleClearances.push(entry);
+  }
 
   // Aggregate bucket discipline counts per student (cumulative across all semesters, FL-029 / T-041)
   const disciplineMap = new Map<string, StudentDisciplineMetrics>();
@@ -209,7 +238,8 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
   return buildFacultyClearanceCandidates({
     roster: roster.map((student) => ({ ...student, name: displayName(student) })),
     councilClearances,
-    facultyClearances,
+    academicClearances,
+    rleClearances,
     disciplineMap,
     actorProfileId: context.profile.id,
     component,
