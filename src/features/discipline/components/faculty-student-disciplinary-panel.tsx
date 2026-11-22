@@ -52,13 +52,13 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5 min-w-0 max-w-full overflow-hidden">
       {/* Coordinator View */}
       {data.isCoordinator && data.summary && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-primary">
-            <ShieldCheck className="size-4" />
-            <span>Coordinator View · Cumulative Student Disciplinary Balances</span>
+        <div className="flex flex-col gap-3 min-w-0 max-w-full">
+          <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary min-w-0">
+            <ShieldCheck className="size-4 shrink-0" />
+            <span className="truncate">Coordinator View · Cumulative Student Disciplinary Balances</span>
           </div>
           <DisciplinaryBalanceCards summary={data.summary} />
         </div>
@@ -66,11 +66,11 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
 
       {/* Ordinary Instructor Scoped View Note */}
       {!data.isCoordinator && (
-        <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+        <div className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3.5 text-xs text-muted-foreground min-w-0 max-w-full">
           <User className="size-4 text-primary mt-0.5 shrink-0" />
           <div>
             <strong className="text-foreground">Instructor-Scoped Activity (FL-029):</strong>
-            <p className="mt-0.5 text-[11px]">
+            <p className="mt-0.5 text-[11px] leading-relaxed">
               Showing only demerits, merit awards, and service credits personally issued by you for this student.
               Institutional policy restricts whole-ledger balances and cross-instructor history to Academic and RLE Coordinators.
             </p>
@@ -79,16 +79,16 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
       )}
 
       {/* Tabs */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 border-b border-border pb-1.5">
+      <div className="flex flex-col gap-3.5 min-w-0 max-w-full">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 border-b border-border pb-2.5">
           <Button
             type="button"
             variant={activeTab === "demerits" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("demerits")}
-            className="h-7 gap-1.5 px-2.5 text-xs"
+            className="h-8 gap-2 px-3 text-xs sm:text-sm font-medium transition-all"
           >
-            <FileWarning className="size-3.5" />
+            <FileWarning className="size-4" />
             <span>Demerits ({data.demerits.length})</span>
           </Button>
 
@@ -97,9 +97,9 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
             variant={activeTab === "merits" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("merits")}
-            className="h-7 gap-1.5 px-2.5 text-xs"
+            className="h-8 gap-2 px-3 text-xs sm:text-sm font-medium transition-all"
           >
-            <Award className="size-3.5" />
+            <Award className="size-4" />
             <span>Merits ({data.merits.length})</span>
           </Button>
 
@@ -108,14 +108,14 @@ export function FacultyStudentDisciplinaryPanel({ studentId }: { studentId: stri
             variant={activeTab === "services" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("services")}
-            className="h-7 gap-1.5 px-2.5 text-xs"
+            className="h-8 gap-2 px-3 text-xs sm:text-sm font-medium transition-all"
           >
-            <Clock className="size-3.5" />
+            <Clock className="size-4" />
             <span>Services ({data.serviceCredits.length})</span>
           </Button>
         </div>
 
-        <div>
+        <div className="min-w-0 max-w-full overflow-hidden">
           {activeTab === "demerits" && <DemeritsTable demerits={data.demerits} />}
           {activeTab === "merits" && <MeritsTable merits={data.merits} />}
           {activeTab === "services" && <ServiceCreditsTable credits={data.serviceCredits} />}

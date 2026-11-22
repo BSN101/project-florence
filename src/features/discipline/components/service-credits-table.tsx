@@ -47,34 +47,40 @@ export function ServiceCreditsTable({
 
   return (
     <TableFrame filters={filters} pager={pager}>
-      <table className="w-full text-left text-xs">
+      <table className="w-full min-w-[780px] table-fixed text-left text-xs">
+        <colgroup>
+          <col className="w-[18%]" />
+          <col className="w-[16%]" />
+          <col className="w-[28%]" />
+          <col className="w-[38%]" />
+        </colgroup>
         <thead className={THEAD_CLASS}>
           <tr>
-            <th className="px-4 py-3">Issued Date</th>
-            <th className="px-4 py-3">Duty Bucket</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Supervisor / Issuer</th>
+            <th className="px-4.5 py-3.5 font-medium">Issued Date</th>
+            <th className="px-4.5 py-3.5 font-medium">Duty Bucket</th>
+            <th className="pl-4.5 pr-8 py-3.5 font-medium">Status</th>
+            <th className="pl-8 pr-6 py-3.5 font-medium">Supervisor / Issuer</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
           {pageRows.map((c) => {
             const isRevoked = c.revoked_at !== null;
             return (
-              <tr key={c.id} className="hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono text-muted-foreground whitespace-nowrap">
+              <tr key={c.id} className="transition-colors hover:bg-muted/30">
+                <td className="px-4.5 py-3.5 font-mono text-muted-foreground whitespace-nowrap">
                   {new Date(c.issued_at).toLocaleDateString("en-CA", {
                     timeZone: "Asia/Manila",
                   })}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
+                <td className="px-4.5 py-3.5 whitespace-nowrap">
                   <BucketBadge bucket={c.bucket} />
                 </td>
-                <td className="px-4 py-3">
+                <td className="pl-4.5 pr-8 py-3.5">
                   <div className="flex flex-col gap-1">
                     <ServiceCreditBadge revoked={isRevoked} />
                     {isRevoked && c.revocation_reason && (
-                      <div className="flex items-start gap-1 rounded bg-muted/60 p-1 text-[11px] text-muted-foreground">
-                        <AlertCircle className="size-3 text-destructive mt-0.5 shrink-0" />
+                      <div className="flex items-start gap-1 rounded bg-muted/60 p-1.5 text-[11px] text-muted-foreground">
+                        <AlertCircle className="size-3.5 text-destructive mt-0.5 shrink-0" />
                         <span>
                           <strong>Revocation note:</strong> {c.revocation_reason}
                         </span>
@@ -82,10 +88,10 @@ export function ServiceCreditsTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <User className="size-3 text-muted-foreground/70" />
-                    <span>{c.issuer_name ?? "Instructor"}</span>
+                <td className="pl-8 pr-6 py-3.5 text-muted-foreground whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <User className="size-3.5 text-muted-foreground/70 shrink-0" />
+                    <span className="truncate">{c.issuer_name ?? "Instructor"}</span>
                   </div>
                 </td>
               </tr>

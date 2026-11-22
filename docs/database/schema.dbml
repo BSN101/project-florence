@@ -1653,6 +1653,7 @@ Table service_credits {
   revocation_reason text [null, note: "Required reason"]
   indexes {
     service_participant_id [unique]
+    (student_id, bucket) [name: "service_credits_student_bucket_idx"]
   }
   Note: '''
 ### 10.3 `service_credits`
@@ -1702,6 +1703,8 @@ Permanent semester-level confirmation for one component. Absence of a row means 
 - `CHECK (component IN ('council','academic','rle'))`.
 - No update/delete workflow in ordinary application use.
 - Academic/RLE dependency on prior Council clearance is an application/atomic insert check if concurrency needs DB serialization.
+- `florence_clearance_names(uuid[])` returns display names (no university number) for the people who confirmed clearances the caller can read, using the same visibility rules as `clearances_read`. `own_profile` hides other profiles, so this restricted function replaces an embedded profile join. Only authenticated users can execute it.
+- `florence_bucket_balances(semester uuid, bucket)` returns, for each student enrolled in the semester, the cumulative counts of active demerits, applied merits and active service credits in that bucket (balance = demerits − applied − credits, as in `f_cmd_balance`). It runs as the caller, so it counts only rows the caller's RLS already allows. Only authenticated users can execute it.
 
 **RLS**
 

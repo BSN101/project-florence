@@ -70,33 +70,35 @@ export function ConfirmClearanceDialog({
         }
       }}
     >
-      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-lg">
-        <DialogHeader className="gap-1 text-left">
-          <DialogTitle className="font-heading text-lg font-medium text-foreground flex items-center gap-2">
-            <CheckCircle2 className="size-4.5 text-primary" />
-            Confirm Council Clearance?
+      <DialogContent className="max-h-[90vh] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] overflow-y-auto overflow-x-hidden p-4 sm:p-6 sm:max-w-lg">
+        <DialogHeader className="gap-1.5 text-left pb-2 border-b border-border/60 min-w-0 max-w-full pr-8 sm:pr-0">
+          <DialogTitle className="font-heading text-base sm:text-lg font-semibold text-foreground flex items-center gap-2 min-w-0">
+            <div className="flex size-7 sm:size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <CheckCircle2 className="size-4 sm:size-4.5" />
+            </div>
+            <span className="leading-snug break-words">Confirm Council Clearance?</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
+          <DialogDescription className="text-xs text-muted-foreground leading-relaxed break-words">
             Review student status and obligations before confirming permanent semester clearance.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 py-1">
+        <div className="flex flex-col gap-3 py-1 min-w-0 max-w-full">
           {error && (
             <div
               role="alert"
-              className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
+              className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive break-words min-w-0"
             >
               {error}
             </div>
           )}
 
           {/* Student Context Card */}
-          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:p-3.5">
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2">
-              <span className="min-w-0 truncate text-xs font-semibold text-foreground">
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:p-3.5 min-w-0 max-w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between items-start gap-1.5 rounded-lg border border-border/70 bg-background/60 px-3 py-2 min-w-0">
+              <span className="min-w-0 text-xs font-semibold text-foreground break-words">
                 {candidate.name}{" "}
-                <span className="font-mono font-normal text-muted-foreground">
+                <span className="font-mono font-normal text-muted-foreground whitespace-nowrap">
                   ({candidate.studentNumber})
                 </span>
               </span>
@@ -108,13 +110,13 @@ export function ConfirmClearanceDialog({
 
           {/* Warning Banner if Student Has Debt or Demerits */}
           {hasDebtOrDemerits && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-950 dark:text-amber-200">
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 sm:p-4 text-xs text-amber-950 dark:text-amber-200 min-w-0 max-w-full">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
-              <div className="flex flex-col gap-0.5">
-                <span className="font-semibold text-amber-900 dark:text-amber-300">
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="font-semibold text-amber-900 dark:text-amber-300 break-words">
                   Outstanding Obligations Warning
                 </span>
-                <span className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                <span className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300 break-words">
                   This student has{" "}
                   {candidate.totalOutstandingPayable > 0 && (
                     <strong>{formatPhp(candidate.totalOutstandingPayable)} in unpaid balance</strong>
@@ -131,19 +133,19 @@ export function ConfirmClearanceDialog({
           )}
 
           {/* Permanent Invariant Notice */}
-          <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card/60 p-3.5 text-xs">
-            <div className="flex items-center gap-1.5 font-heading font-semibold text-foreground">
-              <ShieldAlert className="size-3.5 text-primary" />
-              <h4>Permanent record</h4>
+          <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card/60 p-3 sm:p-4 text-xs min-w-0 max-w-full">
+            <div className="flex items-center gap-1.5 font-heading font-semibold text-foreground min-w-0">
+              <ShieldAlert className="size-3.5 shrink-0 text-primary" />
+              <h4 className="break-words">Permanent record</h4>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
+            <p className="text-[11px] text-muted-foreground leading-relaxed break-words">
               Council clearance is <strong>permanent</strong>. Once confirmed, it can&apos;t be undone or
               withdrawn.
             </p>
           </div>
         </div>
 
-        <DialogFooter className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2.5">
+        <DialogFooter className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2.5 min-w-0">
           <Button
             type="button"
             variant="outline"

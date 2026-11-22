@@ -4,14 +4,41 @@ import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-works
 import { createUserClient } from "@/server/db/user-client";
 import { fromCents, toCents } from "@/features/finance/calculations";
 import { allRows, getCouncilFinancialRoster } from "@/features/finance/queries";
+import { getRoster } from "@/features/students/queries";
 import { displayName } from "@/lib/format-name";
-import { isAuthorizedCouncilClearanceRole } from "./authorization";
-import { buildCouncilClearanceCandidates } from "./candidates";
-import type { CouncilClearanceCandidate } from "./contracts";
+import {
+  isAuthorizedCouncilClearanceRole,
+  isAuthorizedFacultyClearanceRole,
+} from "./authorization";
+import {
+  buildCouncilClearanceCandidates,
+  buildFacultyClearanceCandidates,
+  type StudentDisciplineMetrics,
+} from "./candidates";
+import {
+  FACULTY_CLEARANCE_CONFIG,
+  type CouncilClearanceCandidate,
+  type FacultyClearanceCandidate,
+  type FacultyClearanceComponent,
+} from "./contracts";
 
 export async function assertAuthorizedCouncilClearanceManager() {
   const context = await requireWorkspace("council");
   if (!isAuthorizedCouncilClearanceRole(context.councilRole)) {
+    throw new AccessDeniedError("forbidden");
+  }
+  return context;
+}
+
+/**
+ * Access guard for Faculty clearance management (FL-041).
+ * Verifies authenticated Faculty workspace access and enforces role matching:
+ * - Academic clearance requires Academic Coordinator role.
+ * - RLE clearance requires RLE Coordinator role.
+ */
+export async function assertAuthorizedFacultyClearanceManager(component: FacultyClearanceComponent) {
+  const context = await requireWorkspace("faculty");
+  if (!isAuthorizedFacultyClearanceRole(context.roles, component)) {
     throw new AccessDeniedError("forbidden");
   }
   return context;
@@ -78,5 +105,79 @@ export const getCouncilClearanceCandidates = cache(async function getCouncilClea
     financialSummaries,
     councilDemeritCounts,
     actorProfileId: context.profile.id,
+  });
+});
+
+/**
+ * Loads all candidates for Faculty clearance for the given semester and component (FL-041).
+ * Gated to Academic Coordinator for 'academic' and RLE Coordinator for 'rle'.
+ * Reads the semester's clearances and the component's bucket disciplinary records.
+ * Memoized per server request via React.cache.
+ */
+export const getFacultyClearanceCandidates = cache(async function getFacultyClearanceCandidates(
+  semesterId: string,
+  component: FacultyClearanceComponent
+): Promise<FacultyClearanceCandidate[]> {
+  const context = await assertAuthorizedFacultyClearanceManager(component);
+  const { bucket } = FACULTY_CLEARANCE_CONFIG[component];
+  const client = await createUserClient();
+
+  const roster = await getRoster(semesterId, "faculty");
+  if (roster.length === 0) return [];
+
+  const [semesterClearances, balances] = await Promise.all([
+    allRows(
+      (from, to) =>
+        client
+          .from("clearances")
+          .select("student_id, component, confirmed_at, confirmed_by")
+          .eq("semester_id", semesterId)
+          .order("id")
+          .range(from, to),
+      "Unable to load semester clearances"
+    ),
+    // Cumulative bucket counts per enrolled student (all semesters, FL-029), computed in the database.
+    allRows(
+      (from, to) =>
+        client
+          .rpc("florence_bucket_balances", { p_semester: semesterId, p_bucket: bucket })
+          .order("student_id")
+          .range(from, to),
+      "Unable to load disciplinary balances"
+    ),
+  ]);
+
+  // Confirmer names via the restricted projection; own_profile RLS blocks a profiles read.
+  const confirmerIds = [...new Set(semesterClearances.map((c) => c.confirmed_by))];
+  const names = new Map<string, string>();
+  if (confirmerIds.length > 0) {
+    const { data, error } = await client.rpc("florence_clearance_names", { p_ids: confirmerIds });
+    if (error) throw new Error("Unable to load names");
+    for (const row of data) names.set(row.id, displayName(row));
+  }
+
+  const byComponent = (component: string) =>
+    semesterClearances
+      .filter((c) => c.component === component)
+      .map((c) => ({ ...c, confirmed_by_name: names.get(c.confirmed_by) ?? null }));
+
+  const disciplineMap = new Map<string, StudentDisciplineMetrics>(
+    balances.map((b) => [b.student_id, {
+      activeDemerits: b.active_demerits,
+      appliedMerits: b.applied_merits,
+      serviceCredits: b.active_service_credits,
+      netBalance: b.active_demerits - b.applied_merits - b.active_service_credits,
+    }])
+  );
+
+  return buildFacultyClearanceCandidates({
+    roster: roster.map((student) => ({ ...student, name: displayName(student) })),
+    councilClearances: byComponent("council"),
+    academicClearances: byComponent("academic"),
+    rleClearances: byComponent("rle"),
+    disciplineMap,
+    actorProfileId: context.profile.id,
+    component,
+    bucket,
   });
 });

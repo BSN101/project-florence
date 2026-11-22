@@ -1,10 +1,11 @@
-import { WorkspaceShell } from "@/components/layout/workspace-shell";
+import { FacultyClearancePageContent } from "@/features/clearance/components/faculty-clearance-page-content";
 
 export const instant = false;
 
-export default async function FacultyAcademicClearancePage({ searchParams }: {
+export default function FacultyAcademicClearancePage({
+  searchParams,
+}: {
   searchParams: Promise<{ semester?: string | string[] }>;
 }) {
-  const { semester } = await searchParams;
-  return <WorkspaceShell workspace="faculty" destination="academic-clearance" semester={semester} />;
+  return <FacultyClearancePageContent component="academic" searchParams={searchParams} />;
 }
