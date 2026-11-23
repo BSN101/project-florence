@@ -31,6 +31,12 @@ export type ServiceParticipantRecord = Pick<
   "session_id" | "student_id" | "time_in" | "time_out" | "excluded_at"
 >;
 
+/** Service credit fields read by faculty views (see `serviceCreditColumns`). */
+export type ServiceParticipantCredit = Pick<
+  Tables["service_credits"]["Row"],
+  "id" | "issued_at" | "revoked_at" | "revocation_reason"
+>;
+
 /**
  * Attendance status for a service participant in an open or ended session:
  * - "not_recorded": no time-in or time-out recorded yet.
@@ -60,6 +66,12 @@ export type ServiceSessionParticipantCounts = {
   missingTimeOut: number;
   notRecorded: number;
   excluded: number;
+  /** Count of included participants who completed service (on time or late). */
+  completedCount?: number;
+  /** Count of service credits issued upon finalization. */
+  creditCount?: number;
+  /** Count of completed participants who completed with zero credit. */
+  zeroCreditCount?: number;
 };
 
 /** Summary of a service session for table/list views. */
@@ -80,6 +92,7 @@ export type ServiceParticipantDetail = ServiceParticipantRecord & {
   suffix: string | null;
   year_level: number | null;
   status: AttendanceStatus;
+  credit?: ServiceParticipantCredit | null;
 };
 
 /** Detailed view of a single service session and all its participants. */
@@ -118,4 +131,26 @@ export type CreateServiceSessionResult =
 /** Result of updating service session participants and attendance. */
 export type SetServiceParticipantsResult =
   | { success: true; updatedCount: number }
+  | { success: false; error: string; retryable?: true };
+
+/** Eligibility breakdown for finalizing a service session. */
+export type FinalizationEligibility = {
+  canFinalize: boolean;
+  reason: string | null;
+  completedCount: number;
+  incompleteCount: number;
+  excludedCount: number;
+  totalCount: number;
+  isPastScheduledEnd: boolean;
+};
+
+/** Result of finalizing / ending a service session. */
+export type EndServiceSessionResult =
+  | {
+      success: true;
+      sessionId: string;
+      endedAt: string;
+      completedCount: number;
+      creditCount: number;
+    }
   | { success: false; error: string; retryable?: true };
