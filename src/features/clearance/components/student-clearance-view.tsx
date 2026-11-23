@@ -179,11 +179,11 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="text-muted-foreground leading-relaxed">
-                  Covers student council dues and financial obligations. Council clearance must be granted before
+                  Confirmed by a Council officer. Council clearance must be granted before
                   faculty coordinators can sign off.
                 </p>
                 <div className="rounded-md bg-muted/50 p-3 text-[11px] text-muted-foreground">
-                  Settle all outstanding fees, dues, or fines to be eligible for Council clearance sign-off.
+                  Outstanding balances are shown to the reviewer but do not automatically block clearance.
                 </div>
               </div>
             )}
@@ -193,7 +193,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
             {components.council.cleared ? (
               <div className="flex w-full items-center justify-center py-2 text-xs text-muted-foreground">
                 <Check className="mr-1.5 size-3.5 text-emerald-600" />
-                Requirement Fulfilled
+                Confirmed
               </div>
             ) : (
               <Link
@@ -203,7 +203,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
                   "w-full justify-between min-h-[44px] text-xs font-medium"
                 )}
               >
-                <span>View Fees &amp; Fines</span>
+                <span>Review Fees &amp; Fines</span>
                 <ArrowRight className="size-3.5 shrink-0 ml-1.5" />
               </Link>
             )}
@@ -254,8 +254,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
                   </div>
                 )}
                 <p className="text-muted-foreground leading-relaxed">
-                  Covers classroom theory and Office bucket disciplinary records. Ensure any demerits are settled with
-                  merits or service.
+                  Confirmed by the Academic Coordinator, who reviews your Office disciplinary records.
                 </p>
               </div>
             )}
@@ -265,7 +264,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
             {components.academic.cleared ? (
               <div className="flex w-full items-center justify-center py-2 text-xs text-muted-foreground">
                 <Check className="mr-1.5 size-3.5 text-emerald-600" />
-                Requirement Fulfilled
+                Confirmed
               </div>
             ) : (
               <Link
@@ -275,7 +274,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
                   "w-full justify-between min-h-[44px] text-xs font-medium"
                 )}
               >
-                <span>View Disciplinary Records</span>
+                <span>Review Disciplinary Records</span>
                 <ArrowRight className="size-3.5 shrink-0 ml-1.5" />
               </Link>
             )}
@@ -326,8 +325,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
                   </div>
                 )}
                 <p className="text-muted-foreground leading-relaxed">
-                  Covers clinical hospital rotations and RLE make-up duty hours. Verify that your clinical service
-                  credits are updated.
+                  Confirmed by the RLE Coordinator, who reviews your RLE disciplinary records and service credits.
                 </p>
               </div>
             )}
@@ -337,7 +335,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
             {components.rle.cleared ? (
               <div className="flex w-full items-center justify-center py-2 text-xs text-muted-foreground">
                 <Check className="mr-1.5 size-3.5 text-emerald-600" />
-                Requirement Fulfilled
+                Confirmed
               </div>
             ) : (
               <Link
@@ -347,7 +345,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
                   "w-full justify-between min-h-[44px] text-xs font-medium"
                 )}
               >
-                <span>View Disciplinary Records</span>
+                <span>Review Disciplinary Records</span>
                 <ArrowRight className="size-3.5 shrink-0 ml-1.5" />
               </Link>
             )}
