@@ -743,3 +743,46 @@ A permanent Academic or RLE clearance for that student and semester, with the ac
 - Academic and RLE clearances do not depend on each other.
 - Balances match the student's ledger for the bucket.
 - Still to verify in a production build: Back keeps the page, and the confirmer name appears in the status tooltip.
+
+## View student clearance results
+
+- **Author:** Israel
+- **Actors:** Nursing Student.
+- **Starts at:** Student workspace > Clearance (`/student/clearance`), defaulting to the current semester (or latest enrolled term); any enrolled semester can be selected.
+- **References:** FL-042; schema §11.1 (`clearances`), `florence_clearance_names`.
+
+### Main flow
+
+1. The student opens the Clearance page from the student navigation.
+2. A hero progress banner displays the overall progress (e.g. "1 of 3 clearances confirmed" with a visual meter, or a green "Semester Clearance Complete" banner when all three are cleared).
+3. Three component cards display the separate status for Council Clearance (prerequisite), Academic Clearance, and RLE Clearance.
+4. For confirmed clearances, the card shows a green checkmark, the confirmation timestamp (PST), and the confirming officer or coordinator's display name.
+5. For pending clearances, the card displays clear guidance and actionable deep links:
+   - Council links to `/student/fees-and-fines` to settle obligations.
+   - Academic and RLE link to `/student/merits-demerits-and-services` to inspect disciplinary records.
+   - If Council clearance is pending, Academic and RLE cards explicitly state that Council clearance is required first.
+6. The student may switch semesters to review permanent historical clearance records.
+
+### System involvement
+
+- Reads `clearances` constrained by `student_id = me()` and the selected `semester_id`.
+- Confirmer names are resolved via `florence_clearance_names` without exposing private profile fields.
+- Checks `enrollments` for the selected semester to show an appropriate "Not Enrolled" state if the student did not attend the term.
+- Clearance records are permanent; later fee or demerit balance changes do not alter historical clearance confirmations (FL-042).
+
+### Outcome
+
+The student has full transparency over their clearance progress, understands prerequisite sequencing, and has direct routes to resolve pending obligations.
+
+### Important alternatives
+
+- **Not enrolled in semester:** Displays a friendly empty state indicating no enrollment record exists for that term.
+- **Historical past semester:** Displays an immutable archive banner noting that past records cannot be edited retroactively.
+- **Council prerequisite pending:** Academic and RLE cards explain that Council sign-off is required before coordinators can act.
+
+### Acceptance checks
+
+- Student sees only their own clearance records; unauthorized or unauthenticated users are gated.
+- Cleared cards show exact confirmer display names and formatted PST timestamps.
+- Action buttons meet touch targets (minimum 44px on mobile) and navigate directly to obligation pages.
+
