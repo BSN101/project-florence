@@ -216,10 +216,12 @@ export const getStudentClearanceSummary = cache(async function getStudentClearan
     const { data: nameData, error: nameError } = await client.rpc("florence_clearance_names", {
       p_ids: confirmerIds,
     });
-    if (!nameError && nameData) {
-      for (const row of nameData) {
-        names.set(row.id, displayName(row));
-      }
+    // FL-042 requires the confirmer to be shown; fail loudly rather than hide it.
+    if (nameError) {
+      throw new Error("Unable to load clearance confirmer names");
+    }
+    for (const row of nameData ?? []) {
+      names.set(row.id, displayName(row));
     }
   }
 
