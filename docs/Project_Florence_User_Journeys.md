@@ -508,6 +508,49 @@ The obligation's standing becomes `waived`, reducing what the student owes (`tot
 - Waived obligations immediately update payable and waived summary totals and expose their recorded waiver timestamp and reason in both the Council and Student workspaces.
 - Each waiver creates one `obligation_waived` notification for the student, linking to Fees and Fines.
 
+## Record completed payment refund
+
+- **Author:** Reipoh Gabriel Arradaza
+- **Actors:** Council Executive, Council Operations, Student (beneficiary).
+- **Starts at:** Council workspace > Payments (`/council/payments`), inside a selected student's ledger under the "Payment History" tab; user must hold an active Council Executive or Operations role.
+- **References:** FL-027, FL-022, FL-026, FL-044; database schema (`docs/database/schema.dbml`: `payment_receipts`, `payments`, `payment_refunds`, `obligations`, `notifications`).
+
+### Main flow
+
+1. The Council Executive or Operations officer opens Payments in the Council workspace, selects the "Student Financial Accounts & Payments" tab, opens a student's financial ledger, and switches to the "Payment History" tab.
+2. On a current, verified, unrefunded payment receipt row, the officer clicks "Refund".
+3. The system opens the "Record completed refund" dialog showing the student's name and university ID, payment method, destination/reference, original receipt date (`Asia/Manila`), academic term, covered obligations, and full refund amount.
+4. The officer enters the actual refund date and time (`Asia/Manila`, bounded between the payment's `received_at` and now), enters a required reason (1–500 characters), checks the attestation confirming that the full amount has already been returned outside Florence, and submits.
+5. The system validates the input server-side, verifies Council Executive or Operations authority and non-self ownership, and calls the `record_refund` RPC with a client-generated idempotency request key (`requestKey`).
+6. In one transaction, the database locks the request, receipt, current receipt-record payment, and covered obligations in deterministic order, verifies the payment is verified and unrefunded, inserts a full-amount row into `payment_refunds` without altering `payments.status` or waiving any obligation, and creates a `payment_refunded` in-app notification for the student.
+7. The dialog confirms the refund; the ledger refreshes so the payment row displays the "Refunded" badge with its refund date and reason, the summary cards show Net Received alongside retained Gross received and Refunds totals, and active covered obligations return to "Unpaid".
+
+### System involvement
+
+- Table `payment_refunds`: inserts one immutable full-amount refund row per `receipt_id` (`UNIQUE (receipt_id)`) attributed to `recorded_by = actor` with `refunded_at` and trimmed `reason`. Original `payments` and `payment_receipts` history is never overwritten or deleted.
+- Procedure `record_refund`: enforces Executive or Operations authority (`f_cmd_council`), trimmed 1–500 character reason, non-future `refunded_at >= payment_receipts.received_at`, `facts_confirmed = true`, self-refund prohibition (`p.student_id <> p_actor`), verified current receipt-record status, receipt refund uniqueness, deterministic lock ordering (`request -> receipt -> payment -> sorted obligations`), request-level idempotency (`f_cmd_begin`/`f_cmd_finish`), and atomic `payment_refunded` notice dispatch (`f_cmd_notice`).
+- Server action `recordRefund`: enforces `assertAuthorizedCouncilManager()`, validates input with `recordRefundSchema`, performs an early RLS-scoped owner check (`canRecordRefundForStudent`), sanitizes database errors (`sanitizeRecordRefundError`), and revalidates `/council/payments`, `/council/clearance`, `/student/fees-and-fines`, and `/student/notifications`.
+- Shared calculations (`calculatePaymentMoneyTotals`, `calculateStudentFinancialSummary`, `determineObligationStatus`): retain gross received, refunds, and net received totals using integer cents while excluding refunded receipts from obligation settlement.
+
+### Outcome
+
+The student's account and the Council ledger retain full gross received, refund, and net totals alongside the original verified payment record. Active obligations covered by the refunded payment become `unpaid` (payable again) and re-enter outstanding payable or prior-term carryover balances; obligations that were separately waived remain `waived`. Removing debt still requires a separate obligation waiver (FL-026). The student receives a `payment_refunded` notification linking to `/student/fees-and-fines`.
+
+### Important alternatives
+
+- **Self-Refund Blocked:** When a Council Executive or Operations officer views their own student financial account, no "Refund" button is shown, a self-restriction notice is displayed, and both `recordRefund` and `record_refund` reject `student_id = actor`.
+- **Non-Verified, Superseded, or Already-Refunded Payments:** Pending, rejected, superseded, and already-refunded payments do not offer a "Refund" button, and `record_refund` enforces verified current receipt status and single-refund uniqueness (`Receipt already refunded`).
+- **Invalid Chronology or Future Time:** Entering a refund timestamp earlier than `payment_receipts.received_at` or in the future is rejected both in the dialog and in `record_refund`.
+- **Retry Safety:** Retrying an unchanged refund submission reuses `requestKey` and replays the original `{ refund_id, receipt_id, amount }` without creating duplicate refund rows or notifications; editing any field or receiving a rolled-back validation/state error rotates the key.
+
+### Acceptance checks
+
+- Council Executive and Operations officers can record a completed full-payment refund on another student's verified payment with an actual refund time, reason, and external-return confirmation.
+- Council Representatives, Faculty, Platform Admins, and Students cannot invoke the refund workflow or server action; officers cannot refund their own payments.
+- Gross received, refunds, and net totals are preserved in both Council and Student views without overwriting or deleting received-money history.
+- Active obligations covered by the refunded payment become payable again (`unpaid`) and are not automatically waived; already-waived obligations remain `waived`.
+- Each recorded refund creates one `payment_refunded` in-app notification for the student linking to `/student/fees-and-fines`, and retrying with the same `requestKey` is idempotent while a second refund with a new key is rejected.
+
 ## Apply student merits to offset demerit sanctions
 
 - **Author:** Andrei Catigan
