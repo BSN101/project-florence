@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   HeartHandshake,
   Receipt,
+  RotateCcw,
   Shield,
   XCircle,
 } from "lucide-react";
@@ -21,6 +22,7 @@ export const NOTIFICATION_KINDS = [
   "obligation_waived",
   "payment_verified",
   "payment_rejected",
+  "payment_refunded",
   "council_access_changed",
   "attendance_claim_rejected",
 ] as const;
@@ -89,6 +91,13 @@ export const NOTIFICATION_CONFIG: Record<NotificationKind, NotificationConfigIte
     icon: XCircle,
     href: "/student/fees-and-fines",
     badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
+  },
+  payment_refunded: {
+    label: "Payment Refunded",
+    category: "finance",
+    icon: RotateCcw,
+    href: "/student/fees-and-fines",
+    badgeClass: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
   },
   // Sent on removal too, so link to the student home rather than /council.
   council_access_changed: {
