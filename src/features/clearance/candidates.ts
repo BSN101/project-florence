@@ -176,72 +176,38 @@ export type RawStudentClearanceEntry = {
 };
 
 export type BuildStudentClearanceSummaryParams = {
-  studentId: string;
-  semesterId: string;
   semesterName: string;
-  isEnrolled: boolean;
-  isCurrentSemester: boolean;
   clearances: RawStudentClearanceEntry[];
 };
 
 /**
  * Pure aggregation function for Student Clearance Summary (FL-042).
- * Aggregates Council, Academic, and RLE clearances into an authoritative,
- * immutable status summary for the student workspace.
+ * Aggregates Council, Academic, and RLE clearances into one status summary
+ * for the student workspace.
  */
 export function buildStudentClearanceSummary({
-  studentId,
-  semesterId,
   semesterName,
-  isEnrolled,
-  isCurrentSemester,
   clearances,
 }: BuildStudentClearanceSummaryParams): StudentClearanceSummary {
-  const clearanceMap = new Map<string, RawStudentClearanceEntry>();
-  for (const c of clearances) {
-    clearanceMap.set(c.component, c);
-  }
+  const byComponent = new Map(clearances.map((c) => [c.component, c]));
+  const status = (component: string) => {
+    const entry = byComponent.get(component);
+    return {
+      cleared: Boolean(entry),
+      confirmedAt: entry?.confirmed_at ?? null,
+      confirmedByName: entry?.confirmed_by_name ?? null,
+    };
+  };
 
-  const council = clearanceMap.get("council");
-  const academic = clearanceMap.get("academic");
-  const rle = clearanceMap.get("rle");
-
-  const councilCleared = isEnrolled && Boolean(council);
-  const academicCleared = isEnrolled && Boolean(academic);
-  const rleCleared = isEnrolled && Boolean(rle);
-
-  const isFullyCleared = councilCleared && academicCleared && rleCleared;
+  const components = {
+    council: status("council"),
+    academic: status("academic"),
+    rle: status("rle"),
+  };
 
   return {
-    studentId,
-    semesterId,
     semesterName,
-    isEnrolled,
-    isCurrentSemester,
-    isFullyCleared,
-    components: {
-      council: {
-        component: "council",
-        label: "Council Clearance",
-        cleared: councilCleared,
-        confirmedAt: isEnrolled ? council?.confirmed_at ?? null : null,
-        confirmedByName: isEnrolled ? council?.confirmed_by_name ?? null : null,
-      },
-      academic: {
-        component: "academic",
-        label: "Academic Clearance",
-        cleared: academicCleared,
-        confirmedAt: isEnrolled ? academic?.confirmed_at ?? null : null,
-        confirmedByName: isEnrolled ? academic?.confirmed_by_name ?? null : null,
-      },
-      rle: {
-        component: "rle",
-        label: "RLE Clearance",
-        cleared: rleCleared,
-        confirmedAt: isEnrolled ? rle?.confirmed_at ?? null : null,
-        confirmedByName: isEnrolled ? rle?.confirmed_by_name ?? null : null,
-      },
-    },
+    isFullyCleared: components.council.cleared && components.academic.cleared && components.rle.cleared,
+    components,
   };
 }
-

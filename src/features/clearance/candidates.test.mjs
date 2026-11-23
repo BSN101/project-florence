@@ -288,25 +288,17 @@ describe("Task T-053 / FL-041: Faculty Clearance Candidate Mapping", () => {
 });
 
 describe("Task T-054 / FL-042: Student Clearance Summary Mapping", () => {
-  const studentId = "44444444-4444-4444-8444-444444444444";
-  const semesterId = "55555555-5555-4555-8555-555555555555";
   const officerId = "11111111-1111-4111-8111-111111111111";
   const academicCoordId = "22222222-2222-4222-8222-222222222222";
   const rleCoordId = "33333333-3333-4333-8333-333333333333";
 
   test("handles all three pending clearances for an enrolled student", () => {
     const summary = buildStudentClearanceSummary({
-      studentId,
-      semesterId,
       semesterName: "2026–2027 1st Semester",
-      isEnrolled: true,
-      isCurrentSemester: true,
       clearances: [],
     });
 
-    assert.equal(summary.studentId, studentId);
-    assert.equal(summary.isEnrolled, true);
-    assert.equal(summary.isCurrentSemester, true);
+    assert.equal(summary.semesterName, "2026–2027 1st Semester");
     assert.equal(summary.isFullyCleared, false);
 
     assert.equal(summary.components.council.cleared, false);
@@ -322,11 +314,7 @@ describe("Task T-054 / FL-042: Student Clearance Summary Mapping", () => {
 
   test("correctly tracks Council-only cleared state with confirmer name", () => {
     const summary = buildStudentClearanceSummary({
-      studentId,
-      semesterId,
       semesterName: "2026–2027 1st Semester",
-      isEnrolled: true,
-      isCurrentSemester: true,
       clearances: [
         {
           component: "council",
@@ -348,11 +336,7 @@ describe("Task T-054 / FL-042: Student Clearance Summary Mapping", () => {
 
   test("tracks independent Academic clearance when RLE is pending", () => {
     const summary = buildStudentClearanceSummary({
-      studentId,
-      semesterId,
       semesterName: "2026–2027 1st Semester",
-      isEnrolled: true,
-      isCurrentSemester: true,
       clearances: [
         {
           component: "council",
@@ -378,11 +362,7 @@ describe("Task T-054 / FL-042: Student Clearance Summary Mapping", () => {
 
   test("evaluates isFullyCleared to true when all three components are confirmed", () => {
     const summary = buildStudentClearanceSummary({
-      studentId,
-      semesterId,
       semesterName: "2026–2027 1st Semester",
-      isEnrolled: true,
-      isCurrentSemester: true,
       clearances: [
         {
           component: "council",
@@ -412,38 +392,9 @@ describe("Task T-054 / FL-042: Student Clearance Summary Mapping", () => {
     assert.equal(summary.components.rle.confirmedByName, "Prof. RLE Coordinator");
   });
 
-  test("handles unenrolled semesters by setting isEnrolled and all cleared flags to false", () => {
-    const summary = buildStudentClearanceSummary({
-      studentId,
-      semesterId,
-      semesterName: "2025–2026 2nd Semester",
-      isEnrolled: false,
-      isCurrentSemester: false,
-      clearances: [
-        {
-          component: "council",
-          confirmed_at: "2026-04-10T10:00:00Z",
-          confirmed_by: officerId,
-          confirmed_by_name: "Past Officer",
-        },
-      ],
-    });
-
-    assert.equal(summary.isEnrolled, false);
-    assert.equal(summary.isFullyCleared, false);
-    assert.equal(summary.components.council.cleared, false);
-    assert.equal(summary.components.council.confirmedAt, null);
-    assert.equal(summary.components.academic.cleared, false);
-    assert.equal(summary.components.rle.cleared, false);
-  });
-
   test("gracefully falls back when confirmer name is not available", () => {
     const summary = buildStudentClearanceSummary({
-      studentId,
-      semesterId,
       semesterName: "2026–2027 1st Semester",
-      isEnrolled: true,
-      isCurrentSemester: true,
       clearances: [
         {
           component: "council",

@@ -185,70 +185,32 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
 });
 
 /**
- * Loads the authenticated student's clearance summary for the given semester (FL-042).
- * If no semesterId is passed, uses the current semester or the latest enrolled semester.
+ * Loads the authenticated student's clearance summary for an enrolled semester (FL-042).
  * Memoized per server request via React.cache.
  */
 export const getStudentClearanceSummary = cache(async function getStudentClearanceSummary(
-  targetSemesterId?: string
+  semesterId: string
 ): Promise<StudentClearanceSummary> {
   const context = await requireWorkspace("student");
-  const client = await createUserClient();
-  const studentId = context.profile.id;
-
-  const enrolledSemesters = context.semesters.filter((s) =>
-    context.enrollments.some((e) => e.semester_id === s.id)
+  const semester = context.semesters.find(
+    (s) => s.id === semesterId && context.enrollments.some((e) => e.semester_id === s.id)
   );
-
-  let semester = targetSemesterId
-    ? context.semesters.find((s) => s.id === targetSemesterId)
-    : enrolledSemesters.find((s) => s.is_current) ??
-      enrolledSemesters[0] ??
-      context.semesters.find((s) => s.is_current) ??
-      context.semesters[0];
-
-  // If still not found in memory, load from database directly
-  if (!semester && targetSemesterId) {
-    const { data: semRow } = await client
-      .from("semesters")
-      .select("id, academic_year_start, term, starts_on, ends_on, is_current")
-      .eq("id", targetSemesterId)
-      .maybeSingle();
-    if (semRow) {
-      semester = semRow;
-    }
-  }
-
   if (!semester) {
-    throw new Error("No semester available");
+    throw new AccessDeniedError("forbidden");
   }
 
-  const isEnrolled = context.enrollments.some((e) => e.semester_id === semester.id);
-  const semesterName = `${semester.academic_year_start}–${semester.academic_year_start + 1} ${semester.term}`;
-
-  if (!isEnrolled) {
-    return buildStudentClearanceSummary({
-      studentId,
-      semesterId: semester.id,
-      semesterName,
-      isEnrolled: false,
-      isCurrentSemester: Boolean(semester.is_current),
-      clearances: [],
-    });
-  }
-
-  // Load the student's clearances for this semester
+  const client = await createUserClient();
   const { data: rawClearances, error } = await client
     .from("clearances")
     .select("component, confirmed_at, confirmed_by")
-    .eq("student_id", studentId)
+    .eq("student_id", context.profile.id)
     .eq("semester_id", semester.id);
 
   if (error) {
     throw new Error("Unable to load clearance records");
   }
 
-  const confirmerIds = [...new Set((rawClearances ?? []).map((c) => c.confirmed_by))];
+  const confirmerIds = [...new Set(rawClearances.map((c) => c.confirmed_by))];
   const names = new Map<string, string>();
   if (confirmerIds.length > 0) {
     const { data: nameData, error: nameError } = await client.rpc("florence_clearance_names", {
@@ -261,20 +223,11 @@ export const getStudentClearanceSummary = cache(async function getStudentClearan
     }
   }
 
-  const enrichedClearances = (rawClearances ?? []).map((c) => ({
-    component: c.component,
-    confirmed_at: c.confirmed_at,
-    confirmed_by: c.confirmed_by,
-    confirmed_by_name: names.get(c.confirmed_by) ?? null,
-  }));
-
   return buildStudentClearanceSummary({
-    studentId,
-    semesterId: semester.id,
-    semesterName,
-    isEnrolled: true,
-    isCurrentSemester: Boolean(semester.is_current),
-    clearances: enrichedClearances,
+    semesterName: `${semester.academic_year_start}–${semester.academic_year_start + 1} ${semester.term}`,
+    clearances: rawClearances.map((c) => ({
+      ...c,
+      confirmed_by_name: names.get(c.confirmed_by) ?? null,
+    })),
   });
 });
-
