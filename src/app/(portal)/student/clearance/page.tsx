@@ -58,7 +58,7 @@ export default async function StudentClearancePage({
     >
       {errorNotice ? (
         <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-5 text-sm text-destructive shadow-xs">
-          <div className="font-semibold">Unable to load clearance status</div>
+          <div className="font-medium">Unable to load clearance status</div>
           <p className="mt-1 text-xs">{errorNotice}</p>
         </div>
       ) : summary ? (
