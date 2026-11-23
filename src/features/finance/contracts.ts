@@ -159,6 +159,12 @@ export type StudentFinancialSummaryDTO = {
   totalWaivedAmount: number;
   /** Total original debt recorded (gross obligations before waivers and settlements) */
   totalGrossObligationsAmount: number;
+  /** Retained gross money actually received across authoritative payment receipts (FL-027) */
+  totalGrossReceivedAmount: number;
+  /** Retained total amount refunded across completed full-payment refunds (FL-027) */
+  totalRefundedAmount: number;
+  /** Net money retained after completed refunds (gross received minus refunds) (FL-027) */
+  totalNetReceivedAmount: number;
 };
 
 /**
