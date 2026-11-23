@@ -786,3 +786,49 @@ A permanent Academic or RLE clearance for that student and semester, with the ac
 - Academic and RLE clearances do not depend on each other.
 - Balances match the student's ledger for the bucket.
 - Still to verify in a production build: Back keeps the page, and the confirmer name appears in the status tooltip.
+
+## View student clearance results
+
+- **Author:** Israel
+- **Actors:** Nursing Student.
+- **Starts at:** Student workspace > Clearance (`/student/clearance`), defaulting to the current semester (or latest enrolled term); any enrolled semester can be selected.
+- **References:** FL-042; schema §11.1 (`clearances`), `florence_clearance_names`.
+
+### Main flow
+
+1. The student opens the Clearance page from the student navigation.
+2. A hero progress banner displays the overall progress (e.g. "1 of 3 clearances confirmed" with a visual meter, or a green "Semester Clearance Complete" banner when all three are cleared).
+3. Three component cards display the separate status for Council Clearance (prerequisite), Academic Clearance, and RLE Clearance.
+4. For confirmed clearances, the card shows a green checkmark, the confirmation timestamp (Asia/Manila time), and the confirming officer or coordinator's display name.
+5. For pending clearances, the card displays clear guidance and actionable deep links:
+   - Council links to `/student/fees-and-fines` to review balances.
+   - Academic and RLE link to `/student/merits-demerits-and-services` to review disciplinary records.
+   - Each pending card states that outstanding balances are shown to the reviewer but do not automatically block clearance (FL-040, FL-041).
+   - If Council clearance is pending, Academic and RLE cards explicitly state that Council clearance is required first.
+6. A note on every semester states that a confirmation is permanent and is not a promise of a zero current balance.
+7. The student may switch to any enrolled semester to review its clearance records.
+
+### System involvement
+
+- Reads `clearances` constrained by `student_id = me()` and the selected `semester_id`.
+- Confirmer names are resolved via `florence_clearance_names` without exposing private profile fields.
+- Only enrolled semesters can be selected; `WorkspaceShell` returns not-found for any other `semester` value.
+- If confirmer names cannot be loaded, the page shows its error notice instead of cards without a confirmer.
+- Clearance records are permanent; later fee or demerit balance changes do not alter historical clearance confirmations (FL-042).
+
+### Outcome
+
+The student has full transparency over their clearance progress, understands prerequisite sequencing, and has direct routes to review balances and disciplinary records.
+
+### Important alternatives
+
+- **No enrolled semester:** Displays a message that there are no clearance records to show.
+- **Council prerequisite pending:** Academic and RLE cards explain that Council sign-off is required before coordinators can act.
+
+### Acceptance checks
+
+- Student sees only their own clearance records; unauthorized or unauthenticated users are gated.
+- Cleared cards show exact confirmer display names and timestamps formatted in Asia/Manila time.
+- Action buttons meet touch targets (minimum 44px on mobile) and navigate directly to the fees and disciplinary record pages.
+- No card wording says balances must be paid before clearance, and a confirmed card says "Confirmed", not that requirements are fulfilled.
+
