@@ -7,9 +7,14 @@ import { displayName } from "@/lib/format-name";
 import { requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
 
-import { countServiceParticipants, evaluateAttendanceStatus } from "./calculations";
+import {
+  countServiceParticipants,
+  evaluateAttendanceStatus,
+  withFinalizationCounts,
+} from "./calculations";
 import type {
   AvailableServiceStudent,
+  ServiceParticipantCredit,
   ServiceParticipantDetail,
   ServiceSessionDetail,
   ServiceSessionSummary,
@@ -17,10 +22,12 @@ import type {
 
 const uuidSchema = z.string().uuid();
 
-// Explicit projections: actor columns (recorded_by, excluded_by, ended_by) are not sent to the client.
+// Explicit projections: actor columns (recorded_by, excluded_by, ended_by, issued_by, revoked_by) are not sent to the client.
 const serviceSessionColumns =
   "id, semester_id, bucket, duty_on, scheduled_start, scheduled_end, location, late_after_minutes, time_in_from, time_in_until, time_out_from, time_out_until, created_by, ended_at";
 const serviceParticipantColumns = "session_id, student_id, time_in, time_out, excluded_at";
+const serviceCreditColumns = "id, student_id, issued_at, revoked_at, revocation_reason";
+const serviceCreditSummaryColumns = "id, session_id";
 
 /**
  * Service sessions in one semester for faculty listing.
@@ -70,20 +77,46 @@ export async function getMyServiceSessions(semesterId: string): Promise<ServiceS
     }
   }
 
-  // Batch-load participants across all sessions in a single query (no N+1)
+  // Batch-load participants and finalized credits across sessions in parallel (no N+1)
   const sessionIds = sessions.map((s) => s.id);
-  const { data: participants, error: participantsError } = await client
-    .from("service_participants")
-    .select(serviceParticipantColumns)
-    .in("session_id", sessionIds);
+  const endedSessionIds = sessions.filter((s) => s.ended_at !== null).map((s) => s.id);
 
-  if (participantsError) throw new Error(`Failed to load service participants: ${participantsError.message}`);
+  const [participantsRes, creditsRes] = await Promise.all([
+    client
+      .from("service_participants")
+      .select(serviceParticipantColumns)
+      .in("session_id", sessionIds),
+    endedSessionIds.length > 0
+      ? client
+          .from("service_credits")
+          .select(serviceCreditSummaryColumns)
+          .in("session_id", endedSessionIds)
+      : Promise.resolve({
+          data: [] as { id: string; session_id: string }[],
+          error: null,
+        }),
+  ]);
+
+  if (participantsRes.error) {
+    throw new Error(`Failed to load service participants: ${participantsRes.error.message}`);
+  }
+  if (creditsRes.error) {
+    throw new Error(`Failed to load service credits: ${creditsRes.error.message}`);
+  }
+
+  const participants = participantsRes.data ?? [];
+  const credits = creditsRes.data ?? [];
 
   const participantsBySession = new Map<string, NonNullable<typeof participants>>();
-  for (const p of participants ?? []) {
+  for (const p of participants) {
     const list = participantsBySession.get(p.session_id) ?? [];
     list.push(p);
     participantsBySession.set(p.session_id, list);
+  }
+
+  const creditCountBySession = new Map<string, number>();
+  for (const c of credits) {
+    creditCountBySession.set(c.session_id, (creditCountBySession.get(c.session_id) ?? 0) + 1);
   }
 
   const nowIso = new Date().toISOString();
@@ -91,7 +124,12 @@ export async function getMyServiceSessions(semesterId: string): Promise<ServiceS
   return sessions.map((session) => {
     const sessionParticipants = participantsBySession.get(session.id) ?? [];
     const statuses = sessionParticipants.map((p) => evaluateAttendanceStatus(p, session, nowIso));
-    const counts = countServiceParticipants(statuses);
+    const baseCounts = countServiceParticipants(statuses);
+    const counts =
+      session.ended_at !== null
+        ? withFinalizationCounts(baseCounts, creditCountBySession.get(session.id) ?? 0)
+        : baseCounts;
+
     return {
       ...session,
       creator_name: creatorNames.get(session.created_by) ?? null,
@@ -131,12 +169,27 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
     }
   }
 
-  // Load participants and semester roster in parallel
-  const [participantsRes, roster] = await Promise.all([
+  // Load participants, credits (if finalized), and semester roster in parallel
+  const [participantsRes, creditsRes, roster] = await Promise.all([
     client
       .from("service_participants")
       .select(serviceParticipantColumns)
       .eq("session_id", session.id),
+    session.ended_at !== null
+      ? client
+          .from("service_credits")
+          .select(serviceCreditColumns)
+          .eq("session_id", session.id)
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            student_id: string;
+            issued_at: string;
+            revoked_at: string | null;
+            revocation_reason: string | null;
+          }[],
+          error: null,
+        }),
     // No fallback: rows without names would let attendance be recorded against unidentified students.
     getRoster(session.semester_id, "faculty"),
   ]);
@@ -144,8 +197,23 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
   if (participantsRes.error) {
     throw new Error(`Failed to load session participants: ${participantsRes.error.message}`);
   }
+  if (creditsRes.error) {
+    throw new Error(`Failed to load session credits: ${creditsRes.error.message}`);
+  }
 
   const participants = participantsRes.data ?? [];
+  const credits = creditsRes.data ?? [];
+
+  const creditsByStudent = new Map<string, ServiceParticipantCredit>();
+  for (const c of credits) {
+    creditsByStudent.set(c.student_id, {
+      id: c.id,
+      issued_at: c.issued_at,
+      revoked_at: c.revoked_at,
+      revocation_reason: c.revocation_reason,
+    });
+  }
+
   const rosterMap = new Map(roster.map((s) => [s.student_id, s]));
   const nowIso = new Date().toISOString();
 
@@ -161,6 +229,7 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
       suffix: student?.suffix ?? null,
       year_level: student?.year_level ?? null,
       status,
+      credit: session.ended_at !== null ? (creditsByStudent.get(p.student_id) ?? null) : null,
     };
   });
 
@@ -171,7 +240,11 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
     return a.first_name.localeCompare(b.first_name);
   });
 
-  const participantCounts = countServiceParticipants(detailedParticipants.map((p) => p.status));
+  const baseCounts = countServiceParticipants(detailedParticipants.map((p) => p.status));
+  const participantCounts =
+    session.ended_at !== null
+      ? withFinalizationCounts(baseCounts, credits.length)
+      : baseCounts;
 
   return {
     ...session,
