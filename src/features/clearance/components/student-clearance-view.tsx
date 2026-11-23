@@ -188,7 +188,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
             <CheckCircle2 className="size-6" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="section-title text-emerald-900 dark:text-emerald-200">Semester Clearance Complete</h2>
+            <h2 className="section-title text-base leading-tight text-emerald-900 dark:text-emerald-200">Semester Clearance Complete</h2>
             <p className="mt-1 text-xs text-emerald-800/90 dark:text-emerald-300/90">
               All three clearances (Council, Academic, and RLE) are officially confirmed for {semesterName}.
             </p>
@@ -201,7 +201,7 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
               <span className="font-heading text-sm font-semibold">{clearedCount}/3</span>
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="section-title text-foreground">{clearedCount} of 3 clearances confirmed</h2>
+              <h2 className="section-title text-base leading-tight text-foreground">{clearedCount} of 3 clearances confirmed</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 {components.council.cleared
                   ? pendingFaculty.length === 1
