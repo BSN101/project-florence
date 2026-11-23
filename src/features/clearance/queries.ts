@@ -13,6 +13,7 @@ import {
 import {
   buildCouncilClearanceCandidates,
   buildFacultyClearanceCandidates,
+  buildStudentClearanceSummary,
   type StudentDisciplineMetrics,
 } from "./candidates";
 import {
@@ -20,6 +21,7 @@ import {
   type CouncilClearanceCandidate,
   type FacultyClearanceCandidate,
   type FacultyClearanceComponent,
+  type StudentClearanceSummary,
 } from "./contracts";
 
 export async function assertAuthorizedCouncilClearanceManager() {
@@ -179,5 +181,55 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
     actorProfileId: context.profile.id,
     component,
     bucket,
+  });
+});
+
+/**
+ * Loads the authenticated student's clearance summary for an enrolled semester (FL-042).
+ * Memoized per server request via React.cache.
+ */
+export const getStudentClearanceSummary = cache(async function getStudentClearanceSummary(
+  semesterId: string
+): Promise<StudentClearanceSummary> {
+  const context = await requireWorkspace("student");
+  const semester = context.semesters.find(
+    (s) => s.id === semesterId && context.enrollments.some((e) => e.semester_id === s.id)
+  );
+  if (!semester) {
+    throw new AccessDeniedError("forbidden");
+  }
+
+  const client = await createUserClient();
+  const { data: rawClearances, error } = await client
+    .from("clearances")
+    .select("component, confirmed_at, confirmed_by")
+    .eq("student_id", context.profile.id)
+    .eq("semester_id", semester.id);
+
+  if (error) {
+    throw new Error("Unable to load clearance records");
+  }
+
+  const confirmerIds = [...new Set(rawClearances.map((c) => c.confirmed_by))];
+  const names = new Map<string, string>();
+  if (confirmerIds.length > 0) {
+    const { data: nameData, error: nameError } = await client.rpc("florence_clearance_names", {
+      p_ids: confirmerIds,
+    });
+    // FL-042 requires the confirmer to be shown; fail loudly rather than hide it.
+    if (nameError) {
+      throw new Error("Unable to load clearance confirmer names");
+    }
+    for (const row of nameData ?? []) {
+      names.set(row.id, displayName(row));
+    }
+  }
+
+  return buildStudentClearanceSummary({
+    semesterName: `${semester.academic_year_start}–${semester.academic_year_start + 1} ${semester.term}`,
+    clearances: rawClearances.map((c) => ({
+      ...c,
+      confirmed_by_name: names.get(c.confirmed_by) ?? null,
+    })),
   });
 });

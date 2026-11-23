@@ -2,6 +2,7 @@ import type {
   CouncilClearanceCandidate,
   FacultyClearanceCandidate,
   FacultyClearanceComponent,
+  StudentClearanceSummary,
 } from "./contracts";
 
 export type RosterEntry = {
@@ -167,3 +168,46 @@ export function buildFacultyClearanceCandidates({
   });
 }
 
+export type RawStudentClearanceEntry = {
+  component: "council" | "academic" | "rle" | string;
+  confirmed_at: string;
+  confirmed_by: string;
+  confirmed_by_name?: string | null;
+};
+
+export type BuildStudentClearanceSummaryParams = {
+  semesterName: string;
+  clearances: RawStudentClearanceEntry[];
+};
+
+/**
+ * Pure aggregation function for Student Clearance Summary (FL-042).
+ * Aggregates Council, Academic, and RLE clearances into one status summary
+ * for the student workspace.
+ */
+export function buildStudentClearanceSummary({
+  semesterName,
+  clearances,
+}: BuildStudentClearanceSummaryParams): StudentClearanceSummary {
+  const byComponent = new Map(clearances.map((c) => [c.component, c]));
+  const status = (component: string) => {
+    const entry = byComponent.get(component);
+    return {
+      cleared: Boolean(entry),
+      confirmedAt: entry?.confirmed_at ?? null,
+      confirmedByName: entry?.confirmed_by_name ?? null,
+    };
+  };
+
+  const components = {
+    council: status("council"),
+    academic: status("academic"),
+    rle: status("rle"),
+  };
+
+  return {
+    semesterName,
+    isFullyCleared: components.council.cleared && components.academic.cleared && components.rle.cleared,
+    components,
+  };
+}
