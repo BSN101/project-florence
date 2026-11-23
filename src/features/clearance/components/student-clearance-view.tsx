@@ -50,7 +50,7 @@ function ClearanceStatusIndicator({ status }: { status: StudentClearanceComponen
 }
 
 export function StudentClearanceView({ summary }: { summary: StudentClearanceSummary }) {
-  const { components, isEnrolled, isFullyCleared, isCurrentSemester, semesterName } = summary;
+  const { components, isEnrolled, isFullyCleared, semesterName } = summary;
 
   const clearedCount = useMemo(() => {
     let count = 0;
@@ -130,16 +130,14 @@ export function StudentClearanceView({ summary }: { summary: StudentClearanceSum
         </div>
       )}
 
-      {/* Archived Past Semester Notice */}
-      {!isCurrentSemester && (
-        <div className="flex items-center gap-3 rounded-lg border border-border/80 bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-          <History className="size-4 shrink-0 text-muted-foreground/80" />
-          <span>
-            <strong className="font-medium text-foreground">Historical Record:</strong> Clearance records for past
-            semesters are permanent and immutable. Subsequent ledger changes do not revoke past confirmations.
-          </span>
-        </div>
-      )}
+      {/* FL-042: shown on every semester, including the current one. */}
+      <div className="flex items-center gap-3 rounded-lg border border-border/80 bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+        <History className="size-4 shrink-0 text-muted-foreground/80" />
+        <span>
+          A confirmation is permanent. Later fee or demerit changes do not reverse it, and it is not a promise of a
+          zero current balance.
+        </span>
+      </div>
 
       {/* 3 Component Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
