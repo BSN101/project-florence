@@ -168,18 +168,20 @@ export function FinalizeSessionDialog({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
             <div className="rounded-lg border border-border p-2.5 bg-card">
               <div className="text-muted-foreground">Total</div>
-              <div className="text-lg font-bold text-foreground">{eligibility.totalCount}</div>
+              <div className="font-heading text-lg font-semibold tabular-nums text-foreground">
+                {eligibility.totalCount}
+              </div>
             </div>
             <div className="rounded-lg border border-emerald-600/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5">
               <div className="text-emerald-800 dark:text-emerald-300 font-medium">Ready</div>
-              <div className="text-lg font-bold text-emerald-800 dark:text-emerald-200">
+              <div className="font-heading text-lg font-semibold tabular-nums text-emerald-800 dark:text-emerald-200">
                 {eligibility.completedCount}
               </div>
               <div className="text-[10px] text-emerald-700 dark:text-emerald-400">On time & late</div>
             </div>
             <div className="rounded-lg border border-stone-300 bg-stone-100/50 dark:border-stone-700 dark:bg-stone-900/30 p-2.5">
               <div className="text-stone-700 dark:text-stone-300 font-medium">Excluded</div>
-              <div className="text-lg font-bold text-stone-800 dark:text-stone-200">
+              <div className="font-heading text-lg font-semibold tabular-nums text-stone-800 dark:text-stone-200">
                 {eligibility.excludedCount}
               </div>
             </div>
@@ -194,7 +196,7 @@ export function FinalizeSessionDialog({
               <div className="font-medium">Incomplete</div>
               <div
                 className={cn(
-                  "text-lg font-bold",
+                  "font-heading text-lg font-semibold tabular-nums",
                   eligibility.incompleteCount > 0 ? "text-destructive" : "text-foreground"
                 )}
               >
