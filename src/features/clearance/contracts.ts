@@ -63,3 +63,32 @@ export type FacultyClearanceCandidate = {
 
 export type ConfirmFacultyClearanceResult = ConfirmCouncilClearanceResult;
 
+/**
+ * Scoped individual clearance component status for student view (FL-042).
+ */
+export type StudentClearanceComponentStatus = {
+  component: "council" | "academic" | "rle";
+  label: string;
+  cleared: boolean;
+  confirmedAt: string | null;
+  confirmedByName: string | null;
+  confirmedByRole?: string | null;
+};
+
+/**
+ * Full student clearance summary for a selected semester (FL-042).
+ */
+export type StudentClearanceSummary = {
+  studentId: string;
+  semesterId: string;
+  semesterName: string;
+  isEnrolled: boolean;
+  isCurrentSemester: boolean;
+  isFullyCleared: boolean;
+  components: {
+    council: StudentClearanceComponentStatus;
+    academic: StudentClearanceComponentStatus;
+    rle: StudentClearanceComponentStatus;
+  };
+};
+
