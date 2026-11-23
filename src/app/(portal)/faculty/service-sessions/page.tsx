@@ -8,6 +8,7 @@ import {
   allowedServiceBuckets,
   canCreateServiceSession,
   canManageSession,
+  evaluateFinalizationEligibility,
   getTodayManila,
 } from "@/features/services/calculations";
 import { CreateSessionFlow } from "@/features/services/components/create-session-flow";
@@ -132,6 +133,17 @@ export default async function FacultyServiceSessionsPage({
         access.profile.id,
         isSessionCurrentSemester
       );
+      const eligibility = evaluateFinalizationEligibility(
+        detail,
+        detail.participants,
+        access.profile.id,
+        access.roles,
+        renderedAt
+      );
+      const canShowFinalize =
+        detail.ended_at === null &&
+        isOwner &&
+        allowedServiceBuckets(access.roles).includes(detail.bucket);
 
       // Least-privilege optimization: only fetch eligible student candidates when session can be managed
       let availableStudents: AvailableServiceStudent[] = [];
@@ -155,6 +167,8 @@ export default async function FacultyServiceSessionsPage({
           studentsLoadFailed={studentsLoadFailed}
           renderedAt={renderedAt}
           canManage={canManage}
+          canShowFinalize={canShowFinalize}
+          eligibility={eligibility}
           isOwner={isOwner}
           isCurrentSemester={isSessionCurrentSemester}
           listHref={baseHref}

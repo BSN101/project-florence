@@ -206,12 +206,33 @@ export function ServiceSessionList({
                       </span>
                       <span aria-hidden="true">•</span>
                       <span>{completedCount} completed</span>
-                      {counts.inProgress > 0 && (
+                      {s.ended_at !== null ? (
                         <>
-                          <span aria-hidden="true">•</span>
-                          <span className="font-medium text-amber-600 dark:text-amber-400">
-                            {counts.inProgress} in progress
-                          </span>
+                          {typeof counts.creditCount === "number" && (
+                            <>
+                              <span aria-hidden="true">•</span>
+                              <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                                {counts.creditCount} credit{counts.creditCount === 1 ? "" : "s"} issued
+                              </span>
+                            </>
+                          )}
+                          {typeof counts.zeroCreditCount === "number" && counts.zeroCreditCount > 0 && (
+                            <>
+                              <span aria-hidden="true">•</span>
+                              <span>{counts.zeroCreditCount} retained (0 credit)</span>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {counts.inProgress > 0 && (
+                            <>
+                              <span aria-hidden="true">•</span>
+                              <span className="font-medium text-amber-600 dark:text-amber-400">
+                                {counts.inProgress} in progress
+                              </span>
+                            </>
+                          )}
                         </>
                       )}
                       {counts.excluded > 0 && (
