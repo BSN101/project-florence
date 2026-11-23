@@ -13,6 +13,7 @@ import {
 import {
   buildCouncilClearanceCandidates,
   buildFacultyClearanceCandidates,
+  buildStudentClearanceSummary,
   type StudentDisciplineMetrics,
 } from "./candidates";
 import {
@@ -20,6 +21,7 @@ import {
   type CouncilClearanceCandidate,
   type FacultyClearanceCandidate,
   type FacultyClearanceComponent,
+  type StudentClearanceSummary,
 } from "./contracts";
 
 export async function assertAuthorizedCouncilClearanceManager() {
@@ -181,3 +183,98 @@ export const getFacultyClearanceCandidates = cache(async function getFacultyClea
     bucket,
   });
 });
+
+/**
+ * Loads the authenticated student's clearance summary for the given semester (FL-042).
+ * If no semesterId is passed, uses the current semester or the latest enrolled semester.
+ * Memoized per server request via React.cache.
+ */
+export const getStudentClearanceSummary = cache(async function getStudentClearanceSummary(
+  targetSemesterId?: string
+): Promise<StudentClearanceSummary> {
+  const context = await requireWorkspace("student");
+  const client = await createUserClient();
+  const studentId = context.profile.id;
+
+  const enrolledSemesters = context.semesters.filter((s) =>
+    context.enrollments.some((e) => e.semester_id === s.id)
+  );
+
+  let semester = targetSemesterId
+    ? context.semesters.find((s) => s.id === targetSemesterId)
+    : enrolledSemesters.find((s) => s.is_current) ??
+      enrolledSemesters[0] ??
+      context.semesters.find((s) => s.is_current) ??
+      context.semesters[0];
+
+  // If still not found in memory, load from database directly
+  if (!semester && targetSemesterId) {
+    const { data: semRow } = await client
+      .from("semesters")
+      .select("id, academic_year_start, term, starts_on, ends_on, is_current")
+      .eq("id", targetSemesterId)
+      .maybeSingle();
+    if (semRow) {
+      semester = semRow;
+    }
+  }
+
+  if (!semester) {
+    throw new Error("No semester available");
+  }
+
+  const isEnrolled = context.enrollments.some((e) => e.semester_id === semester.id);
+  const semesterName = `${semester.academic_year_start}–${semester.academic_year_start + 1} ${semester.term}`;
+
+  if (!isEnrolled) {
+    return buildStudentClearanceSummary({
+      studentId,
+      semesterId: semester.id,
+      semesterName,
+      isEnrolled: false,
+      isCurrentSemester: Boolean(semester.is_current),
+      clearances: [],
+    });
+  }
+
+  // Load the student's clearances for this semester
+  const { data: rawClearances, error } = await client
+    .from("clearances")
+    .select("component, confirmed_at, confirmed_by")
+    .eq("student_id", studentId)
+    .eq("semester_id", semester.id);
+
+  if (error) {
+    throw new Error("Unable to load clearance records");
+  }
+
+  const confirmerIds = [...new Set((rawClearances ?? []).map((c) => c.confirmed_by))];
+  const names = new Map<string, string>();
+  if (confirmerIds.length > 0) {
+    const { data: nameData, error: nameError } = await client.rpc("florence_clearance_names", {
+      p_ids: confirmerIds,
+    });
+    if (!nameError && nameData) {
+      for (const row of nameData) {
+        names.set(row.id, displayName(row));
+      }
+    }
+  }
+
+  const enrichedClearances = (rawClearances ?? []).map((c) => ({
+    component: c.component,
+    confirmed_at: c.confirmed_at,
+    confirmed_by: c.confirmed_by,
+    confirmed_by_name: names.get(c.confirmed_by) ?? null,
+  }));
+
+  return buildStudentClearanceSummary({
+    studentId,
+    semesterId: semester.id,
+    semesterName,
+    isEnrolled: true,
+    isCurrentSemester: Boolean(semester.is_current),
+    clearances: enrichedClearances,
+  });
+});
+
