@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import type { AttendanceStatus } from "../contracts";
+import type { AttendanceStatus, ServiceParticipantCredit } from "../contracts";
 
 /**
  * Badge indicating whether a service session is open or ended (finalized).
@@ -105,3 +105,62 @@ export function AttendanceStatusBadge({
     </span>
   );
 }
+
+/**
+ * Badge indicating post-finalization credit outcome for a participant.
+ * - If revoked: "Credit Revoked" (destructive/rose token, read-only display)
+ * - If credit issued: "1 Credit" (positive emerald token)
+ * - If completed with 0 credit: "Retained (0 Credit)" (neutral slate/muted token)
+ * - Else (excluded/incomplete): muted "—"
+ */
+export function ParticipantCreditBadge({
+  credit,
+  status,
+  className,
+}: {
+  credit?: ServiceParticipantCredit | null;
+  status: AttendanceStatus;
+  className?: string;
+}) {
+  if (credit?.revoked_at) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full border border-rose-600/30 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 whitespace-nowrap",
+          className
+        )}
+      >
+        Credit Revoked
+      </span>
+    );
+  }
+
+  if (credit) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full border border-emerald-600/30 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 whitespace-nowrap",
+          className
+        )}
+      >
+        1 Credit
+      </span>
+    );
+  }
+
+  if (status === "present_on_time" || status === "late") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground whitespace-nowrap",
+          className
+        )}
+      >
+        Retained (0 Credit)
+      </span>
+    );
+  }
+
+  return <span className={cn("text-muted-foreground", className)}>—</span>;
+}
+
