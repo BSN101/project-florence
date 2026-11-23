@@ -789,3 +789,69 @@ The student has full transparency over their clearance progress, understands pre
 - Action buttons meet touch targets (minimum 44px on mobile) and navigate directly to the fees and disciplinary record pages.
 - No card wording says balances must be paid before clearance, and a confirmed card says "Confirmed", not that requirements are fulfilled.
 
+## End service session and issue service credits
+
+- **Author:** Andrei Catigan
+- **Actors:** Academic Instructor (`office`), Clinical Instructor (`rle`), dual-role Instructor (holding both Academic Instructor and Clinical Instructor roles); Academic Coordinator and RLE Coordinator (viewing permitted semester sessions in read-only mode); Student (receiving automatic completion notification and ledger credit updates).
+- **Starts at:** Faculty workspace > Services (`/faculty/service-sessions?session=<id>`); the user must be the session creator (`created_by`) holding an active matching instructor role (`Academic Instructor` for `office`, `Clinical Instructor` for `rle`) on an open session (`ended_at IS NULL`) to finalize.
+- **References:** FL-038, FL-044; database schema (`docs/database/schema.dbml`: `service_sessions`, `service_participants`, `service_credits`, `notifications`).
+
+### Main flow
+
+1. The session creator opens the detail view of an open service session (`/faculty/service-sessions?session=<id>`, where `ended_at IS NULL`) and saves any pending attendance edits or pre-end exclusions in the participant table.
+2. When the actor is the session creator (`created_by`) and holds the matching active instructor role for the session's bucket (`Academic Instructor` for `office`, `Clinical Instructor` for `rle`), the header renders the **End service session** button alongside **Refresh**.
+3. The instructor clicks **End service session**, opening `FinalizeSessionDialog`:
+   - Four readiness metric boxes summarize **Total**, **Ready** (`On time & late`), **Excluded**, and **Incomplete** counts.
+   - A reminder notes that finalization evaluates saved attendance records only and prompts the instructor to save any unsaved changes in the attendance table before ending the session.
+   - A policy summary explains that finalizing permanently locks the session and its attendance, awards **1 whole-day service credit** to each completed student (both on time and late) with an outstanding duty debt in the session's track, retains completion with 0 credit for students with zero debt, and sends a **Service Recorded** notification to every completed participant (or notes that ending a session with 0 ready participants locks it with 0 completed participants and 0 service credits issued).
+4. If finalization is ready (`canFinalize === true`), the instructor clicks **Confirm & end session**. The client sets an idempotency lock (`locked = true`) and invokes `endServiceSessionAction` with `{ requestKey, sessionId }`.
+5. The database executes `public.end_service_session(p_key, p_actor, p_session)` inside one transaction via the service-role command client:
+   - Verifies the session exists, confirms active instructor role for `s.bucket` via `f_cmd_instructor(p_actor, s.bucket)`, and checks `s.created_by = p_actor`.
+   - Enforces request-key idempotency via `f_cmd_begin` / `f_cmd_finish` and locks the session row (`SELECT * INTO s FROM public.service_sessions WHERE id = p_session FOR UPDATE`).
+   - While `s.ended_at IS NULL`, verifies a valid same-duty-day completed schedule in institutional timezone (`f_cmd_timezone()`, `Asia/Manila`) with `clock_timestamp() >= s.scheduled_end`.
+   - Verifies that every included participant (`excluded_at IS NULL`) is not the actor (`student_id <> p_actor`) and has complete, recorded attendance (`time_in IS NOT NULL`, `time_out IS NOT NULL`, `recorded_by IS NOT NULL`, `time_in BETWEEN s.time_in_from AND s.time_in_until`, `time_out BETWEEN s.time_out_from AND s.time_out_until`, `time_out > time_in`, and `time_out <= clock_timestamp()`).
+   - Acquires per-student-bucket transaction advisory locks in deterministic key order (`pg_advisory_xact_lock(f_cmd_balance_key(student_id, s.bucket))`).
+   - Iterates through all included participants (`excluded_at IS NULL` ordered by `student_id`): if `f_cmd_balance(a.student_id, s.bucket) > 0`, inserts 1 whole-day credit row into `public.service_credits` (`student_id`, `semester_id`, `bucket`, `session_id`, `service_participant_id`, `issued_by = p_actor`, `issued_at = now()`); students with zero debt receive no credit row while keeping their completed `service_participants` record. Calls `f_cmd_notice(a.student_id, 'service_recorded')` for every completed participant.
+   - Updates `public.service_sessions` setting `ended_by = p_actor`, `ended_at = now()`, and `updated_at = now()`, and returns `{ session_id, ended_at, completed_count, credit_count }`.
+6. Upon completion, `endServiceSessionAction` revalidates `/faculty/service-sessions`, `/student/merits-demerits-and-services`, `/student`, `/student/notifications`, `/student/clearance`, `/council/clearance`, `/faculty/academic-clearance`, `/faculty/rle-clearance`, and `/faculty`.
+7. The dialog closes and the session detail view updates to its finalized state:
+   - `SessionStatusBadge` switches from **Open** to **Ended**, and the header metadata shows `Finalized <Asia/Manila timestamp>`.
+   - **Add participants**, **End service session**, and all attendance editing controls are removed, and a read-only banner states that the session has ended and attendance records are locked.
+   - Summary metric cards 3 and 4 transition from **In Progress / Pending** and **Missing Timestamps** to **Credits Awarded** and **Retained (0 Credit)**.
+   - `SessionParticipantTable` displays the **Credit Outcome** column with `ParticipantCreditBadge` (`1 Credit`, `Retained (0 Credit)`, `Credit Revoked` read-only if later revoked, or `—` for excluded rows).
+   - In the session list (`/faculty/service-sessions`), the ended session card displays the issued credit count (`N credit(s) issued`) and any retained zero-credit completions (`N retained (0 credit)`).
+
+### System involvement
+
+- Table `service_sessions`: open versus ended state is tracked strictly by `ended_at IS NULL` versus `ended_at IS NOT NULL` (there is no `status` column). Finalization sets `ended_by`, `ended_at`, and `updated_at`.
+- Table `service_participants`: stores each participant's attendance (`session_id`, `student_id`, `time_in`, `time_out`, `excluded_at`). Both `On Time` and `Late` included rows count as completed; lateness never reduces or denies service credit.
+- Table `service_credits`: records 1 whole-day service credit per eligible completed participant (`id`, `student_id`, `semester_id`, `bucket`, `session_id`, `service_participant_id`, `issued_by`, `issued_at`, `revoked_by`, `revoked_at`, `revocation_reason`). Faculty queries project only `id, student_id, issued_at, revoked_at, revocation_reason` (and `id, session_id` for list summaries), omitting internal actor UUIDs (`issued_by`, `revoked_by`).
+- Table `notifications`: `f_cmd_notice(a.student_id, 'service_recorded')` records an automatic in-app notification for every completed student (whether issued 1 credit or retained at 0 credit), deep-linking to `/student/merits-demerits-and-services`.
+- Calculations `canEndServiceSession`, `isParticipantFinalizationValid`, `evaluateFinalizationEligibility`, and `withFinalizationCounts`: pure helpers with injectable `nowIso` (`renderedAt`) that mirror the database checks and derive credit and zero-credit counts without client `Date.now()` drift.
+- Server action `endServiceSessionAction`: verifies faculty workspace access, validates `endServiceSessionSchema` (`requestKey`, `sessionId`), checks instructor role eligibility, executes `public.end_service_session` via the service-role command client, maps RPC exceptions to clear messages, and revalidates all affected faculty, student, and council routes.
+
+### Outcome
+
+The service session is permanently finalized (`ended_at IS NOT NULL`), eligible completed students with positive bucket debt receive 1 whole-day service credit that immediately offsets their cumulative Office or RLE duty balance, zero-debt completed students retain their verified completion record with 0 credit, and every completed student receives an automatic `service_recorded` notification.
+
+### Important alternatives
+
+- **Blocked Before Scheduled End (`clock_timestamp() < scheduled_end`):** If the instructor opens **End service session** before the session's `scheduled_end` on the duty date, `FinalizeSessionDialog` displays a destructive **Finalization Blocked** alert showing the exact `Asia/Manila` scheduled duty end time (`Scheduled duty end time is HH:mm. Refresh after this time has passed.`) and disables **Confirm & end session** (linked via `aria-describedby`).
+- **Blocked by Incomplete Included Attendance:** If any non-excluded participant is missing `time_in` or `time_out`, has timestamps outside the session's windows, has `time_out <= time_in`, or has a future `time_out`, `FinalizeSessionDialog` blocks confirmation and lists up to 5 incomplete participants (`Name (University ID)`) plus any remaining count (`+ N more student(s)`), instructing the creator to record complete attendance or exclude them first.
+- **Zero Included Participants (Empty Roster or All Excluded):** Once `scheduled_end` has passed, a session with 0 participants or where all participants are excluded can be finalized cleanly, recording `completed_count = 0` and `credit_count = 0`.
+- **Past-Semester Unended Session:** Unlike session creation or attendance editing (which require current-semester context), `public.end_service_session` does not require the session's semester to be current. If the session creator still holds the active matching instructor role, they can finalize an unended session from a past semester once its attendance is complete; the read-only banner explains that attendance cannot be edited in a past semester but the session can still be ended.
+- **Coordinator and Non-Owner Read-Only View:** Academic Coordinators, RLE Coordinators, and peer instructors viewing sessions they did not create never see **End service session**; after finalization, they can inspect the ended session's **Credits Awarded**, **Retained (0 Credit)** metrics, and per-student **Credit Outcome** badges in read-only mode.
+- **Retry & Idempotency Behavior:** On a retryable network interruption, the dialog stays open and switches the footer to **Start over** (which unlocks and generates a fresh `requestKey`) and **Retry finalizing** (which replays the exact same `requestKey`). In addition, if `public.end_service_session` is called again under a new key after `s.ended_at IS NOT NULL`, it skips the `s.ended_at IS NULL` mutation block and returns the session's existing `{ session_id, ended_at, completed_count, credit_count }` without duplicating credits or notifications.
+- **Boundary with Service Credit Revocation (`FL-039`):** Issuer-only service-credit revocation (`public.revoke_service_credit`) is a separate workflow outside this journey; finalized session views render `Credit Revoked` badges and revoked credit subtexts strictly as read-only state when `revoked_at` is present.
+
+### Acceptance checks
+
+- Only the session creator (`created_by`) with an active matching instructor role (`Academic Instructor` for `office`, `Clinical Instructor` for `rle`) sees **End service session** and can invoke `endServiceSessionAction`; coordinators, peer instructors, and non-faculty users are denied.
+- Finalization is refused before `scheduled_end` on the duty date (`Asia/Manila`) or while any non-excluded participant has incomplete or invalid attendance.
+- Lateness (`Late` status within the check-in window) never blocks finalization or reduces service credit; both `On Time` and `Late` completed students with positive bucket balance (`f_cmd_balance > 0`) receive 1 whole-day service credit.
+- Completed students with zero debt in the session's bucket receive 0 service credits (`Retained (0 Credit)`) while keeping their completed attendance record.
+- Excluded participants (`excluded_at IS NOT NULL`) receive 0 service credits and no completion notification.
+- Every completed student receives an automatic `service_recorded` notification linking to `/student/merits-demerits-and-services`.
+- Repeating `end_service_session` with the same or a new request key on an already-ended session is idempotent and never issues duplicate credits or notifications.
+- All interactive controls in the header and `FinalizeSessionDialog` meet the 44px mobile touch-target floor (`max-sm:min-h-11`) and fit a 390px viewport without horizontal overflow.
+
