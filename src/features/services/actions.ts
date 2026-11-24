@@ -10,15 +10,23 @@ import { allowedServiceBuckets } from "./calculations";
 import type {
   CreateServiceSessionResult,
   EndServiceSessionResult,
+  RevokeServiceCreditResult,
   SetServiceParticipantsResult,
 } from "./contracts";
 import {
   createServiceSessionSchema,
   endServiceSessionSchema,
+  revokeServiceCreditSchema,
   setServiceParticipantsSchema,
 } from "./schemas";
 
 const RPC_MESSAGES: [string, string][] = [
+  ["Credit not found", "Service credit record was not found."],
+  ["Credit issuer required", "Only the instructor who issued this service credit can revoke it."],
+  ["Revocation reason required", "A revocation reason is required to revoke a service credit."],
+  ["Credit context changed", "Service credit details changed while processing. Please refresh and try again."],
+  ["Self credit mutation forbidden", "You cannot revoke a service credit on your own student record."],
+  ["Credit already revoked", "This service credit has already been revoked."],
   ["Service attendance is finalized", "Attendance for this service session has already been finalized and cannot be edited."],
   ["Only session issuer may finalize", "Only the instructor who created this service session can finalize it."],
   ["Valid same-duty-day completed schedule required", "The service session can only be finalized once its scheduled duty end time has passed on the duty date."],
@@ -354,4 +362,114 @@ export async function endServiceSessionAction(
     creditCount,
   };
 }
+
+/**
+ * Revokes an erroneous service credit with a mandatory reason (FL-039).
+ * Executes PostgreSQL public.revoke_service_credit RPC:
+ * - Verifies active matching instructor role for the credit's bucket (f_cmd_instructor)
+ * - Enforces issuer-only ownership (c.issued_by = p_actor; coordinator title grants no override)
+ * - Enforces non-blank revocation reason and non-self credit mutation
+ * - Acquires per-student-bucket advisory lock (f_cmd_balance_key) and credit row lock (FOR UPDATE)
+ * - Records revoked_at, revoked_by, and revocation_reason without altering finalized attendance
+ *   or reversing any permanent semester clearance
+ *
+ * On success, revalidates faculty service sessions and all affected disciplinary and clearance routes.
+ */
+export async function revokeServiceCreditAction(
+  rawInput: unknown
+): Promise<RevokeServiceCreditResult> {
+  let actorId: string;
+  let userRoles: string[];
+
+  try {
+    const access = await requireWorkspace("faculty");
+    actorId = access.profile.id;
+    userRoles = access.roles;
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof AccessDeniedError
+          ? "You are not permitted to revoke service credits."
+          : "Unable to verify your access. Try again.",
+    };
+  }
+
+  const parsed = revokeServiceCreditSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Check the service credit revocation details.",
+    };
+  }
+
+  if (allowedServiceBuckets(userRoles).length === 0) {
+    return {
+      success: false,
+      error: "Only Academic Instructors (Office) or Clinical Instructors (RLE) can revoke service credits.",
+    };
+  }
+
+  const { requestKey, creditId, reason } = parsed.data;
+  const client = createCommandClient();
+  let data: unknown;
+
+  try {
+    const result = await client.rpc("revoke_service_credit", {
+      p_key: requestKey,
+      p_actor: actorId,
+      p_credit: creditId,
+      p_reason: reason,
+    });
+    data = result.data;
+
+    if (result.error) {
+      // supabase-js returns (not throws) fetch failures as an error without a Postgres code;
+      // the commit may already have happened, so the same request key must be replayed.
+      if (!result.error.code) {
+        return {
+          success: false,
+          error: "Unable to reach the server. If the revocation was recorded, retrying will safely return the result.",
+          retryable: true,
+        };
+      }
+      return {
+        success: false,
+        error: formatRpcError(result.error.message, "Unable to revoke service credit. Try again."),
+      };
+    }
+  } catch {
+    return {
+      success: false,
+      error: "Unable to reach the server. Try again.",
+      retryable: true,
+    };
+  }
+
+  // The RPC committed: revalidate before inspecting the response so other pages never go stale.
+  revalidatePath("/faculty/service-sessions");
+  revalidatePath("/faculty/my-merits-and-demerits");
+  revalidatePath("/faculty/academic-clearance");
+  revalidatePath("/faculty/rle-clearance");
+  revalidatePath("/faculty");
+  revalidatePath("/student/merits-demerits-and-services");
+  revalidatePath("/student/clearance");
+  revalidatePath("/student");
+  revalidatePath("/council/clearance");
+
+  const d = (data ?? {}) as Record<string, unknown>;
+  if (typeof d.credit_id !== "string" || typeof d.revoked_at !== "string") {
+    return {
+      success: false,
+      error: "Service credit was revoked but response data was incomplete. Please refresh.",
+    };
+  }
+
+  return {
+    success: true,
+    creditId: d.credit_id,
+    revokedAt: d.revoked_at,
+  };
+}
+
 
