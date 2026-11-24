@@ -562,11 +562,11 @@ The student's account and the Council ledger retain full gross received, refund,
 
 1. The Council Executive or Operations officer opens a student's ledger and switches to the "Payment History" tab.
 2. On a current receipt record (verified, or rejected with a completed full return), the officer clicks "Correct".
-3. The system opens the "Correct payment record" dialog. It shows the current method, received date, term and items, then lists the student's obligations for the same semester with the current items pre-selected. Obligations on a transfer awaiting review are shown but cannot be selected.
+3. The system opens the "Correct payment record" dialog. It shows the current method, received date, term and items, then lists the student's obligations for the same semester with the current items pre-selected. Obligations on a transfer awaiting review are shown but cannot be selected; one that starts selected (a refunded item since put on a new transfer) can only be cleared.
 4. The officer chooses the complete replacement set of obligations, watches the current total, corrected total and difference update, enters a required correction note (1–500 characters), and submits. The dialog states that a correction does not return or move money.
 5. The system validates the input, verifies Executive or Operations authority and non-self ownership, and calls the `correct_payment` RPC with a client-generated request key.
 6. In one transaction, the database locks the request, receipt, payment and the sorted union of old and new obligations, refuses a no-op selection or an obligation on a pending transfer, derives the amount from the selected obligations, marks the previous record `superseded`, and inserts a linked current replacement with the same `receipt_id` and the note as its decision reason.
-7. The dialog confirms the correction. The history keeps the superseded record and shows the replacement with its note; totals and obligation standing reflect only the replacement.
+7. The dialog confirms the correction. The history keeps the superseded record and shows the replacement with its note; totals and obligation standing reflect only the replacement. The replacement's record view shows the original decision date (and rejection reason, for a rejected receipt) from the first record in the correction chain, then the correction date and note.
 
 ### System involvement
 
@@ -574,7 +574,7 @@ The student's account and the Council ledger retain full gross received, refund,
 - Table `payment_items`: the replacement receives its own items; the superseded record keeps its original items as history.
 - Tables `payment_receipts` and `payment_refunds`: never written. Refund history stays attached to the receipt, and a refunded receipt requires the corrected total to equal the refunded amount.
 - Procedure `correct_payment`: trimmed 1–500 character note, Executive or Operations authority, self-correction prohibition, current authoritative receipt target, deterministic lock order, pending-transfer guard, request-level idempotency, and distinct errors for missing, already-corrected and wrong-state records.
-- Server action `correctPayment`: validates with `correctPaymentSchema`, performs an early RLS-scoped owner and state check, sanitizes errors (`sanitizeCorrectPaymentError`), and revalidates `/council/payments`, `/council/clearance` and `/student/fees-and-fines`.
+- Server action `correctPayment`: validates with `correctPaymentSchema`, performs an early RLS-scoped self-correction check (record state is left to `correct_payment` so a retry can replay), sanitizes errors (`sanitizeCorrectPaymentError`; the options loader passes on only its own known messages), and revalidates `/council/payments`, `/council/clearance` and `/student/fees-and-fines`.
 
 ### Outcome
 
@@ -585,7 +585,7 @@ The receipt keeps one stable identity. Gross received counts the replacement amo
 - **Self-Correction Blocked:** On an officer's own ledger no "Correct" button is shown, and both `correctPayment` and `correct_payment` reject `student_id = actor`.
 - **Fully Refunded Receipt:** The corrected total must equal the refunded amount; the dialog blocks submit until it does.
 - **Already Corrected or Not Correctable:** Superseded, pending and non-receipt records offer no "Correct" button, and the database reports an already-corrected record separately from a missing one.
-- **Retry Safety:** An unchanged retry reuses the request key and replays the original result; editing any field or a rolled-back error rotates the key.
+- **Retry Safety:** An unchanged retry reuses the request key and replays the original result, even after the first attempt committed and superseded the record; editing any field or a rolled-back error rotates the key.
 
 ### Acceptance checks
 
@@ -593,6 +593,7 @@ The receipt keeps one stable identity. Gross received counts the replacement amo
 - The old record is `superseded` and linked to one current replacement with the same `receipt_id`; totals and obligation standing count only the replacement.
 - A replacement with the same items, an obligation on a pending transfer, a blank or over-500-character note, or a total that differs from a recorded refund is rejected.
 - No refund, notification or receipt row is created by a correction.
+- `node --env-file=.env.local scripts/check-correct-payment.mjs` checks these database rules against the linked database in one rolled-back transaction.
 
 ## Apply student merits to offset demerit sanctions
 
