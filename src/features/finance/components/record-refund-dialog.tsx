@@ -48,8 +48,11 @@ export function RecordRefundDialog({
 
   const amountLabel = formatPhp(Number(payment.amount));
   const methodLabel = payment.method === "cash" ? "Cash" : "Transfer";
+  // The input holds whole minutes, so round up or the offered minimum falls before received_at.
   const minRefundedAtInput = payment.received_at
-    ? isoToManilaInput(payment.received_at)
+    ? isoToManilaInput(
+        new Date(Math.ceil(Date.parse(payment.received_at) / 60_000) * 60_000).toISOString()
+      )
     : undefined;
   const trimmedReason = reason.trim();
 
