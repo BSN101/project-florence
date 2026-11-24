@@ -942,3 +942,62 @@ The service session is permanently finalized (`ended_at IS NOT NULL`), eligible 
 - Repeating `end_service_session` with the same or a new request key on an already-ended session is idempotent and never issues duplicate credits or notifications.
 - All interactive controls in the header and `FinalizeSessionDialog` meet the 44px mobile touch-target floor (`max-sm:min-h-11`) and fit a 390px viewport without horizontal overflow.
 
+## Revoke service credit
+
+- **Author:** Andrei Catigan
+- **Actors:** Academic Instructor (`office`), Clinical Instructor (`rle`), dual-role Instructor (holding both Academic Instructor and Clinical Instructor roles) acting as the original credit issuer (`issued_by`); Academic Coordinator and RLE Coordinator (viewing permitted semester sessions and revocation reasons in read-only mode, with no override over another instructor's credits); Student (viewing updated cumulative duty balance and revocation note in their conduct ledger).
+- **Starts at:** Faculty workspace > Services (`/faculty/service-sessions?session=<id>`); an ended service session (`ended_at IS NOT NULL`) containing at least one active service credit (`revoked_at IS NULL`) issued by the signed-in instructor while holding the matching active instructor role (`Academic Instructor` for `office`, `Clinical Instructor` for `rle`).
+- **References:** FL-039, FL-029, FL-042; database schema (`docs/database/schema.dbml` §10.3: `service_credits`, `service_sessions`, `service_participants`).
+
+### Main flow
+
+1. The issuing instructor opens the detail view of an ended service session (`/faculty/service-sessions?session=<id>`, where `ended_at IS NOT NULL`).
+2. On the server, `getServiceSessionDetail` projects `id, student_id, issued_by, issued_at, revoked_at, revocation_reason` from `public.service_credits`, computes `issued_by_me: c.issued_by === access.profile.id`, and strips raw `issued_by` before returning `ServiceParticipantCredit` to client components. The page then evaluates `canRevokeServiceCredit(detail, p, access.profile.id, access.roles)` for each participant to build `revocableCreditIds: string[]`.
+3. When `revocableCreditIds.length > 0`:
+   - The read-only banner beneath the header states: `"This service session has ended. Participant attendance records are locked, but you may still revoke eligible service credits you issued."`
+   - `SessionParticipantTable` renders the right-aligned **Actions** column, displaying a **Revoke credit** trigger button (`max-sm:min-h-11`) on each row whose credit ID is in `revocableCreditIds` and `—` on other rows. (When `revocableCreditIds` is empty—such as when zero credits were issued, all credits are already revoked, or a coordinator/peer views the session—the **Actions** column is omitted.)
+4. The instructor clicks **Revoke credit** on an eligible student's row, opening `RevokeServiceCreditDialog`:
+   - The dialog header titles the action **Revoke service credit** and names both the student and the session in `<DialogDescription>`: `<Student Name> (<University ID>) · <Office/RLE> duty · <Duty Date> · <Location>`.
+   - A warning callout (**One-way credit revocation**) explains that revoking removes the **1-day service credit offset** from the student's cumulative Office or RLE duty balance while preserving their completed session attendance record, cannot be undone or automatically regenerated, and does not reverse any already-confirmed semester clearance.
+   - The instructor enters a mandatory **Reason for revocation** (3 to 500 trimmed characters, with a live `{reason.length}/500` `tabular-nums` counter).
+5. The instructor clicks **Revoke credit** (`variant="destructive"`). Client validation checks `revokeServiceCreditSchema`, locks the form (`locked = true`), and calls `revokeServiceCreditAction({ requestKey, creditId, reason })`.
+6. The database executes `public.revoke_service_credit(p_key, p_actor, p_credit, p_reason)` inside one transaction via the service-role command client:
+   - Loads `c` from `public.service_credits` (`'Credit not found'` if missing), verifies active matching instructor role for `c.bucket` via `f_cmd_instructor(p_actor, c.bucket)`, verifies `c.issued_by = p_actor` (`'Credit issuer required'`), and checks `nullif(btrim(p_reason), '') is not null` (`'Revocation reason required'`).
+   - Enforces request-key idempotency via `f_cmd_begin` / `f_cmd_finish`.
+   - Acquires the student-bucket transaction advisory lock (`pg_advisory_xact_lock(f_cmd_balance_key(v_student, v_bucket))`) to serialize the balance increase with concurrent waivers, merit applications, or session completions, then locks the credit row (`SELECT * INTO c FROM public.service_credits WHERE id = p_credit FOR UPDATE`).
+   - Rechecks that credit context is unchanged (`'Credit context changed'`), forbids self-benefit (`c.student_id <> p_actor`, `'Self credit mutation forbidden'`), and verifies `c.revoked_at IS NULL` (`'Credit already revoked'`).
+   - Updates `public.service_credits` setting `revoked_at = now()`, `revoked_by = p_actor`, and `revocation_reason = p_reason`, and returns `{ credit_id, revoked_at }`.
+7. Immediately after the RPC commits (before inspecting the returned JSON shape), `revokeServiceCreditAction` revalidates `/faculty/service-sessions`, `/faculty/my-merits-and-demerits`, `/faculty/academic-clearance`, `/faculty/rle-clearance`, `/faculty`, `/student/merits-demerits-and-services`, `/student/clearance`, `/student`, and `/council/clearance`.
+8. The dialog closes and the session views reflect the revocation at once:
+   - In `SessionParticipantTable`, `ParticipantCreditBadge` displays the original muted, struck-through **1 Credit** badge alongside the destructive **Credit Revoked** badge, with a bounded (`max-w-xs break-words`) detail block underneath showing **Revocation note:** `<reason>` and `Revoked <Asia/Manila date and time>`.
+   - On `ServiceSessionDetail`, the **Credits Awarded** card keeps the total originally issued count (`creditCount`) as its headline number and updates its subtext to `<active> active · <revoked> revoked`, while **Retained (0 Credit)** (`zeroCreditCount`) remains unchanged.
+   - On `/faculty/service-sessions`, the ended session list card appends `• <revoked> revoked` in rose text after `<creditCount> credit(s) issued`.
+
+### System involvement
+
+- Table `service_credits`: stores `revoked_by`, `revoked_at`, and `revocation_reason` (with check constraints tying all three together and requiring `btrim(revocation_reason) <> ''`). Faculty queries compute `issued_by_me` on the server and omit raw `issued_by` and `revoked_by` UUIDs from client payloads; list queries project `id, session_id, revoked_at`.
+- Calculations `canRevokeServiceCredit`, `withFinalizationCounts`, and `formatManilaDateTime`: pure helpers in `src/features/services/calculations.ts`. `canRevokeServiceCredit` mirrors `public.revoke_service_credit` 1:1 (`ended_at !== null`, matching active instructor role, `student_id !== actorId`, unrevoked credit, and `issued_by_me === true`), and `withFinalizationCounts` tracks `revokedCreditCount` while keeping `creditCount` and `zeroCreditCount` invariant per schema §10.3.
+- Schema `revokeServiceCreditSchema`: validates `requestKey` (UUID), `creditId` (UUID), and `reason` (`.string().trim().min(3).max(500)`).
+- Server action `revokeServiceCreditAction`: verifies faculty workspace access, validates `revokeServiceCreditSchema`, checks instructor role eligibility, executes `public.revoke_service_credit` via `createCommandClient()`, treats missing Postgres error codes (`!result.error.code`) and transport exceptions as `retryable: true`, maps database exceptions via `RPC_MESSAGES`, and revalidates all 9 affected routes immediately after commit.
+
+### Outcome
+
+The erroneous service credit is permanently marked revoked with its attributable reason and timestamp, the 1-day offset is removed from the student's cumulative Office or RLE duty balance, the student's original completed attendance record and completion-with-credit history are preserved, and any previously confirmed semester clearance remains intact.
+
+### Important alternatives
+
+- **Past-Semester Credit Revocation:** Because disciplinary balances are cumulative across semesters, `public.revoke_service_credit` does not require the session's semester to be current. An issuer who still holds the active matching instructor role can revoke an unrevoked credit they issued in a past semester.
+- **Coordinator & Peer Instructor Read-Only Boundary (`FL-039`):** Coordinator titles (`Academic Coordinator`, `RLE Coordinator`) grant no override to revoke credits issued by another instructor. Coordinators and peer instructors see the dual **1 Credit** + **Credit Revoked** badges, revocation notes, and active/revoked count splits in read-only mode without an **Actions** column.
+- **Retry & Payload Lock on Transport Interruption:** When a network drop or gateway failure occurs (including `@supabase/supabase-js` errors without a Postgres code), `RevokeServiceCreditDialog` stays open, blocks closing and disables **Start over** while a request is in flight (`isPending`), locks the reason `<textarea>` (`disabled={isPending || locked}`) so the payload cannot drift while replaying the same `requestKey`, and offers **Retry revocation** (same `requestKey`) or **Start over** (unlocks the textarea and generates a fresh `requestKey`).
+- **No Automatic Notification or Re-Issuance:** `public.revoke_service_credit` does not emit a student notification (`FL-044` defines no credit-revocation notice kind) and does not allow un-revoking or regenerating a revoked credit on the finalized session.
+
+### Acceptance checks
+
+- Only the original credit issuer (`issued_by_me === true`) with an active matching instructor role (`Academic Instructor` for `office`, `Clinical Instructor` for `rle`) sees **Revoke credit** and can execute `revokeServiceCreditAction`; coordinators, peer instructors, and non-faculty users are denied.
+- Self-credit revocation (`student_id === actorId`) and revoking an already-revoked credit (`revoked_at !== null`) are refused.
+- Revocation requires a trimmed reason between 3 and 500 characters; blank or whitespace-only reasons are rejected on both client and server.
+- Revoking a credit increases the student's cumulative bucket balance by 1 day without modifying finalized attendance timestamps, changing `zeroCreditCount`, or reversing confirmed semester clearances.
+- Revoked rows display both the struck-through **1 Credit** badge and **Credit Revoked** badge plus the bounded **Revocation note** and `Asia/Manila` timestamp across desktop and 390px mobile viewports.
+- All interactive controls (**Revoke credit**, **Cancel**, **Start over**, **Retry revocation**) meet the 44px mobile touch-target floor (`max-sm:min-h-11`).
+
+
