@@ -324,8 +324,11 @@ export function isParticipantFinalizationValid(
  * 1. Session already ended
  * 2. Not the session creator
  * 3. Missing matching active instructor role for bucket
- * 4. Scheduled end not yet reached
- * 5. One or more included participants have incomplete or invalid attendance
+ * 4. Scheduled start/end not on the duty date (Asia/Manila)
+ * 5. Scheduled end not yet reached
+ * 6. One or more included participants have incomplete or invalid attendance
+ *
+ * Not mirrored: the SQL `recorded_by is null` check, because recorded_by is never sent to the client.
  *
  * If there are 0 included participants (0 total or all excluded), finalization is permitted
  * when all guards above pass, matching PostgreSQL end_service_session.
@@ -336,6 +339,8 @@ export function evaluateFinalizationEligibility(
     | "created_by"
     | "ended_at"
     | "bucket"
+    | "duty_on"
+    | "scheduled_start"
     | "scheduled_end"
     | "time_in_from"
     | "time_in_until"
@@ -372,6 +377,12 @@ export function evaluateFinalizationEligibility(
   const scheduledEndMs = Date.parse(session.scheduled_end);
   const isPastScheduledEnd =
     !Number.isNaN(nowMs) && !Number.isNaN(scheduledEndMs) && nowMs >= scheduledEndMs;
+  const startMs = Date.parse(session.scheduled_start);
+  const isSameDutyDay =
+    !Number.isNaN(startMs) &&
+    !Number.isNaN(scheduledEndMs) &&
+    getTodayManila(new Date(startMs)) === session.duty_on &&
+    getTodayManila(new Date(scheduledEndMs)) === session.duty_on;
 
   let reason: string | null = null;
   if (session.ended_at !== null) {
@@ -380,6 +391,8 @@ export function evaluateFinalizationEligibility(
     reason = "Only the instructor who created this service session may finalize it.";
   } else if (!allowedServiceBuckets(roles).includes(session.bucket)) {
     reason = `An active instructor assignment for the ${session.bucket === "office" ? "Office" : "RLE"} track is required.`;
+  } else if (!isSameDutyDay) {
+    reason = "The session schedule does not fall on its duty date. Contact the coordinator to correct it.";
   } else if (!isPastScheduledEnd) {
     reason = `Session is still in progress. Finalization opens at scheduled end (${extractTimeHHmmManila(session.scheduled_end)}).`;
   } else if (incompleteCount > 0) {

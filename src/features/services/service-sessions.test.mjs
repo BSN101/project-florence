@@ -826,6 +826,8 @@ test("evaluateFinalizationEligibility enforces strict reason priority and handle
     created_by: ACTOR_ID,
     ended_at: null,
     bucket: "office",
+    duty_on: "2026-11-25",
+    scheduled_start: "2026-11-25T08:00:00+08:00",
     scheduled_end: "2026-11-25T17:00:00+08:00",
     time_in_from: "2026-11-25T07:30:00+08:00",
     time_in_until: "2026-11-25T09:00:00+08:00",
@@ -1010,6 +1012,35 @@ test("evaluateFinalizationEligibility enforces strict reason priority and handle
   assert.equal(allExcludedRes.incompleteCount, 0);
   assert.equal(allExcludedRes.excludedCount, 1);
   assert.equal(allExcludedRes.isPastScheduledEnd, true);
+});
+
+test("evaluateFinalizationEligibility blocks schedules that leave the duty date in Asia/Manila", () => {
+  const session = {
+    created_by: ACTOR_ID,
+    ended_at: null,
+    bucket: "office",
+    duty_on: "2026-11-25",
+    scheduled_start: "2026-11-25T08:00:00+08:00",
+    scheduled_end: "2026-11-25T17:00:00+08:00",
+    time_in_from: "2026-11-25T07:30:00+08:00",
+    time_in_until: "2026-11-25T09:00:00+08:00",
+    time_out_from: "2026-11-25T16:30:00+08:00",
+    time_out_until: "2026-11-25T18:00:00+08:00",
+  };
+  const now = "2026-11-26T09:00:00+08:00";
+  const roles = ["Academic Instructor"];
+
+  assert.equal(evaluateFinalizationEligibility(session, [], ACTOR_ID, roles, now).canFinalize, true);
+  // 16:30Z is 00:30 next day in Manila
+  const crossesMidnight = evaluateFinalizationEligibility(
+    { ...session, scheduled_end: "2026-11-25T16:30:00Z" }, [], ACTOR_ID, roles, now
+  );
+  assert.equal(crossesMidnight.canFinalize, false);
+  assert.match(crossesMidnight.reason, /duty date/);
+  assert.equal(
+    evaluateFinalizationEligibility({ ...session, duty_on: "2026-11-24" }, [], ACTOR_ID, roles, now).canFinalize,
+    false
+  );
 });
 
 test("withFinalizationCounts augments participant counts with credit and zero-credit metrics", () => {
