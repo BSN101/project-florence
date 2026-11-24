@@ -138,6 +138,12 @@ export type PaymentHistoryDTO = Pick<
   is_refunded: boolean;
   refunded_at?: string | null;
   refund_reason?: string | null;
+  /** The superseded record this replacement corrects (FL-028); its decision_reason is the correction note. */
+  supersedes_payment_id?: string | null;
+  /** The replacement that superseded this record, derived from the supersedes links (FL-028). */
+  replaced_by_payment_id?: string | null;
+  /** On a replacement: the first record's verify/reject decision, which the correction overwrote. */
+  original_decision?: { decided_at: string | null; decision_reason: string | null } | null;
 };
 
 /**
@@ -742,3 +748,127 @@ export function sanitizeRecordRefundError(
   return fallbackMessage;
 }
 
+
+/**
+ * Standardized action result for correcting a payment record (FL-028 / T-039).
+ * A correction supersedes the old record; it never moves or returns money.
+ */
+export type CorrectPaymentResult =
+  | {
+      success: true;
+      paymentId: string;
+      supersedesPaymentId: string;
+      receiptId: string;
+      amount: number;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      issues?: Record<string, string[]>;
+      /** Nothing was committed, so the next attempt must use a new request key. */
+      retryWithNewKey?: boolean;
+    };
+
+/**
+ * Pure self-benefit check for correcting payment records (FL-028 / T-039).
+ * Officers may not correct their own payments.
+ */
+export function canCorrectPaymentForStudent(
+  actorProfileId: string | null | undefined,
+  studentId: string | null | undefined
+): boolean {
+  return Boolean(actorProfileId && studentId && actorProfileId !== studentId);
+}
+
+/**
+ * Pure eligibility check for whether a payment record can be corrected (FL-028 / T-039).
+ * Only the current authoritative receipt record qualifies. A pending submission has no receipt
+ * to correct, and a rejected record is correctable only after its completed full return.
+ */
+export function isPaymentCorrectable(
+  payment:
+    | Pick<
+        PaymentHistoryDTO,
+        "status" | "record_status" | "is_receipt_record" | "receipt_id" | "is_refunded"
+      >
+    | null
+    | undefined
+): boolean {
+  if (
+    !payment ||
+    payment.record_status !== "current" ||
+    !payment.is_receipt_record ||
+    !payment.receipt_id
+  ) {
+    return false;
+  }
+  return (
+    payment.status === "verified" ||
+    (payment.status === "rejected" && payment.is_refunded)
+  );
+}
+
+/**
+ * Defensive error message sanitizer for payment corrections (FL-028 / T-039).
+ * Strips database internals while surfacing actionable guidance.
+ */
+export function sanitizeCorrectPaymentError(
+  error: unknown,
+  fallbackMessage = "Unable to correct the payment. Please review the details and try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    const msg = err.message ?? "";
+    if (msg.includes("Self payment correction forbidden")) {
+      return "Officers are not permitted to correct their own payments.";
+    }
+    if (msg.includes("Payment was already corrected")) {
+      return "This payment was already corrected. Refresh the page to see the latest record.";
+    }
+    if (msg.includes("Replacement items match the current record")) {
+      return "The replacement has the same obligations as the current record. Change the selection first.";
+    }
+    if (msg.includes("Selected obligation has a pending transfer")) {
+      return "One or more selected obligations are on a transfer awaiting review. Verify or reject that transfer first.";
+    }
+    if (msg.includes("Correction would invalidate full refund history")) {
+      return "This payment was fully refunded, so the corrected total must equal the refunded amount.";
+    }
+    if (
+      msg.includes("Selected obligation is waived or already settled") ||
+      msg.includes("Payment items must share beneficiary and semester")
+    ) {
+      return "One or more selected obligations are waived, already settled, or belong to another student or semester. Refresh the page and try again.";
+    }
+    if (
+      msg.includes("Invalid replacement item selection") ||
+      msg.includes("Unknown obligation") ||
+      msg.includes("A nonempty unique obligation UUID array")
+    ) {
+      return "Select valid obligations for the corrected payment. Refresh the page and try again.";
+    }
+    if (msg.includes("Correction target and a reason of at most 500 characters required")) {
+      return "Enter a note of up to 500 characters explaining the correction.";
+    }
+    if (
+      msg.includes("Payment not found") ||
+      msg.includes("Correction requires a recognized received payment") ||
+      msg.includes("Correction target must be the current authoritative receipt representation") ||
+      msg.includes("Received rejected payment must have a completed full return")
+    ) {
+      return "This payment record can no longer be corrected. Refresh the page to see its latest status.";
+    }
+    if (err.code === "42501" || msg.includes("Council action not authorized")) {
+      return "You are not authorized to correct payments.";
+    }
+    if (msg.includes("Request key reused")) {
+      return "This correction request conflicted with a previous attempt. Please try again.";
+    }
+    if (msg.includes("Incomplete command receipt")) {
+      return "This correction could not be confirmed. Refresh the page to check the payment's status before retrying.";
+    }
+  }
+  return fallbackMessage;
+}

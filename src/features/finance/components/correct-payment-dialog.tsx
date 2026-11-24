@@ -1,0 +1,390 @@
+"use client";
+
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
+import { AlertCircle, CheckCircle2, History, Info, Loader2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { correctPayment, getPaymentCorrectionOptions } from "../actions";
+import { formatPhDate, formatPhp, previewPaymentCorrection } from "../calculations";
+import {
+  UNCONFIRMED_COMMAND_MESSAGE,
+  type ObligationWithStandingDTO,
+  type PaymentHistoryDTO,
+} from "../contracts";
+
+/**
+ * Correct an erroneous received payment record (FL-028 / T-039).
+ * Chooses the complete replacement obligations and records a note; the previous record is marked
+ * Superseded. A correction never moves or returns money, and the database re-checks every rule.
+ */
+export function CorrectPaymentDialog({
+  payment,
+  student,
+  onClose,
+}: {
+  payment: PaymentHistoryDTO;
+  student: { id: string; universityId: string | null; fullName: string };
+  onClose: () => void;
+}) {
+  const reasonId = useId();
+
+  const [options, setOptions] = useState<ObligationWithStandingDTO[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
+    payment.items.map((item) => item.obligation_id)
+  );
+  const [reason, setReason] = useState("");
+  const [requestKey, setRequestKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [doneMessage, setDoneMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    let cancelled = false;
+    getPaymentCorrectionOptions(payment.id)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) setOptions(res.obligations);
+        else setLoadError(res.error);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("Unable to load obligations. Close this window and try again.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [payment.id]);
+
+  const trimmedReason = reason.trim();
+  const currentTotalLabel = formatPhp(Number(payment.amount));
+
+  // Obligations on a transfer awaiting review stay visible but cannot be selected.
+  const isSelectable = (item: ObligationWithStandingDTO) =>
+    item.status === "unpaid" ||
+    (payment.is_refunded && item.status !== "pending_verification");
+
+  const selectedOptions = useMemo(
+    () => (options ?? []).filter((item) => selectedIds.includes(item.id)),
+    [options, selectedIds]
+  );
+
+  const preview = useMemo(
+    () =>
+      previewPaymentCorrection({
+        currentItems: payment.items,
+        replacementItems: selectedOptions.map((item) => ({
+          obligation_id: item.id,
+          amount: item.amount,
+        })),
+        refundedAmount: payment.is_refunded ? payment.amount : null,
+      }),
+    [payment.items, payment.is_refunded, payment.amount, selectedOptions]
+  );
+
+  // Any edit starts a new attempt; unchanged retries replay with the same key so they stay safe.
+  function edit(update: () => void) {
+    setError(null);
+    setRequestKey(null);
+    update();
+  }
+
+  function toggle(id: string, checked: boolean) {
+    edit(() =>
+      setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)))
+    );
+  }
+
+  function handleClose() {
+    if (isPending) return;
+    onClose();
+  }
+
+  const blockedReason = !options
+    ? "Obligations are still loading."
+    : selectedOptions.length === 0
+      ? "Select at least one obligation."
+      : preview.unchanged
+        ? "Change the selection before correcting."
+        : preview.refundMismatch
+          ? "This payment was fully refunded, so the corrected total must equal the refunded amount."
+          : !trimmedReason
+            ? "Enter the note explaining the correction."
+            : null;
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (blockedReason) {
+      setError(blockedReason);
+      return;
+    }
+
+    const key = requestKey ?? crypto.randomUUID();
+    if (!requestKey) setRequestKey(key);
+
+    startTransition(async () => {
+      const res = await correctPayment({
+        paymentId: payment.id,
+        obligationIds: selectedOptions.map((item) => item.id),
+        reason: trimmedReason,
+        requestKey: key,
+      }).catch(() => null);
+
+      // A failed call to the server may still have committed, so keep the key and replay it.
+      if (!res) return setError(UNCONFIRMED_COMMAND_MESSAGE);
+      if (!res.success) {
+        setError(res.error);
+        if (res.issues || res.retryWithNewKey) setRequestKey(null);
+        return;
+      }
+
+      setDoneMessage(res.message);
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] overflow-y-auto p-5 sm:max-w-lg sm:p-6">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="size-5 text-primary" />
+            <span>{doneMessage ? "Payment corrected" : "Correct payment record"}</span>
+          </DialogTitle>
+          <DialogDescription>
+            {student.fullName}
+            {student.universityId ? ` · ${student.universityId}` : ""} · {currentTotalLabel}
+          </DialogDescription>
+        </DialogHeader>
+
+        {doneMessage ? (
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-col items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-center">
+              <CheckCircle2 className="size-8 text-emerald-600" />
+              <p className="text-sm font-medium text-foreground">{doneMessage}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                The corrected record is now {formatPhp(preview.replacementTotal)}. The previous
+                record stays in the history. No money was moved or returned.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={handleClose} className="min-h-11">
+                Close
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : loadError ? (
+          <div className="min-w-0 space-y-4">
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span>{loadError}</span>
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={handleClose} className="min-h-11">
+                Close
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
+            <section
+              aria-label="Current payment record"
+              className="space-y-3 rounded-xl border border-border bg-card p-4"
+            >
+              <dl className="space-y-2 text-sm">
+                <div className="grid grid-cols-[6rem_1fr] gap-2">
+                  <dt className="text-xs text-muted-foreground">Method</dt>
+                  <dd className="text-xs font-medium text-foreground">
+                    {payment.method === "cash" ? "Cash" : "Transfer"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[6rem_1fr] gap-2">
+                  <dt className="text-xs text-muted-foreground">Received</dt>
+                  <dd className="text-xs tabular-nums text-foreground">
+                    {formatPhDate(payment.received_at ?? payment.submitted_at)}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[6rem_1fr] gap-2">
+                  <dt className="text-xs text-muted-foreground">Term</dt>
+                  <dd className="text-xs text-foreground">{payment.semester_code || "—"}</dd>
+                </div>
+              </dl>
+              {payment.items.length > 0 && (
+                <ul className="space-y-1 border-t border-border pt-3 text-xs">
+                  {payment.items.map((item) => (
+                    <li key={item.obligation_id} className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 break-words text-foreground">{item.description}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {formatPhp(item.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <fieldset className="space-y-2" disabled={isPending}>
+              <legend className="text-sm font-medium text-foreground">
+                Replacement obligations
+              </legend>
+              <p className="text-xs text-muted-foreground">
+                Choose everything this payment should cover. The corrected amount is the total of
+                the selected obligations.
+              </p>
+              {!options ? (
+                <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" /> Loading obligations…
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {options.map((item) => {
+                    const checked = selectedIds.includes(item.id);
+                    // A blocked item that starts ticked can still be unticked, never re-ticked.
+                    const selectable = isSelectable(item) || checked;
+                    return (
+                      <li key={item.id}>
+                        <label
+                          className={cn(
+                            "flex min-h-11 items-start gap-3 rounded-xl border border-border bg-muted/30 p-3 text-sm",
+                            selectable ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={!selectable}
+                            onChange={(e) => toggle(item.id, e.target.checked)}
+                            className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words text-xs font-medium text-foreground">
+                              {item.description}
+                            </span>
+                            {item.status === "pending_verification" && (
+                              <span className="block text-[11px] text-muted-foreground">
+                                On a transfer awaiting review. Decide that transfer first.
+                              </span>
+                            )}
+                            {item.status === "settled" && (
+                              <span className="block text-[11px] text-muted-foreground">
+                                Settled by another payment.
+                              </span>
+                            )}
+                            {item.status === "waived" && (
+                              <span className="block text-[11px] text-muted-foreground">Waived.</span>
+                            )}
+                          </span>
+                          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                            {formatPhp(Number(item.amount))}
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </fieldset>
+
+            <section
+              aria-label="Correction preview"
+              aria-live="polite"
+              className="space-y-1.5 rounded-xl border border-border bg-card p-4 text-xs"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-muted-foreground">Current total</span>
+                <span className="tabular-nums text-foreground">{formatPhp(preview.currentTotal)}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium text-foreground">Corrected total</span>
+                <span className="font-heading text-xl font-semibold tabular-nums text-foreground">
+                  {formatPhp(preview.replacementTotal)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-muted-foreground">Difference</span>
+                <span className="tabular-nums text-foreground">
+                  {preview.difference > 0 ? "+" : ""}
+                  {formatPhp(preview.difference)}
+                </span>
+              </div>
+              {payment.is_refunded && (
+                <p className="border-t border-border pt-2 text-muted-foreground">
+                  This receipt was fully refunded, so the corrected total must equal{" "}
+                  {currentTotalLabel}.
+                </p>
+              )}
+            </section>
+
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+              >
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <label htmlFor={reasonId} className="block text-sm font-medium text-foreground">
+                  Correction note
+                </label>
+                <span className="text-xs tabular-nums text-muted-foreground">{reason.length}/500</span>
+              </div>
+              <textarea
+                id={reasonId}
+                rows={3}
+                value={reason}
+                maxLength={500}
+                disabled={isPending}
+                onChange={(e) => edit(() => setReason(e.target.value))}
+                placeholder="State what was wrong with the original record…"
+                className={cn(
+                  "w-full rounded-lg border border-input bg-background px-3 py-2.5 text-base text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm",
+                  isPending && "cursor-not-allowed opacity-75"
+                )}
+              />
+            </div>
+
+            <div className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/30 p-3.5 text-xs leading-relaxed text-foreground">
+              <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <span>
+                A correction does not return or move money. It replaces this record, keeps the old
+                one as Superseded, and updates totals and what each obligation shows as paid. Record
+                any actual refund separately.
+              </span>
+            </div>
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isPending}
+                className="min-h-11"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending || blockedReason !== null} className="min-h-11">
+                {isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                {isPending ? "Correcting…" : "Correct payment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

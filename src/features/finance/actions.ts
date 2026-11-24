@@ -10,8 +10,10 @@ import { createUserClient } from "@/server/db/user-client";
 import { getDownloadUrl, uploadFile, UploadRejectedError } from "@/server/storage/files";
 
 import {
+  type CorrectPaymentResult,
   type DefinitionActionResult,
   type FeePublicationPreview,
+  type ObligationWithStandingDTO,
   type PaymentAccountActionResult,
   type PublishFeeResult,
   type RecordCashPaymentResult,
@@ -19,12 +21,14 @@ import {
   type SubmitTransferResult,
   type TransferDecisionResult,
   type WaiveObligationResult,
+  canCorrectPaymentForStudent,
   canDecideTransferForStudent,
   canRecordCashForStudent,
   canRecordRefundForStudent,
   commandRolledBack,
   hasSameSemesterObligations,
   sanitizeCashPaymentError,
+  sanitizeCorrectPaymentError,
   sanitizePaymentAccountError,
   sanitizeRecordRefundError,
   sanitizeTransferDecisionError,
@@ -35,11 +39,13 @@ import {
 import {
   assertAuthorizedCouncilExecutive,
   assertAuthorizedCouncilManager,
+  getCouncilPaymentCorrectionOptions,
   previewFeeObligations,
 } from "./queries";
 import {
   archiveDefinitionSchema,
   archivePaymentAccountSchema,
+  correctPaymentSchema,
   createDefinitionSchema,
   createPaymentAccountSchema,
   paymentAccountQrFileIdSchema,
@@ -54,6 +60,7 @@ import {
   waiveObligationSchema,
   type ArchiveDefinitionInput,
   type ArchivePaymentAccountInput,
+  type CorrectPaymentInput,
   type CreateDefinitionInput,
   type CreatePaymentAccountInput,
   type PreviewFeeObligationsInput,
@@ -1360,6 +1367,157 @@ export async function recordRefund(
       };
     }
     return { success: false, error: sanitizeRecordRefundError(null) };
+  }
+}
+
+/**
+ * Load same-student, same-semester obligation options for the payment correction dialog (FL-028 / T-039).
+ * Authorized for Council Executive and Operations only (excluding the payment's own student).
+ */
+export async function getPaymentCorrectionOptions(
+  paymentId: string
+): Promise<
+  | { success: true; obligations: ObligationWithStandingDTO[] }
+  | { success: false; error: string }
+> {
+  try {
+    const parsed = correctPaymentSchema.shape.paymentId.safeParse(paymentId);
+    if (!parsed.success) {
+      return { success: false, error: "Invalid payment identifier" };
+    }
+    const obligations = await getCouncilPaymentCorrectionOptions(parsed.data);
+    return { success: true, obligations };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may correct payment records",
+      };
+    }
+    // Only getCouncilPaymentCorrectionOptions' own messages reach the browser.
+    const message = err instanceof Error ? err.message : "";
+    return {
+      success: false,
+      error: CORRECTION_OPTION_MESSAGES.has(message)
+        ? message
+        : "Unable to load obligations for correction.",
+    };
+  }
+}
+
+const CORRECTION_OPTION_MESSAGES = new Set([
+  "This payment record could not be found. Refresh the page and try again.",
+  "Officers are not permitted to correct their own payments.",
+  "Unable to load correction options.",
+  "Unable to load payment refunds.",
+  "This payment record can no longer be corrected. Refresh the page to see its latest status.",
+]);
+
+/**
+ * Correct an erroneous received payment by inserting a linked replacement and marking the
+ * previous record Superseded (FL-028 / T-039). Preserves receipt and refund identity without
+ * moving or returning money. Enforces Executive/Operations authority and self-correction
+ * prohibition in both the server action and the atomic correct_payment RPC under locks.
+ */
+export async function correctPayment(
+  input: CorrectPaymentInput
+): Promise<CorrectPaymentResult> {
+  try {
+    const context = await assertAuthorizedCouncilManager();
+    const parsed = correctPaymentSchema.safeParse(input);
+    if (!parsed.success) {
+      const issues = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+      return {
+        success: false,
+        error: Object.values(issues).flat()[0] ?? "Invalid payment correction input",
+        issues,
+      };
+    }
+    const d = parsed.data;
+
+    // Early RLS-scoped self-correction check. Record state is left to correct_payment, so an
+    // unchanged retry of a committed correction replays its stored result instead of failing here.
+    const userClient = await createUserClient();
+    const { data: payment, error: paymentError } = await userClient
+      .from("payments")
+      .select("student_id")
+      .eq("id", d.paymentId)
+      .maybeSingle();
+
+    if (paymentError || !payment) {
+      return {
+        success: false,
+        error: "This payment record could not be found. Refresh the page and try again.",
+      };
+    }
+
+    if (!canCorrectPaymentForStudent(context.profile.id, payment.student_id)) {
+      return {
+        success: false,
+        error: "Officers are not permitted to correct their own payments.",
+      };
+    }
+
+    // correct_payment locks request -> receipt -> payment -> sorted union of old/new obligations,
+    // supersedes the target, and inserts the linked replacement under the same receipt_id.
+    const { data, error } = await createCommandClient().rpc("correct_payment", {
+      p_key: d.requestKey,
+      p_actor: context.profile.id,
+      p_payment: d.paymentId,
+      p_obligations: d.obligationIds,
+      p_reason: d.reason,
+    });
+
+    if (error) {
+      if (!commandRolledBack(error)) {
+        return { success: false, error: UNCONFIRMED_COMMAND_MESSAGE };
+      }
+      return {
+        success: false,
+        error: sanitizeCorrectPaymentError(error),
+        retryWithNewKey: true,
+      };
+    }
+
+    const result = data as {
+      payment_id: string;
+      supersedes_payment_id: string;
+      receipt_id: string;
+      amount: number | string;
+    } | null;
+
+    const amount = result ? Number(result.amount) : NaN;
+    if (
+      !result?.payment_id ||
+      !result.supersedes_payment_id ||
+      !result.receipt_id ||
+      !Number.isFinite(amount)
+    ) {
+      return {
+        success: false,
+        error: "The correction returned no result. Refresh the page to check the payment's status before retrying.",
+      };
+    }
+
+    revalidatePath("/council/payments");
+    revalidatePath("/council/clearance");
+    revalidatePath("/student/fees-and-fines");
+    return {
+      success: true,
+      paymentId: result.payment_id,
+      supersedesPaymentId: result.supersedes_payment_id,
+      receiptId: result.receipt_id,
+      amount,
+      message: "Payment corrected. The previous record was marked Superseded.",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may correct payment records",
+      };
+    }
+    return { success: false, error: sanitizeCorrectPaymentError(null) };
   }
 }
 

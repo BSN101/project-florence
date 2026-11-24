@@ -433,7 +433,7 @@ export function mapPaymentHistory({
   paymentItems = [],
   obligations = [],
 }: {
-  payments: Array<Omit<PaymentHistoryDTO, "is_refunded" | "refunded_at" | "refund_reason" | "semester_code" | "items">>;
+  payments: Array<Omit<PaymentHistoryDTO, "is_refunded" | "refunded_at" | "refund_reason" | "semester_code" | "items" | "replaced_by_payment_id" | "original_decision">>;
   refunds: RefundStandingRecord[];
   semesterCodeMap?: Map<string, string>;
   paymentItems?: ReadonlyArray<{ payment_id: string; obligation_id: string }>;
@@ -461,6 +461,24 @@ export function mapPaymentHistory({
     itemsByPayment.set(item.payment_id, list);
   }
 
+  // A superseded record's replacement is the row whose supersedes link points at it (FL-028).
+  const replacedBy = new Map<string, string>();
+  const byId = new Map(payments.map((p) => [p.id, p]));
+  for (const p of payments) {
+    if (p.supersedes_payment_id) replacedBy.set(p.supersedes_payment_id, p.id);
+  }
+  // correct_payment overwrites decision fields with the correction, so the original
+  // decision lives on the first record of the chain.
+  const originalDecision = (p: (typeof payments)[number]) => {
+    let root = p;
+    for (let i = 0; i < payments.length && root.supersedes_payment_id; i++) {
+      const prev = byId.get(root.supersedes_payment_id);
+      if (!prev) break;
+      root = prev;
+    }
+    return root === p ? null : { decided_at: root.decided_at, decision_reason: root.decision_reason };
+  };
+
   return payments.map((p) => {
     const refund = p.receipt_id ? refundMap.get(p.receipt_id) : undefined;
     const semesterCode = semesterCodeMap?.get(p.semester_id);
@@ -471,7 +489,102 @@ export function mapPaymentHistory({
       is_refunded: Boolean(refund),
       refunded_at: refund?.refunded_at ?? null,
       refund_reason: refund?.reason ?? null,
+      replaced_by_payment_id: replacedBy.get(p.id) ?? null,
+      original_decision: originalDecision(p),
       ...(semesterCode ? { semester_code: semesterCode } : {}),
     };
   });
+}
+
+/**
+ * Previews a payment correction (FL-028 / T-039) in integer cents so the dialog and tests agree
+ * with the database, which derives the replacement amount from the complete new item selection.
+ * - `unchanged`: the replacement selects exactly the current obligations (the database refuses it).
+ * - `refundMismatch`: a fully refunded receipt needs a replacement total equal to the refund.
+ * A correction never moves money, so the difference is informational only.
+ */
+export function previewPaymentCorrection({
+  currentItems,
+  replacementItems,
+  refundedAmount = null,
+}: {
+  currentItems: ReadonlyArray<{ obligation_id: string; amount: number | string }>;
+  replacementItems: ReadonlyArray<{ obligation_id: string; amount: number | string }>;
+  refundedAmount?: number | string | null;
+}): {
+  currentTotal: number;
+  replacementTotal: number;
+  difference: number;
+  unchanged: boolean;
+  refundMismatch: boolean;
+} {
+  const sumCents = (items: ReadonlyArray<{ amount: number | string }>) =>
+    items.reduce((sum, item) => sum + toCents(Number(item.amount)), 0);
+  const currentCents = sumCents(currentItems);
+  const replacementCents = sumCents(replacementItems);
+
+  const currentIds = new Set(currentItems.map((item) => item.obligation_id));
+  const replacementIds = new Set(replacementItems.map((item) => item.obligation_id));
+  const unchanged =
+    currentIds.size === replacementIds.size &&
+    [...currentIds].every((id) => replacementIds.has(id));
+
+  return {
+    currentTotal: fromCents(currentCents),
+    replacementTotal: fromCents(replacementCents),
+    difference: fromCents(replacementCents - currentCents),
+    unchanged,
+    refundMismatch:
+      refundedAmount !== null && toCents(Number(refundedAmount)) !== replacementCents,
+  };
+}
+
+/**
+ * Computes candidate obligations for replacing a payment's item allocation (FL-028 / T-039).
+ * Standing is evaluated without the target payment's own settlement so obligations currently
+ * covered only by the target appear as `unpaid` (selectable) unless waived, settled by another
+ * payment, or on a current pending transfer.
+ * - For a settling payment (verified, unrefunded): returns `unpaid` (selectable) and
+ *   `pending_verification` (visible but blocked until the transfer is decided).
+ * - For a refunded payment: `correct_payment` does not settle debt, so waived or later-settled
+ *   obligations in the same semester also remain selectable; only `pending_verification` is blocked.
+ */
+export function selectPaymentCorrectionOptions({
+  obligations,
+  paymentItems,
+  payments,
+  refunds,
+  targetPaymentId,
+  targetSemesterId,
+  isTargetRefunded,
+  targetStatus,
+  semesterCodeMap,
+}: {
+  obligations: ObligationDTO[];
+  paymentItems: PaymentAllocationRecord[];
+  payments: PaymentStandingRecord[];
+  refunds: RefundStandingRecord[];
+  targetPaymentId: string;
+  targetSemesterId: string;
+  isTargetRefunded: boolean;
+  targetStatus: string;
+  semesterCodeMap?: Map<string, string>;
+}): ObligationWithStandingDTO[] {
+  const standing = calculateObligationsStanding({
+    obligations,
+    paymentItems: paymentItems.filter((item) => item.payment_id !== targetPaymentId),
+    payments,
+    refunds,
+    targetSemesterId,
+    semesterCodeMap,
+  });
+
+  const isSettlingPayment = targetStatus === "verified" && !isTargetRefunded;
+  if (!isSettlingPayment) {
+    return standing;
+  }
+
+  return standing.filter(
+    (item) => item.status === "unpaid" || item.status === "pending_verification"
+  );
 }

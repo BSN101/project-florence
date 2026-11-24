@@ -305,3 +305,32 @@ export const recordRefundSchema = z.object({
 
 export type RecordRefundInput = z.infer<typeof recordRefundSchema>;
 
+const correctionReason = z
+  .string()
+  .trim()
+  .min(1, "Enter the note explaining the correction")
+  .max(500, "Note cannot exceed 500 characters");
+
+const correctionObligationIds = z
+  .array(z.string().uuid("Invalid obligation identifier"))
+  .min(1, "Select at least one obligation for the corrected payment")
+  .max(10000, "Too many obligations selected")
+  .refine((arr) => new Set(arr).size === arr.length, {
+    message: "Duplicate obligations are not permitted",
+  });
+
+/**
+ * Input validation for correcting an erroneous payment record (FL-028 / T-039).
+ * The replacement is the complete new item selection; the database derives the amount and
+ * re-checks authority, supersession, refund equality, and pending-transfer conflicts.
+ * A correction never moves or returns money.
+ */
+export const correctPaymentSchema = z.object({
+  paymentId: z.string().uuid("Invalid payment identifier"),
+  obligationIds: correctionObligationIds,
+  reason: correctionReason,
+  requestKey: z.string().uuid("Invalid request key"),
+});
+
+export type CorrectPaymentInput = z.infer<typeof correctPaymentSchema>;
+

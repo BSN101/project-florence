@@ -11,6 +11,7 @@ import {
   mapPaymentHistory,
   priorSemesterIdsFor,
   scopeFinancialRecordsForSemester,
+  selectPaymentCorrectionOptions,
   summarizeStudentBalances,
 } from "./calculations";
 import {
@@ -26,10 +27,13 @@ import {
   type PaymentAccountDTO,
   type StudentFinancialAccountData,
   type StudentPaymentAccountDTO,
+  canCorrectPaymentForStudent,
   isAuthorizedCouncilFinancialViewer,
   isAuthorizedPaymentAccountManager,
+  isPaymentCorrectable,
 } from "./contracts";
 import {
+  correctPaymentSchema,
   councilStudentFinancialQuerySchema,
   previewFeeObligationsSchema,
   type CouncilStudentFinancialQueryInput,
@@ -326,7 +330,7 @@ async function fetchStudentFinancialAccountData({
     client
       .from("payments")
       .select(
-        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason, receipt:payment_receipts(received_at)"
+        "id, student_id, semester_id, method, status, record_status, receipt_id, is_receipt_record, destination_label, destination_account_name, destination_account_reference, reference_number, proof_file_id, amount, submitted_at, decided_at, decision_reason, supersedes_payment_id, receipt:payment_receipts(received_at)"
       )
       .eq("student_id", studentId)
       .order("submitted_at", { ascending: false }),
@@ -721,6 +725,92 @@ export async function getCouncilStudentPayableObligations(
     client,
     studentId: validStudentId,
     semesters: context.semesters,
+  });
+}
+
+/**
+ * Obligations that may make up the replacement for a corrected payment (FL-028 / T-039).
+ * Limited to the payment's own student and semester. Includes the obligations the payment currently
+ * covers plus unpaid ones; excludes waived, settled-by-another-payment and pending-transfer obligations.
+ * Restricted to Council Executive and Operations; uses the request-scoped user client.
+ * Advisory only: correct_payment re-checks every rule under locks.
+ */
+export async function getCouncilPaymentCorrectionOptions(
+  paymentId: string
+): Promise<ObligationWithStandingDTO[]> {
+  const context = await assertAuthorizedCouncilManager();
+  const validPaymentId = correctPaymentSchema.shape.paymentId.parse(paymentId);
+  const client = await createUserClient();
+
+  const { data: target, error: targetError } = await client
+    .from("payments")
+    .select("id, student_id, semester_id, status, record_status, is_receipt_record, receipt_id")
+    .eq("id", validPaymentId)
+    .maybeSingle();
+  if (targetError || !target) {
+    throw new Error("This payment record could not be found. Refresh the page and try again.");
+  }
+  if (!canCorrectPaymentForStudent(context.profile.id, target.student_id)) {
+    throw new Error("Officers are not permitted to correct their own payments.");
+  }
+
+  const [obligationsRes, paymentItemsRes, paymentsRes] = await Promise.all([
+    client
+      .from("obligations")
+      .select(
+        "id, semester_id, kind, consequence_outcome, description, amount, waived_at, waiver_reason"
+      )
+      .eq("student_id", target.student_id)
+      .eq("semester_id", target.semester_id)
+      .order("created_at", { ascending: false }),
+    client
+      .from("payment_items")
+      .select("payment_id, obligation_id")
+      .eq("student_id", target.student_id)
+      .eq("semester_id", target.semester_id),
+    client
+      .from("payments")
+      .select("id, receipt_id, status, record_status, is_receipt_record")
+      .eq("student_id", target.student_id)
+      .eq("semester_id", target.semester_id),
+  ]);
+  if (obligationsRes.error || paymentItemsRes.error || paymentsRes.error) {
+    throw new Error("Unable to load correction options.");
+  }
+
+  const rawPayments = paymentsRes.data ?? [];
+  const receiptIds = Array.from(
+    new Set(rawPayments.map((p) => p.receipt_id).filter((id): id is string => Boolean(id)))
+  );
+  let rawRefunds: Array<{ receipt_id: string }> = [];
+  if (receiptIds.length > 0) {
+    const { data, error } = await client
+      .from("payment_refunds")
+      .select("receipt_id")
+      .in("receipt_id", receiptIds);
+    if (error) throw new Error("Unable to load payment refunds.");
+    rawRefunds = data ?? [];
+  }
+
+  const isTargetRefunded = Boolean(
+    target.receipt_id && rawRefunds.some((r) => r.receipt_id === target.receipt_id)
+  );
+  if (!isPaymentCorrectable({ ...target, is_refunded: isTargetRefunded })) {
+    throw new Error("This payment record can no longer be corrected. Refresh the page to see its latest status.");
+  }
+
+  return selectPaymentCorrectionOptions({
+    obligations: obligationsRes.data ?? [],
+    paymentItems: paymentItemsRes.data ?? [],
+    payments: rawPayments,
+    refunds: rawRefunds,
+    targetPaymentId: target.id,
+    targetSemesterId: target.semester_id,
+    isTargetRefunded,
+    targetStatus: target.status,
+    semesterCodeMap: new Map(
+      context.semesters.map((s) => [s.id, `${s.academic_year_start} · ${s.term}`])
+    ),
   });
 }
 
