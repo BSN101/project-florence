@@ -24,7 +24,8 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { formatPhDate, formatPhp } from "../calculations";
-import { isPaymentRefundable, type PaymentHistoryDTO } from "../contracts";
+import { isPaymentCorrectable, isPaymentRefundable, type PaymentHistoryDTO } from "../contracts";
+import { CorrectPaymentDialog } from "./correct-payment-dialog";
 import { PaymentRecordDialog } from "./payment-record-dialog";
 import { RecordRefundDialog } from "./record-refund-dialog";
 
@@ -50,6 +51,7 @@ export function StudentPaymentHistoryTable({
   studentLabel,
   student,
   canRefund = false,
+  canCorrect = false,
   locationKey,
 }: {
   payments: PaymentHistoryDTO[];
@@ -58,12 +60,14 @@ export function StudentPaymentHistoryTable({
   studentLabel?: string;
   student?: { id: string; universityId: string | null; fullName: string };
   canRefund?: boolean;
+  canCorrect?: boolean;
   locationKey?: string;
 }) {
   const [method, setMethod] = useState("all");
   const [outcome, setOutcome] = useState("all");
   const [inspecting, setInspecting] = useState<PaymentHistoryDTO | null>(null);
   const [refunding, setRefunding] = useState<PaymentHistoryDTO | null>(null);
+  const [correcting, setCorrecting] = useState<PaymentHistoryDTO | null>(null);
 
   // Preserved (hidden) pages keep state: close dialogs when route, term, or student changes.
   const pathname = usePathname();
@@ -73,6 +77,7 @@ export function StudentPaymentHistoryTable({
     setSeenLocation(activeLocation);
     setInspecting(null);
     setRefunding(null);
+    setCorrecting(null);
   }
 
   // Superseded versions stay in "All" as correction history but never count toward an outcome.
@@ -290,6 +295,8 @@ export function StudentPaymentHistoryTable({
                         Refunded{p.refunded_at ? ` ${formatPhDate(p.refunded_at)}` : ""}:{" "}
                         {p.refund_reason || "Full payment returned."}
                       </span>
+                    ) : p.supersedes_payment_id && p.decision_reason ? (
+                      <span>Corrected: {p.decision_reason}</span>
                     ) : p.status === "rejected" && p.decision_reason ? (
                       <span className="text-destructive font-medium">
                         Reason: {p.decision_reason}
@@ -311,7 +318,10 @@ export function StudentPaymentHistoryTable({
                       const showRefund = Boolean(
                         isCouncilView && canRefund && student && isPaymentRefundable(p)
                       );
-                      if (!showView && !showRefund) {
+                      const showCorrect = Boolean(
+                        isCouncilView && canCorrect && student && isPaymentCorrectable(p)
+                      );
+                      if (!showView && !showRefund && !showCorrect) {
                         return <span className="text-muted-foreground/60">—</span>;
                       }
                       return (
@@ -326,6 +336,18 @@ export function StudentPaymentHistoryTable({
                             >
                               <Eye className="size-3 shrink-0 text-primary" />
                               <span>{p.method === "cash" ? "View Receipt" : "View Proof"}</span>
+                            </Button>
+                          )}
+                          {showCorrect && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCorrecting(p)}
+                              className="h-7 max-sm:min-h-11 cursor-pointer gap-1 rounded-lg px-2.5 text-[11px] font-medium shadow-2xs transition-colors active:opacity-60"
+                            >
+                              <History className="size-3 shrink-0" />
+                              <span>Correct</span>
                             </Button>
                           )}
                           {showRefund && (
@@ -399,6 +421,15 @@ export function StudentPaymentHistoryTable({
           onClose={() => setInspecting(null)}
           isCouncilView={isCouncilView}
           studentLabel={studentLabel}
+        />
+      )}
+
+      {correcting && student && (
+        <CorrectPaymentDialog
+          key={correcting.id}
+          payment={correcting}
+          student={student}
+          onClose={() => setCorrecting(null)}
         />
       )}
 

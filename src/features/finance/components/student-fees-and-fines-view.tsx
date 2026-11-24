@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatPhp } from "../calculations";
 import {
+  canCorrectPaymentForStudent,
   canRecordCashForStudent,
   canRecordRefundForStudent,
   canWaiveObligationForStudent,
@@ -212,6 +213,10 @@ export function StudentFeesAndFinesView({
     isCouncilView && canRecordRefundForStudent(actorProfileId, data.student.id)
   );
 
+  const canCorrect = Boolean(
+    isCouncilView && canCorrectPaymentForStudent(actorProfileId, data.student.id)
+  );
+
   const hasPriorOverdue = data.summary.priorSemestersOverduePayable > 0;
 
   return (
@@ -297,7 +302,7 @@ export function StudentFeesAndFinesView({
                 title="Officers are not permitted to record their own cash payments."
               />
               <span className="text-xs text-muted-foreground">
-                Self-recording, self-waiver, and self-refund are not permitted
+                Self-recording, self-waiver, self-refund, and self-correction are not permitted
               </span>
             </div>
           )}
@@ -330,6 +335,7 @@ export function StudentFeesAndFinesView({
             isCouncilView={isCouncilView}
             student={data.student}
             canRefund={canRefund}
+            canCorrect={canCorrect}
             locationKey={currentLocation}
             studentLabel={
               isCouncilView
