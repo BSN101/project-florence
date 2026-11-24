@@ -72,8 +72,15 @@ export function describePaymentRecord(
   }
   rows.push({ label: payment.method === "cash" ? "Recorded" : "Submitted", value: formatPhDate(payment.submitted_at) });
   if (payment.decided_at) rows.push({ label: "Decided", value: formatPhDate(payment.decided_at) });
-  if (payment.status === "rejected" && payment.decision_reason) {
+  if (payment.supersedes_payment_id) {
+    // A replacement stores the correction note in decision_reason, not a rejection reason.
+    rows.push({ label: "Corrects record", value: payment.supersedes_payment_id, mono: true });
+    if (payment.decision_reason) rows.push({ label: "Correction note", value: payment.decision_reason });
+  } else if (payment.status === "rejected" && payment.decision_reason) {
     rows.push({ label: "Reason", value: payment.decision_reason });
+  }
+  if (payment.replaced_by_payment_id) {
+    rows.push({ label: "Replaced by", value: payment.replaced_by_payment_id, mono: true });
   }
   if (payment.is_refunded) {
     if (payment.refunded_at) rows.push({ label: "Refunded", value: formatPhDate(payment.refunded_at) });
