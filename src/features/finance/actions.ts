@@ -15,14 +15,17 @@ import {
   type PaymentAccountActionResult,
   type PublishFeeResult,
   type RecordCashPaymentResult,
+  type RecordRefundResult,
   type SubmitTransferResult,
   type TransferDecisionResult,
   type WaiveObligationResult,
   canDecideTransferForStudent,
   canRecordCashForStudent,
+  canRecordRefundForStudent,
   hasSameSemesterObligations,
   sanitizeCashPaymentError,
   sanitizePaymentAccountError,
+  sanitizeRecordRefundError,
   sanitizeTransferDecisionError,
   sanitizeTransferSubmissionError,
   sanitizeWaiveObligationError,
@@ -41,6 +44,7 @@ import {
   paymentProofFileIdSchema,
   publishFeeObligationsSchema,
   recordCashPaymentSchema,
+  recordRefundSchema,
   submitTransferSchema,
   transferDecisionSchema,
   updateDefinitionSchema,
@@ -53,6 +57,7 @@ import {
   type PreviewFeeObligationsInput,
   type PublishFeeObligationsInput,
   type RecordCashPaymentInput,
+  type RecordRefundInput,
   type SubmitTransferInput,
   type TransferDecisionInput,
   type UpdateDefinitionInput,
@@ -1249,6 +1254,107 @@ export async function waiveObligation(
       };
     }
     return { success: false, error: sanitizeWaiveObligationError(null) };
+  }
+}
+
+/**
+ * Record a completed full-payment refund that actually occurred outside the platform (FL-027 / T-038).
+ * Preserves gross received, refunds, and net totals without overwriting payment status or waiving debt;
+ * active obligations covered by the refunded receipt become payable again and the student is notified.
+ * Enforces Council Executive/Operations authority and self-refund prohibition in both the server action
+ * and the atomic record_refund RPC under receipt/payment/obligation locks.
+ */
+export async function recordRefund(
+  input: RecordRefundInput
+): Promise<RecordRefundResult> {
+  try {
+    const context = await assertAuthorizedCouncilManager();
+    const parsed = recordRefundSchema.safeParse(input);
+    if (!parsed.success) {
+      const issues = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+      return {
+        success: false,
+        error: Object.values(issues).flat()[0] ?? "Invalid refund input",
+        issues,
+      };
+    }
+    const d = parsed.data;
+
+    // Early RLS-scoped owner check so self-refund is refused before invoking the command client.
+    const userClient = await createUserClient();
+    const { data: payment, error: paymentError } = await userClient
+      .from("payments")
+      .select("student_id")
+      .eq("receipt_id", d.receiptId)
+      .eq("is_receipt_record", true)
+      .eq("record_status", "current")
+      .maybeSingle();
+
+    if (paymentError || !payment) {
+      return {
+        success: false,
+        error: "This payment receipt could not be found. Refresh the page and try again.",
+      };
+    }
+
+    if (!canRecordRefundForStudent(context.profile.id, payment.student_id)) {
+      return {
+        success: false,
+        error: "Officers are not permitted to record refunds for their own payments.",
+      };
+    }
+
+    // record_refund locks request -> receipt -> payment -> sorted obligations, inserts payment_refunds, and notifies the student.
+    const { data, error } = await createCommandClient().rpc("record_refund", {
+      p_key: d.requestKey,
+      p_actor: context.profile.id,
+      p_receipt: d.receiptId,
+      p_refunded_at: d.refundedAt,
+      p_reason: d.reason,
+      p_facts_confirmed: d.factsConfirmed,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        error: sanitizeRecordRefundError(error),
+        retryWithNewKey: true,
+      };
+    }
+
+    const result = data as {
+      refund_id: string;
+      receipt_id: string;
+      amount: number | string;
+    } | null;
+
+    const amount = result ? Number(result.amount) : NaN;
+    if (!result?.refund_id || !result.receipt_id || !Number.isFinite(amount)) {
+      return {
+        success: false,
+        error: "The refund returned no result. Refresh the page to check the payment's status before retrying.",
+      };
+    }
+
+    revalidatePath("/council/payments");
+    revalidatePath("/council/clearance");
+    revalidatePath("/student/fees-and-fines");
+    revalidatePath("/student/notifications");
+    return {
+      success: true,
+      refundId: result.refund_id,
+      receiptId: result.receipt_id,
+      amount,
+      message: "Refund recorded and the student was notified.",
+    };
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      return {
+        success: false,
+        error: "Unauthorized: Only Council Executives and Operations may record payment refunds",
+      };
+    }
+    return { success: false, error: sanitizeRecordRefundError(null) };
   }
 }
 

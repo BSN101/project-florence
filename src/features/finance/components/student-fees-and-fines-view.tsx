@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { formatPhp } from "../calculations";
 import {
   canRecordCashForStudent,
+  canRecordRefundForStudent,
   canWaiveObligationForStudent,
   type ObligationWithStandingDTO,
   type StudentFinancialAccountData,
@@ -207,6 +208,9 @@ export function StudentFeesAndFinesView({
   const canWaive = Boolean(
     isCouncilView && canWaiveObligationForStudent(actorProfileId, data.student.id)
   );
+  const canRefund = Boolean(
+    isCouncilView && canRecordRefundForStudent(actorProfileId, data.student.id)
+  );
 
   const hasPriorOverdue = data.summary.priorSemestersOverduePayable > 0;
 
@@ -254,7 +258,7 @@ export function StudentFeesAndFinesView({
               variant={activeSection === "obligations" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveSection("obligations")}
-              className="gap-2 text-xs"
+              className="gap-2 text-xs max-sm:min-h-11"
             >
               <FileText className="size-3.5" />
               <span>Obligations &amp; Dues ({data.obligations.length})</span>
@@ -267,7 +271,7 @@ export function StudentFeesAndFinesView({
               variant={activeSection === "payments" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveSection("payments")}
-              className="gap-2 text-xs"
+              className="gap-2 text-xs max-sm:min-h-11"
             >
               <History className="size-3.5" />
               <span>Payment History ({data.payments.length})</span>
@@ -293,7 +297,7 @@ export function StudentFeesAndFinesView({
                 title="Officers are not permitted to record their own cash payments."
               />
               <span className="text-xs text-muted-foreground">
-                Self-recording and self-waiver are not permitted
+                Self-recording, self-waiver, and self-refund are not permitted
               </span>
             </div>
           )}
@@ -324,6 +328,9 @@ export function StudentFeesAndFinesView({
           <StudentPaymentHistoryTable
             payments={data.payments}
             isCouncilView={isCouncilView}
+            student={data.student}
+            canRefund={canRefund}
+            locationKey={currentLocation}
             studentLabel={
               isCouncilView
                 ? [data.student.fullName, data.student.universityId]

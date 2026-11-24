@@ -24,8 +24,9 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { formatPhDate, formatPhp } from "../calculations";
-import type { PaymentHistoryDTO } from "../contracts";
+import { isPaymentRefundable, type PaymentHistoryDTO } from "../contracts";
 import { PaymentRecordDialog } from "./payment-record-dialog";
+import { RecordRefundDialog } from "./record-refund-dialog";
 
 const PAGE_SIZE = 25;
 
@@ -47,22 +48,31 @@ export function StudentPaymentHistoryTable({
   payments,
   isCouncilView = false,
   studentLabel,
+  student,
+  canRefund = false,
+  locationKey,
 }: {
   payments: PaymentHistoryDTO[];
   isCouncilView?: boolean;
   /** Shown on the payment record in Council views. */
   studentLabel?: string;
+  student?: { id: string; universityId: string | null; fullName: string };
+  canRefund?: boolean;
+  locationKey?: string;
 }) {
   const [method, setMethod] = useState("all");
   const [outcome, setOutcome] = useState("all");
   const [inspecting, setInspecting] = useState<PaymentHistoryDTO | null>(null);
+  const [refunding, setRefunding] = useState<PaymentHistoryDTO | null>(null);
 
-  // Preserved (hidden) pages keep state: close the record when the URL changes.
+  // Preserved (hidden) pages keep state: close dialogs when route, term, or student changes.
   const pathname = usePathname();
-  const [seenPathname, setSeenPathname] = useState(pathname);
-  if (seenPathname !== pathname) {
-    setSeenPathname(pathname);
+  const activeLocation = locationKey ?? pathname;
+  const [seenLocation, setSeenLocation] = useState(activeLocation);
+  if (seenLocation !== activeLocation) {
+    setSeenLocation(activeLocation);
     setInspecting(null);
+    setRefunding(null);
   }
 
   // Superseded versions stay in "All" as correction history but never count toward an outcome.
@@ -277,7 +287,8 @@ export function StudentPaymentHistoryTable({
                       <span>Replaced by a corrected record.</span>
                     ) : p.is_refunded ? (
                       <span className="text-purple-600 dark:text-purple-400">
-                        Refund note: {p.refund_reason || "Full payment returned."}
+                        Refunded{p.refunded_at ? ` ${formatPhDate(p.refunded_at)}` : ""}:{" "}
+                        {p.refund_reason || "Full payment returned."}
                       </span>
                     ) : p.status === "rejected" && p.decision_reason ? (
                       <span className="text-destructive font-medium">
@@ -293,22 +304,45 @@ export function StudentPaymentHistoryTable({
                     )}
                   </td>
 
-                  {/* Proof Action */}
+                  {/* Proof & Refund Actions */}
                   <td className="px-4 py-3 text-right whitespace-nowrap">
-                    {p.proof_file_id || p.method === "cash" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInspecting(p)}
-                        className="h-7 cursor-pointer gap-1 rounded-lg border-primary/25 bg-primary/5 px-2.5 text-[11px] font-medium text-primary shadow-2xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:opacity-60"
-                      >
-                        <Eye className="size-3 shrink-0 text-primary" />
-                        <span>{p.method === "cash" ? "View Receipt" : "View Proof"}</span>
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground/60">—</span>
-                    )}
+                    {(() => {
+                      const showView = Boolean(p.proof_file_id || p.method === "cash");
+                      const showRefund = Boolean(
+                        isCouncilView && canRefund && student && isPaymentRefundable(p)
+                      );
+                      if (!showView && !showRefund) {
+                        return <span className="text-muted-foreground/60">—</span>;
+                      }
+                      return (
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          {showView && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setInspecting(p)}
+                              className="h-7 max-sm:min-h-11 cursor-pointer gap-1 rounded-lg border-primary/25 bg-primary/5 px-2.5 text-[11px] font-medium text-primary shadow-2xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:opacity-60"
+                            >
+                              <Eye className="size-3 shrink-0 text-primary" />
+                              <span>{p.method === "cash" ? "View Receipt" : "View Proof"}</span>
+                            </Button>
+                          )}
+                          {showRefund && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRefunding(p)}
+                              className="h-7 max-sm:min-h-11 cursor-pointer gap-1 rounded-lg border-destructive/30 px-2.5 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive active:opacity-60"
+                            >
+                              <RotateCcw className="size-3 shrink-0" />
+                              <span>Refund</span>
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -365,6 +399,15 @@ export function StudentPaymentHistoryTable({
           onClose={() => setInspecting(null)}
           isCouncilView={isCouncilView}
           studentLabel={studentLabel}
+        />
+      )}
+
+      {refunding && student && (
+        <RecordRefundDialog
+          key={refunding.id}
+          payment={refunding}
+          student={student}
+          onClose={() => setRefunding(null)}
         />
       )}
     </div>

@@ -83,21 +83,42 @@ export function StudentFinancialSummaryCards({
         </CardContent>
       </Card>
 
-      {/* 3. Settled Amount */}
+      {/* 3. Settled / Net Received Amount */}
       <Card className="border border-border/70 shadow-xs">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Total Settled
+            {summary.totalRefundedAmount > 0 ? "Net Received" : "Total Settled"}
           </CardTitle>
           <Coins className="size-4 text-emerald-600" />
         </CardHeader>
         <CardContent>
           <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-            {formatPhp(summary.totalSettledAmount)}
+            {formatPhp(
+              summary.totalRefundedAmount > 0
+                ? summary.totalNetReceivedAmount
+                : summary.totalSettledAmount
+            )}
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Verified payments credited to this account.
-          </p>
+          {summary.totalRefundedAmount > 0 ? (
+            <dl className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+              <div className="flex items-center justify-between gap-2">
+                <dt>Gross received</dt>
+                <dd className="font-medium tabular-nums text-foreground">
+                  {formatPhp(summary.totalGrossReceivedAmount)}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt>Refunds</dt>
+                <dd className="font-medium tabular-nums text-destructive">
+                  -{formatPhp(summary.totalRefundedAmount)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Verified payments credited to this account.
+            </p>
+          )}
         </CardContent>
       </Card>
 

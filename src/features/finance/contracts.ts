@@ -159,6 +159,12 @@ export type StudentFinancialSummaryDTO = {
   totalWaivedAmount: number;
   /** Total original debt recorded (gross obligations before waivers and settlements) */
   totalGrossObligationsAmount: number;
+  /** Retained gross money actually received across authoritative payment receipts (FL-027) */
+  totalGrossReceivedAmount: number;
+  /** Retained total amount refunded across completed full-payment refunds (FL-027) */
+  totalRefundedAmount: number;
+  /** Net money retained after completed refunds (gross received minus refunds) (FL-027) */
+  totalNetReceivedAmount: number;
 };
 
 /**
@@ -621,6 +627,106 @@ export function sanitizeWaiveObligationError(
     }
     if (msg.includes("Incomplete command receipt")) {
       return "This waiver could not be confirmed. Refresh the page to check the obligation's status before retrying.";
+    }
+  }
+  return fallbackMessage;
+}
+
+/**
+ * Standardized action result for recording a completed full-payment refund (FL-027 / T-038).
+ */
+export type RecordRefundResult =
+  | {
+      success: true;
+      refundId: string;
+      receiptId: string;
+      amount: number;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      issues?: Record<string, string[]>;
+      /** Nothing was committed, so the next attempt must use a new request key. */
+      retryWithNewKey?: boolean;
+    };
+
+/**
+ * Pure self-benefit check for recording payment refunds (FL-027 / T-038).
+ * Officers may not record refunds for their own payments.
+ */
+export function canRecordRefundForStudent(
+  actorProfileId: string | null | undefined,
+  studentId: string | null | undefined
+): boolean {
+  return Boolean(actorProfileId && studentId && actorProfileId !== studentId);
+}
+
+/**
+ * Pure eligibility check for whether a payment record can be refunded (FL-027 / T-038).
+ * Only a current, verified, unrefunded authoritative receipt record is eligible.
+ */
+export function isPaymentRefundable(
+  payment:
+    | Pick<
+        PaymentHistoryDTO,
+        "status" | "record_status" | "is_receipt_record" | "receipt_id" | "is_refunded"
+      >
+    | null
+    | undefined
+): boolean {
+  return Boolean(
+    payment &&
+      payment.record_status === "current" &&
+      payment.status === "verified" &&
+      payment.is_receipt_record &&
+      payment.receipt_id &&
+      !payment.is_refunded
+  );
+}
+
+/**
+ * Defensive error message sanitizer for completed refund recording (FL-027 / T-038).
+ * Strips database internals while surfacing actionable guidance.
+ */
+export function sanitizeRecordRefundError(
+  error: unknown,
+  fallbackMessage = "Unable to record refund. Please review the details and try again."
+): string {
+  if (!error) return fallbackMessage;
+  if (typeof error === "object" && error !== null) {
+    const err = error as { code?: string; message?: string };
+    const msg = err.message ?? "";
+    if (msg.includes("Self refund recording forbidden")) {
+      return "Officers are not permitted to record refunds for their own payments.";
+    }
+    if (msg.includes("Receipt already refunded") || err.code === "23505") {
+      return "This payment receipt has already been refunded. Refresh the page to see its latest status.";
+    }
+    if (msg.includes("Only verified payments can be refunded")) {
+      return "Only verified payments can be refunded.";
+    }
+    if (msg.includes("Invalid receipt/refund chronology")) {
+      return "The refund date and time cannot be earlier than when the payment was received.";
+    }
+    if (msg.includes("Payment receipt not found")) {
+      return "This payment receipt could not be found. Refresh the page and try again.";
+    }
+    if (msg.includes("Actual completed refund time/reason/confirmation required")) {
+      return "Provide a valid refund date and time, reason, and confirmation that the full refund was returned.";
+    }
+    if (
+      err.code === "42501" ||
+      msg.includes("Council action not authorized") ||
+      msg.includes("Refund not authorized")
+    ) {
+      return "You are not authorized to record payment refunds.";
+    }
+    if (msg.includes("Request key reused")) {
+      return "This refund request conflicted with a previous attempt. Please try again.";
+    }
+    if (msg.includes("Incomplete command receipt")) {
+      return "This refund could not be confirmed. Refresh the page to check the payment's status before retrying.";
     }
   }
   return fallbackMessage;

@@ -62,6 +62,61 @@ export type RefundStandingRecord = {
   reason?: string | null;
 };
 
+export type PaymentMoneyTotalRecord = {
+  record_status: string;
+  is_receipt_record: boolean;
+  receipt_id: string | null;
+  amount: number | string;
+  is_refunded?: boolean;
+  semester_id?: string;
+};
+
+/**
+ * Calculates retained money totals (gross received, refunds, net received) from
+ * payment records without double-counting superseded corrections or duplicate links (FL-027 / T-038).
+ *
+ * Rules:
+ * - Only current authoritative receipt records (`record_status === "current" && is_receipt_record && receipt_id`)
+ *   count toward Gross Received, deduplicated by `receipt_id`.
+ * - Each refunded authoritative receipt counts its full amount toward Refunds
+ *   (via `is_refunded`).
+ * - Net Received = Gross Received - Refunds, using integer cents arithmetic.
+ */
+export function calculatePaymentMoneyTotals(
+  payments: ReadonlyArray<PaymentMoneyTotalRecord>
+): {
+  totalGrossReceivedAmount: number;
+  totalRefundedAmount: number;
+  totalNetReceivedAmount: number;
+} {
+  let grossReceivedCents = 0;
+  let refundedCents = 0;
+  const seenReceiptIds = new Set<string>();
+
+  for (const p of payments) {
+    if (p.record_status !== "current" || !p.is_receipt_record || !p.receipt_id) {
+      continue;
+    }
+    if (seenReceiptIds.has(p.receipt_id)) {
+      continue;
+    }
+    seenReceiptIds.add(p.receipt_id);
+
+    const cents = toCents(Number(p.amount));
+    grossReceivedCents += cents;
+
+    if (p.is_refunded) {
+      refundedCents += cents;
+    }
+  }
+
+  return {
+    totalGrossReceivedAmount: fromCents(grossReceivedCents),
+    totalRefundedAmount: fromCents(refundedCents),
+    totalNetReceivedAmount: fromCents(grossReceivedCents - refundedCents),
+  };
+}
+
 /**
  * Pure evaluation of a single obligation's standing status.
  * Order of precedence:
@@ -247,9 +302,11 @@ export function scopeFinancialRecordsForSemester({
 export function calculateStudentFinancialSummary({
   obligationsWithStanding,
   targetSemesterId,
+  payments = [],
 }: {
   obligationsWithStanding: ObligationWithStandingDTO[];
   targetSemesterId?: string | null;
+  payments?: ReadonlyArray<PaymentMoneyTotalRecord>;
 }): StudentFinancialSummaryDTO {
   let grossCents = 0;
   let waivedCents = 0;
@@ -287,6 +344,12 @@ export function calculateStudentFinancialSummary({
   }
 
   const totalOutstandingCents = currentPayableCents + priorOverdueCents;
+  // Carryover obligations bring older payments along; money totals count only the selected term's receipts.
+  const moneyTotals = calculatePaymentMoneyTotals(
+    targetSemesterId
+      ? payments.filter((p) => !p.semester_id || p.semester_id === targetSemesterId)
+      : payments
+  );
 
   return {
     totalOutstandingPayable: fromCents(totalOutstandingCents),
@@ -296,6 +359,7 @@ export function calculateStudentFinancialSummary({
     totalPendingVerificationAmount: fromCents(pendingCents),
     totalWaivedAmount: fromCents(waivedCents),
     totalGrossObligationsAmount: fromCents(grossCents),
+    ...moneyTotals,
   };
 }
 

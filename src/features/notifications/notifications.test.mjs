@@ -8,7 +8,7 @@ import { notificationIdSchema } from "./schemas.ts";
 describe("Notification kinds & route mappings", () => {
   test("matches the database trigger allowlist", () => {
     const guard = readFileSync(
-      new URL("../../../supabase/migrations/20261122100000_selfie_attendance_claims.sql", import.meta.url),
+      new URL("../../../supabase/migrations/20261123160600_record_refund_notice_and_guards.sql", import.meta.url),
       "utf8",
     );
     const allowlist = guard.match(/new\.kind not in \(([^)]*)\)/)[1].match(/'([^']+)'/g).map((s) => s.slice(1, -1));
@@ -22,7 +22,13 @@ describe("Notification kinds & route mappings", () => {
   });
 
   test("maps obligation and payment outcomes to /student/fees-and-fines", () => {
-    for (const kind of ["obligation_due", "obligation_waived", "payment_verified", "payment_rejected"]) {
+    for (const kind of [
+      "obligation_due",
+      "obligation_waived",
+      "payment_verified",
+      "payment_rejected",
+      "payment_refunded",
+    ]) {
       const meta = getNotificationMeta(kind);
       assert.equal(meta.href, "/student/fees-and-fines");
       assert.equal(meta.category, "finance");

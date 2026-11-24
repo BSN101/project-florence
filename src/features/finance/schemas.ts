@@ -282,3 +282,26 @@ export const waiveObligationSchema = z.object({
 
 export type WaiveObligationInput = z.infer<typeof waiveObligationSchema>;
 
+const refundReason = z
+  .string()
+  .trim()
+  .min(1, "Enter the reason for the refund")
+  .max(500, "Reason cannot exceed 500 characters");
+
+/**
+ * Input validation for recording a completed full-payment refund (FL-027 / T-038).
+ * Covers actual full external refunds only; the database re-checks chronology,
+ * receipt uniqueness, and verified payment status.
+ */
+export const recordRefundSchema = z.object({
+  receiptId: z.string().uuid("Invalid payment receipt identifier"),
+  refundedAt: decisionMoment("Invalid refund date and time"),
+  reason: refundReason,
+  factsConfirmed: z.literal(true, {
+    error: "Confirm that the full refund has already been returned",
+  }),
+  requestKey: z.string().uuid("Invalid request key"),
+});
+
+export type RecordRefundInput = z.infer<typeof recordRefundSchema>;
+

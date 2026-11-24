@@ -415,6 +415,7 @@ async function fetchStudentFinancialAccountData({
   const summary = calculateStudentFinancialSummary({
     obligationsWithStanding: scoped.obligations,
     targetSemesterId,
+    payments: scoped.payments,
   });
 
   return {
