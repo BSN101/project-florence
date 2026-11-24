@@ -522,8 +522,10 @@ describe("Task T-038 / FL-027: Completed Refund Recording Rules", () => {
       assert.equal(summary.priorSemestersOverduePayable, 250);
       assert.equal(summary.totalOutstandingPayable, 250);
       assert.equal(summary.totalWaivedAmount, 100);
-      assert.equal(summary.totalGrossReceivedAmount, 350);
-      assert.equal(summary.totalRefundedAmount, 350);
+      // The prior-term refunded receipt rolls in with its carryover obligation but not into this term's money totals.
+      assert.ok(scoped.payments.some((p) => p.receipt_id === receiptId2));
+      assert.equal(summary.totalGrossReceivedAmount, 100);
+      assert.equal(summary.totalRefundedAmount, 100);
       assert.equal(summary.totalNetReceivedAmount, 0);
     });
   });

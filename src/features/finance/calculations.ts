@@ -68,6 +68,7 @@ export type PaymentMoneyTotalRecord = {
   receipt_id: string | null;
   amount: number | string;
   is_refunded?: boolean;
+  semester_id?: string;
 };
 
 /**
@@ -346,7 +347,12 @@ export function calculateStudentFinancialSummary({
   }
 
   const totalOutstandingCents = currentPayableCents + priorOverdueCents;
-  const moneyTotals = calculatePaymentMoneyTotals(payments, refundedReceiptIds);
+  // Carryover obligations bring older payments along; money totals count only the selected term's receipts.
+  const moneyTotals = calculatePaymentMoneyTotals(
+    targetSemesterId
+      ? payments.filter((p) => !p.semester_id || p.semester_id === targetSemesterId)
+      : payments
+  );
 
   return {
     totalOutstandingPayable: fromCents(totalOutstandingCents),
