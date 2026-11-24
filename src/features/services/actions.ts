@@ -287,53 +287,29 @@ export async function endServiceSessionAction(
 
   const { requestKey, sessionId } = parsed.data;
   const client = createCommandClient();
-  let resultData: {
-    sessionId: string;
-    endedAt: string;
-    completedCount: number;
-    creditCount: number;
-  } | null = null;
+  let data: unknown;
 
   try {
-    const { data, error } = await client.rpc("end_service_session", {
+    const result = await client.rpc("end_service_session", {
       p_key: requestKey,
       p_actor: actorId,
       p_session: sessionId,
     });
+    data = result.data;
 
-    if (error) {
+    if (result.error) {
+      // supabase-js returns (not throws) fetch failures as an error without a Postgres code;
+      // the commit may already have happened, so the same request key must be replayed.
+      if (!result.error.code) {
+        return {
+          success: false,
+          error: "Unable to reach the server. If finalization was recorded, retrying will safely return the result.",
+          retryable: true,
+        };
+      }
       return {
         success: false,
-        error: formatRpcError(
-          error.message,
-          "Unable to finalize service session. Try again."
-        ),
-      };
-    }
-
-    if (
-      typeof data === "object" &&
-      data !== null &&
-      "session_id" in data &&
-      typeof (data as Record<string, unknown>).session_id === "string" &&
-      "ended_at" in data &&
-      typeof (data as Record<string, unknown>).ended_at === "string" &&
-      "completed_count" in data &&
-      typeof (data as Record<string, unknown>).completed_count === "number" &&
-      "credit_count" in data &&
-      typeof (data as Record<string, unknown>).credit_count === "number"
-    ) {
-      const d = data as {
-        session_id: string;
-        ended_at: string;
-        completed_count: number;
-        credit_count: number;
-      };
-      resultData = {
-        sessionId: d.session_id,
-        endedAt: d.ended_at,
-        completedCount: d.completed_count,
-        creditCount: d.credit_count,
+        error: formatRpcError(result.error.message, "Unable to finalize service session. Try again."),
       };
     }
   } catch {
@@ -344,14 +320,7 @@ export async function endServiceSessionAction(
     };
   }
 
-  if (!resultData) {
-    return {
-      success: false,
-      error: "Service session was finalized but response data was incomplete. Please refresh.",
-    };
-  }
-
-  // Revalidate faculty service sessions and all affected disciplinary/clearance/notification routes
+  // The RPC committed: revalidate before inspecting the response so other pages never go stale.
   revalidatePath("/faculty/service-sessions");
   revalidatePath("/student/merits-demerits-and-services");
   revalidatePath("/student");
@@ -362,12 +331,27 @@ export async function endServiceSessionAction(
   revalidatePath("/faculty/rle-clearance");
   revalidatePath("/faculty");
 
+  const d = (data ?? {}) as Record<string, unknown>;
+  const completedCount = Number(d.completed_count);
+  const creditCount = Number(d.credit_count);
+  if (
+    typeof d.session_id !== "string" ||
+    typeof d.ended_at !== "string" ||
+    !Number.isFinite(completedCount) ||
+    !Number.isFinite(creditCount)
+  ) {
+    return {
+      success: false,
+      error: "Service session was finalized but response data was incomplete. Please refresh.",
+    };
+  }
+
   return {
     success: true,
-    sessionId: resultData.sessionId,
-    endedAt: resultData.endedAt,
-    completedCount: resultData.completedCount,
-    creditCount: resultData.creditCount,
+    sessionId: d.session_id,
+    endedAt: d.ended_at,
+    completedCount,
+    creditCount,
   };
 }
 
