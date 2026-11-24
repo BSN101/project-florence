@@ -5,12 +5,14 @@ import {
   allowedServiceBuckets,
   canCreateServiceSession,
   canManageSession,
+  canRevokeServiceCredit,
   canShowFinalizeSession,
   combineDateAndTimeManila,
   countServiceParticipants,
   evaluateAttendanceStatus,
   evaluateFinalizationEligibility,
   extractTimeHHmmManila,
+  formatManilaDateTime,
   isParticipantFinalizationValid,
   isTimeWithinWindow,
   withFinalizationCounts,
@@ -19,6 +21,7 @@ import {
   createServiceSessionSchema,
   endServiceSessionSchema,
   participantAttendanceRowSchema,
+  revokeServiceCreditSchema,
   serviceBucketSchema,
   setServiceParticipantsSchema,
 } from "./schemas.ts";
@@ -1131,4 +1134,274 @@ test("endServiceSessionSchema validates request key and session identifier", () 
   });
   assert.equal(missingSession.success, false);
 });
+
+// ============================================================================
+// 7. Service Credit Revocation Eligibility, Counts & Schema (FL-039 / T-051)
+// ============================================================================
+
+test("canRevokeServiceCredit enforces ended session, matching instructor role, issuer ownership, non-self, and unrevoked credit", () => {
+  const endedOfficeSession = {
+    ended_at: "2026-11-25T17:02:00+08:00",
+    bucket: "office",
+  };
+  const endedRleSession = {
+    ended_at: "2026-11-25T17:02:00+08:00",
+    bucket: "rle",
+  };
+  const activeCredit = {
+    id: "33333333-3333-4333-8333-333333333333",
+    issued_at: "2026-11-25T17:02:00+08:00",
+    revoked_at: null,
+    revocation_reason: null,
+    issued_by_me: true,
+  };
+  const eligibleParticipant = {
+    student_id: STUDENT_A,
+    credit: activeCredit,
+  };
+
+  // Eligible cases: Academic Instructor on office, Clinical Instructor on rle, dual-role on either
+  assert.equal(
+    canRevokeServiceCredit(endedOfficeSession, eligibleParticipant, ACTOR_ID, ["Academic Instructor"]),
+    true
+  );
+  assert.equal(
+    canRevokeServiceCredit(endedOfficeSession, eligibleParticipant, ACTOR_ID, [
+      "Academic Instructor",
+      "Academic Coordinator",
+    ]),
+    true
+  );
+  assert.equal(
+    canRevokeServiceCredit(endedRleSession, eligibleParticipant, ACTOR_ID, ["Clinical Instructor"]),
+    true
+  );
+  assert.equal(
+    canRevokeServiceCredit(endedRleSession, eligibleParticipant, ACTOR_ID, [
+      "Academic Instructor",
+      "Clinical Instructor",
+    ]),
+    true
+  );
+
+  // Open session (ended_at === null) cannot have credits revoked
+  assert.equal(
+    canRevokeServiceCredit(
+      { ...endedOfficeSession, ended_at: null },
+      eligibleParticipant,
+      ACTOR_ID,
+      ["Academic Instructor"]
+    ),
+    false
+  );
+
+  // Mismatched or missing instructor role (including Coordinator-only without matching instructor role)
+  assert.equal(
+    canRevokeServiceCredit(endedOfficeSession, eligibleParticipant, ACTOR_ID, ["Clinical Instructor"]),
+    false
+  );
+  assert.equal(
+    canRevokeServiceCredit(endedOfficeSession, eligibleParticipant, ACTOR_ID, ["Academic Coordinator"]),
+    false
+  );
+  assert.equal(
+    canRevokeServiceCredit(endedRleSession, eligibleParticipant, ACTOR_ID, ["RLE Coordinator"]),
+    false
+  );
+
+  // Self credit mutation forbidden (student_id === actorId)
+  assert.equal(
+    canRevokeServiceCredit(
+      endedOfficeSession,
+      { ...eligibleParticipant, student_id: ACTOR_ID },
+      ACTOR_ID,
+      ["Academic Instructor"]
+    ),
+    false
+  );
+
+  // Zero-credit retained or excluded participant (credit === null or undefined)
+  assert.equal(
+    canRevokeServiceCredit(
+      endedOfficeSession,
+      { student_id: STUDENT_A, credit: null },
+      ACTOR_ID,
+      ["Academic Instructor"]
+    ),
+    false
+  );
+
+  // Already revoked credit (revoked_at !== null)
+  assert.equal(
+    canRevokeServiceCredit(
+      endedOfficeSession,
+      {
+        student_id: STUDENT_A,
+        credit: {
+          ...activeCredit,
+          revoked_at: "2026-11-26T09:00:00+08:00",
+          revocation_reason: "Recorded against wrong student",
+        },
+      },
+      ACTOR_ID,
+      ["Academic Instructor"]
+    ),
+    false
+  );
+
+  // Credit issued by another instructor (issued_by_me === false or omitted)
+  assert.equal(
+    canRevokeServiceCredit(
+      endedOfficeSession,
+      {
+        student_id: STUDENT_A,
+        credit: { ...activeCredit, issued_by_me: false },
+      },
+      ACTOR_ID,
+      ["Academic Instructor"]
+    ),
+    false
+  );
+  assert.equal(
+    canRevokeServiceCredit(
+      endedOfficeSession,
+      {
+        student_id: STUDENT_A,
+        credit: {
+          id: activeCredit.id,
+          issued_at: activeCredit.issued_at,
+          revoked_at: null,
+          revocation_reason: null,
+        },
+      },
+      ACTOR_ID,
+      ["Academic Instructor"]
+    ),
+    false
+  );
+});
+
+test("withFinalizationCounts records revokedCreditCount while keeping creditCount and zeroCreditCount invariant", () => {
+  const baseCounts = {
+    total: 5,
+    presentOnTime: 3,
+    late: 1,
+    inProgress: 0,
+    missingTimeIn: 0,
+    missingTimeOut: 0,
+    notRecorded: 0,
+    excluded: 1,
+  };
+
+  // Default revokedCreditCount is 0 when omitted
+  const initial = withFinalizationCounts(baseCounts, 3);
+  assert.equal(initial.completedCount, 4);
+  assert.equal(initial.creditCount, 3);
+  assert.equal(initial.revokedCreditCount, 0);
+  assert.equal(initial.zeroCreditCount, 1);
+
+  // After 1 of 3 issued credits is revoked, creditCount stays 3 and zeroCreditCount stays 1 (never drifts to 2)
+  const afterRevoke = withFinalizationCounts(baseCounts, 3, 1);
+  assert.equal(afterRevoke.completedCount, 4);
+  assert.equal(afterRevoke.creditCount, 3);
+  assert.equal(afterRevoke.revokedCreditCount, 1);
+  assert.equal(afterRevoke.zeroCreditCount, 1);
+});
+
+test("formatManilaDateTime formats ISO timestamps in Asia/Manila and handles empty or invalid inputs", () => {
+  // 2026-11-25T09:05:00Z is 5:05 PM in Asia/Manila (+08:00)
+  const formatted = formatManilaDateTime("2026-11-25T09:05:00Z");
+  assert.match(formatted, /2026/);
+  assert.match(formatted, /5:05/);
+
+  assert.equal(formatManilaDateTime(null), "—");
+  assert.equal(formatManilaDateTime(undefined), "—");
+  assert.equal(formatManilaDateTime(""), "—");
+  assert.equal(formatManilaDateTime("not-a-timestamp"), "—");
+});
+
+test("revokeServiceCreditSchema validates UUIDs and enforces 3 to 500 trimmed reason characters", () => {
+  const validCreditId = "33333333-3333-4333-8333-333333333333";
+
+  // 1. Valid payload with trimming and boundary lengths (3 and 500 chars)
+  const parsed = revokeServiceCreditSchema.safeParse({
+    requestKey: VALID_KEY,
+    creditId: validCreditId,
+    reason: "  Attendance logged under wrong duty session.  ",
+  });
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.equal(parsed.data.requestKey, VALID_KEY);
+    assert.equal(parsed.data.creditId, validCreditId);
+    assert.equal(parsed.data.reason, "Attendance logged under wrong duty session.");
+  }
+
+  assert.equal(
+    revokeServiceCreditSchema.safeParse({
+      requestKey: VALID_KEY,
+      creditId: validCreditId,
+      reason: "abc",
+    }).success,
+    true
+  );
+  assert.equal(
+    revokeServiceCreditSchema.safeParse({
+      requestKey: VALID_KEY,
+      creditId: validCreditId,
+      reason: "x".repeat(500),
+    }).success,
+    true
+  );
+
+  // 2. Rejects invalid requestKey and creditId
+  const badKey = revokeServiceCreditSchema.safeParse({
+    requestKey: "bad-key",
+    creditId: validCreditId,
+    reason: "Valid revocation reason",
+  });
+  assert.equal(badKey.success, false);
+  if (!badKey.success) {
+    assert.equal(badKey.error.issues[0]?.message, "Invalid request key.");
+  }
+
+  const badCredit = revokeServiceCreditSchema.safeParse({
+    requestKey: VALID_KEY,
+    creditId: "bad-credit",
+    reason: "Valid revocation reason",
+  });
+  assert.equal(badCredit.success, false);
+  if (!badCredit.success) {
+    assert.equal(badCredit.error.issues[0]?.message, "Invalid service credit identifier.");
+  }
+
+  // 3. Rejects blank, whitespace-only, < 3 trimmed chars, and > 500 chars
+  for (const shortReason of ["", "   ", "ab", "  ab  "]) {
+    const shortRes = revokeServiceCreditSchema.safeParse({
+      requestKey: VALID_KEY,
+      creditId: validCreditId,
+      reason: shortReason,
+    });
+    assert.equal(shortRes.success, false);
+    if (!shortRes.success) {
+      assert.equal(
+        shortRes.error.issues[0]?.message,
+        "Revocation reason must be at least 3 characters."
+      );
+    }
+  }
+
+  const tooLong = revokeServiceCreditSchema.safeParse({
+    requestKey: VALID_KEY,
+    creditId: validCreditId,
+    reason: "x".repeat(501),
+  });
+  assert.equal(tooLong.success, false);
+  if (!tooLong.success) {
+    assert.equal(
+      tooLong.error.issues[0]?.message,
+      "Revocation reason cannot exceed 500 characters."
+    );
+  }
+});
+
 
