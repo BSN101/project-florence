@@ -249,7 +249,9 @@ export function CorrectPaymentDialog({
               ) : (
                 <ul className="space-y-2">
                   {options.map((item) => {
-                    const selectable = isSelectable(item);
+                    const checked = selectedIds.includes(item.id);
+                    // A blocked item that starts ticked can still be unticked, never re-ticked.
+                    const selectable = isSelectable(item) || checked;
                     return (
                       <li key={item.id}>
                         <label
@@ -260,7 +262,7 @@ export function CorrectPaymentDialog({
                         >
                           <input
                             type="checkbox"
-                            checked={selectedIds.includes(item.id)}
+                            checked={checked}
                             disabled={!selectable}
                             onChange={(e) => toggle(item.id, e.target.checked)}
                             className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
