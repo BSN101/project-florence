@@ -16,7 +16,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BucketBadge } from "@/features/discipline/components/disciplinary-badges";
 import { cn } from "@/lib/utils";
-import { extractTimeHHmmManila } from "../calculations";
+import { extractTimeHHmmManila, formatDutyDate } from "../calculations";
 import type {
   AvailableServiceStudent,
   FinalizationEligibility,
@@ -27,26 +27,11 @@ import { FinalizeSessionDialog } from "./finalize-session-dialog";
 import { SessionStatusBadge } from "./service-badges";
 import { SessionParticipantTable } from "./session-participant-table";
 
-const MANILA_DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  dateStyle: "medium",
-});
-
 const MANILA_DATETIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila",
   dateStyle: "medium",
   timeStyle: "short",
 });
-
-function formatDutyDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—";
-  try {
-    const iso = dateStr.includes("T") ? dateStr : `${dateStr}T00:00:00+08:00`;
-    return MANILA_DATE_FORMATTER.format(new Date(iso));
-  } catch {
-    return dateStr;
-  }
-}
 
 function formatManilaDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
