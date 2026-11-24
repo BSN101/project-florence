@@ -23,7 +23,7 @@ import type {
   ServiceSessionRecord,
 } from "../contracts";
 import { setServiceParticipantsSchema } from "../schemas";
-import { AttendanceStatusBadge } from "./service-badges";
+import { AttendanceStatusBadge, ParticipantCreditBadge } from "./service-badges";
 
 type RowDraft = {
   timeInHHmm: string;
@@ -429,6 +429,11 @@ export function SessionParticipantTable({
                   <th scope="col" className="px-3 py-2.5">
                     Status
                   </th>
+                  {session.ended_at !== null && (
+                    <th scope="col" className="px-3 py-2.5">
+                      Credit Outcome
+                    </th>
+                  )}
                   <th scope="col" className="px-3 py-2.5 min-w-[190px]">
                     Time-In
                   </th>
@@ -445,7 +450,10 @@ export function SessionParticipantTable({
               <tbody className="divide-y divide-border">
                 {visibleParticipants.length === 0 && (
                   <tr>
-                    <td colSpan={canManage ? 7 : 6} className="px-3 py-6 text-center text-muted-foreground">
+                    <td
+                      colSpan={4 + 2 + (session.ended_at !== null ? 1 : 0) + (canManage ? 1 : 0)}
+                      className="px-3 py-6 text-center text-muted-foreground"
+                    >
                       No participants match your search.
                     </td>
                   </tr>
@@ -489,6 +497,13 @@ export function SessionParticipantTable({
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <AttendanceStatusBadge status={previewStatus} />
                       </td>
+
+                      {/* Post-Finalization Credit Outcome */}
+                      {session.ended_at !== null && (
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <ParticipantCreditBadge credit={p.credit} status={previewStatus} />
+                        </td>
+                      )}
 
                       {/* Time-In */}
                       <td className="px-3 py-2.5 whitespace-nowrap">

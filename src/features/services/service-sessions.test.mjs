@@ -5,14 +5,19 @@ import {
   allowedServiceBuckets,
   canCreateServiceSession,
   canManageSession,
+  canShowFinalizeSession,
   combineDateAndTimeManila,
   countServiceParticipants,
   evaluateAttendanceStatus,
+  evaluateFinalizationEligibility,
   extractTimeHHmmManila,
+  isParticipantFinalizationValid,
   isTimeWithinWindow,
+  withFinalizationCounts,
 } from "./calculations.ts";
 import {
   createServiceSessionSchema,
+  endServiceSessionSchema,
   participantAttendanceRowSchema,
   serviceBucketSchema,
   setServiceParticipantsSchema,
@@ -604,3 +609,526 @@ test("setServiceParticipantsSchema rejects duplicate students and enforces batch
     assert.deepEqual(issue.path, ["rows", 1, "studentId"]);
   }
 });
+
+// ============================================================================
+// 5. Session Finalization Evaluation & Eligibility (calculations.ts)
+// ============================================================================
+
+test("canShowFinalizeSession requires open owned session, matching role, and complete attendance in past semesters", () => {
+  const base = { created_by: ACTOR_ID, ended_at: null, bucket: "office" };
+  const office = ["Academic Instructor"];
+
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, true, 0), true);
+  // Current semester: incomplete attendance is fixable, so the dialog is still offered
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, true, 2), true);
+  // Past semester: shown only when nothing is incomplete (attendance cannot be edited)
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, false, 0), true);
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, false, 1), false);
+  // Dual role covers both buckets
+  assert.equal(
+    canShowFinalizeSession({ ...base, bucket: "rle" }, ACTOR_ID, ["Academic Instructor", "Clinical Instructor"], true, 0),
+    true
+  );
+  // Ended, non-owner, mismatched track, coordinator-only
+  assert.equal(canShowFinalizeSession({ ...base, ended_at: "2026-11-25T17:01:00+08:00" }, ACTOR_ID, office, true, 0), false);
+  assert.equal(canShowFinalizeSession(base, "88888888-8888-4888-8888-888888888888", office, true, 0), false);
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, ["Clinical Instructor"], true, 0), false);
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, ["Academic Coordinator"], true, 0), false);
+});
+
+test("isParticipantFinalizationValid validates attendance completeness, timing windows, and non-self duty", () => {
+  const session = {
+    created_by: ACTOR_ID,
+    time_in_from: "2026-11-25T07:30:00+08:00",
+    time_in_until: "2026-11-25T09:00:00+08:00",
+    time_out_from: "2026-11-25T16:30:00+08:00",
+    time_out_until: "2026-11-25T18:00:00+08:00",
+  };
+  const now = "2026-11-25T17:15:00+08:00";
+
+  // Valid on-time participant
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:00:00+08:00",
+        time_out: "2026-11-25T17:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    true
+  );
+
+  // Valid late participant (FL-038: lateness never blocks completion or credit)
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:45:00+08:00",
+        time_out: "2026-11-25T17:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    true
+  );
+
+  // Self-attendance is strictly blocked (student_id === session.created_by)
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: ACTOR_ID,
+        time_in: "2026-11-25T08:00:00+08:00",
+        time_out: "2026-11-25T17:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+
+  // Missing time_in
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: null,
+        time_out: "2026-11-25T17:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+
+  // Missing time_out
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:00:00+08:00",
+        time_out: null,
+      },
+      session,
+      now
+    ),
+    false
+  );
+
+  // time_in outside window [time_in_from, time_in_until]
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T07:29:59+08:00",
+        time_out: "2026-11-25T17:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T09:00:01+08:00",
+        time_out: "2026-11-25T17:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+
+  // time_out outside window [time_out_from, time_out_until]
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:00:00+08:00",
+        time_out: "2026-11-25T16:29:59+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:00:00+08:00",
+        time_out: "2026-11-25T18:00:01+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+
+  // Future timestamps relative to nowIso (> nowIso)
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:00:01+08:00",
+        time_out: "2026-11-25T17:00:00+08:00",
+      },
+      session,
+      "2026-11-25T08:00:00+08:00"
+    ),
+    false
+  );
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:00:00+08:00",
+        time_out: "2026-11-25T17:00:01+08:00",
+      },
+      session,
+      "2026-11-25T17:00:00+08:00"
+    ),
+    false
+  );
+
+  // time_out <= time_in
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T08:00:00+08:00",
+        time_out: "2026-11-25T08:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+  assert.equal(
+    isParticipantFinalizationValid(
+      {
+        student_id: STUDENT_A,
+        time_in: "2026-11-25T17:00:00+08:00",
+        time_out: "2026-11-25T08:00:00+08:00",
+      },
+      session,
+      now
+    ),
+    false
+  );
+});
+
+test("evaluateFinalizationEligibility enforces strict reason priority and handles participant states", () => {
+  const fullSession = {
+    created_by: ACTOR_ID,
+    ended_at: null,
+    bucket: "office",
+    duty_on: "2026-11-25",
+    scheduled_start: "2026-11-25T08:00:00+08:00",
+    scheduled_end: "2026-11-25T17:00:00+08:00",
+    time_in_from: "2026-11-25T07:30:00+08:00",
+    time_in_until: "2026-11-25T09:00:00+08:00",
+    time_out_from: "2026-11-25T16:30:00+08:00",
+    time_out_until: "2026-11-25T18:00:00+08:00",
+  };
+  const nowAfterEnd = "2026-11-25T17:05:00+08:00";
+  const nowBeforeEnd = "2026-11-25T16:55:00+08:00";
+
+  // Priority 1: Already ended takes precedence over non-owner, wrong role, before end, and incomplete participants
+  const res1 = evaluateFinalizationEligibility(
+    { ...fullSession, ended_at: "2026-11-25T17:01:00+08:00", created_by: "someone-else" },
+    [],
+    ACTOR_ID,
+    [],
+    nowBeforeEnd
+  );
+  assert.equal(res1.canFinalize, false);
+  assert.equal(res1.reason, "Service session has already been finalized.");
+
+  // Priority 2: Non-owner takes precedence over wrong role, before end, and incomplete participants
+  const res2 = evaluateFinalizationEligibility(
+    { ...fullSession, created_by: "someone-else" },
+    [],
+    ACTOR_ID,
+    [],
+    nowBeforeEnd
+  );
+  assert.equal(res2.canFinalize, false);
+  assert.equal(res2.reason, "Only the instructor who created this service session may finalize it.");
+
+  // Priority 3: Missing matching instructor role takes precedence over before end and incomplete participants
+  const res3Office = evaluateFinalizationEligibility(
+    fullSession,
+    [],
+    ACTOR_ID,
+    ["Clinical Instructor"],
+    nowBeforeEnd
+  );
+  assert.equal(res3Office.canFinalize, false);
+  assert.equal(
+    res3Office.reason,
+    "An active instructor assignment for the Office track is required."
+  );
+
+  const res3Rle = evaluateFinalizationEligibility(
+    { ...fullSession, bucket: "rle" },
+    [],
+    ACTOR_ID,
+    ["Academic Instructor"],
+    nowBeforeEnd
+  );
+  assert.equal(res3Rle.canFinalize, false);
+  assert.equal(
+    res3Rle.reason,
+    "An active instructor assignment for the RLE track is required."
+  );
+
+  // Priority 4: Before scheduled end (isPastScheduledEnd: false) takes precedence over incomplete participants
+  const incompleteParticipant1 = {
+    student_id: STUDENT_A,
+    time_in: null,
+    time_out: null,
+    excluded_at: null,
+  };
+  const res4 = evaluateFinalizationEligibility(
+    fullSession,
+    [incompleteParticipant1],
+    ACTOR_ID,
+    ["Academic Instructor"],
+    nowBeforeEnd
+  );
+  assert.equal(res4.canFinalize, false);
+  assert.equal(res4.isPastScheduledEnd, false);
+  assert.equal(
+    res4.reason,
+    "Session is still in progress. Finalization opens at scheduled end (17:00)."
+  );
+
+  // Priority 5: Incomplete / invalid participants when past scheduled end
+  // Singular message (1 incomplete participant)
+  const res5Singular = evaluateFinalizationEligibility(
+    fullSession,
+    [incompleteParticipant1],
+    ACTOR_ID,
+    ["Academic Instructor"],
+    nowAfterEnd
+  );
+  assert.equal(res5Singular.canFinalize, false);
+  assert.equal(res5Singular.isPastScheduledEnd, true);
+  assert.equal(res5Singular.incompleteCount, 1);
+  assert.equal(
+    res5Singular.reason,
+    "1 included participant has incomplete or invalid attendance timestamps."
+  );
+
+  // Plural message (2 incomplete participants)
+  const incompleteParticipant2 = {
+    student_id: STUDENT_B,
+    time_in: "2026-11-25T08:00:00+08:00",
+    time_out: null,
+    excluded_at: null,
+  };
+  const res5Plural = evaluateFinalizationEligibility(
+    fullSession,
+    [incompleteParticipant1, incompleteParticipant2],
+    ACTOR_ID,
+    ["Academic Instructor"],
+    nowAfterEnd
+  );
+  assert.equal(res5Plural.canFinalize, false);
+  assert.equal(res5Plural.isPastScheduledEnd, true);
+  assert.equal(res5Plural.incompleteCount, 2);
+  assert.equal(
+    res5Plural.reason,
+    "2 included participants have incomplete or invalid attendance timestamps."
+  );
+
+  // Success cases (canFinalize: true, reason: null)
+  // 1. Mixed on-time, late, and excluded participants (excluded with missing timestamps does NOT block)
+  const onTimeP = {
+    student_id: STUDENT_A,
+    time_in: "2026-11-25T08:00:00+08:00",
+    time_out: "2026-11-25T17:00:00+08:00",
+    excluded_at: null,
+  };
+  const lateP = {
+    student_id: STUDENT_B,
+    time_in: "2026-11-25T08:30:00+08:00",
+    time_out: "2026-11-25T17:00:00+08:00",
+    excluded_at: null,
+  };
+  const excludedP = {
+    student_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    time_in: null,
+    time_out: null,
+    excluded_at: "2026-11-25T08:00:00+08:00",
+  };
+  const successRes = evaluateFinalizationEligibility(
+    fullSession,
+    [onTimeP, lateP, excludedP],
+    ACTOR_ID,
+    ["Academic Instructor"],
+    nowAfterEnd
+  );
+  assert.equal(successRes.canFinalize, true);
+  assert.equal(successRes.reason, null);
+  assert.equal(successRes.totalCount, 3);
+  assert.equal(successRes.completedCount, 2);
+  assert.equal(successRes.incompleteCount, 0);
+  assert.equal(successRes.excludedCount, 1);
+  assert.equal(successRes.isPastScheduledEnd, true);
+
+  // 2. Zero participants ([])
+  const emptyRes = evaluateFinalizationEligibility(
+    fullSession,
+    [],
+    ACTOR_ID,
+    ["Academic Instructor"],
+    nowAfterEnd
+  );
+  assert.equal(emptyRes.canFinalize, true);
+  assert.equal(emptyRes.reason, null);
+  assert.equal(emptyRes.totalCount, 0);
+  assert.equal(emptyRes.completedCount, 0);
+  assert.equal(emptyRes.incompleteCount, 0);
+  assert.equal(emptyRes.excludedCount, 0);
+  assert.equal(emptyRes.isPastScheduledEnd, true);
+
+  // 3. All participants excluded
+  const allExcludedRes = evaluateFinalizationEligibility(
+    fullSession,
+    [excludedP],
+    ACTOR_ID,
+    ["Academic Instructor"],
+    nowAfterEnd
+  );
+  assert.equal(allExcludedRes.canFinalize, true);
+  assert.equal(allExcludedRes.reason, null);
+  assert.equal(allExcludedRes.totalCount, 1);
+  assert.equal(allExcludedRes.completedCount, 0);
+  assert.equal(allExcludedRes.incompleteCount, 0);
+  assert.equal(allExcludedRes.excludedCount, 1);
+  assert.equal(allExcludedRes.isPastScheduledEnd, true);
+});
+
+test("evaluateFinalizationEligibility blocks schedules that leave the duty date in Asia/Manila", () => {
+  const session = {
+    created_by: ACTOR_ID,
+    ended_at: null,
+    bucket: "office",
+    duty_on: "2026-11-25",
+    scheduled_start: "2026-11-25T08:00:00+08:00",
+    scheduled_end: "2026-11-25T17:00:00+08:00",
+    time_in_from: "2026-11-25T07:30:00+08:00",
+    time_in_until: "2026-11-25T09:00:00+08:00",
+    time_out_from: "2026-11-25T16:30:00+08:00",
+    time_out_until: "2026-11-25T18:00:00+08:00",
+  };
+  const now = "2026-11-26T09:00:00+08:00";
+  const roles = ["Academic Instructor"];
+
+  assert.equal(evaluateFinalizationEligibility(session, [], ACTOR_ID, roles, now).canFinalize, true);
+  // 16:30Z is 00:30 next day in Manila
+  const crossesMidnight = evaluateFinalizationEligibility(
+    { ...session, scheduled_end: "2026-11-25T16:30:00Z" }, [], ACTOR_ID, roles, now
+  );
+  assert.equal(crossesMidnight.canFinalize, false);
+  assert.match(crossesMidnight.reason, /duty date/);
+  assert.equal(
+    evaluateFinalizationEligibility({ ...session, duty_on: "2026-11-24" }, [], ACTOR_ID, roles, now).canFinalize,
+    false
+  );
+});
+
+test("withFinalizationCounts augments participant counts with credit and zero-credit metrics", () => {
+  const baseCounts = {
+    total: 6,
+    presentOnTime: 3,
+    late: 2,
+    inProgress: 0,
+    missingTimeIn: 0,
+    missingTimeOut: 0,
+    notRecorded: 0,
+    excluded: 1,
+  };
+
+  // 1. Partial credits: 5 completed, 3 received credits -> 2 zero-credit completions
+  const partial = withFinalizationCounts(baseCounts, 3);
+  assert.equal(partial.completedCount, 5);
+  assert.equal(partial.creditCount, 3);
+  assert.equal(partial.zeroCreditCount, 2);
+
+  // 2. Full credits: 5 completed, 5 received credits -> 0 zero-credit completions
+  const full = withFinalizationCounts(baseCounts, 5);
+  assert.equal(full.completedCount, 5);
+  assert.equal(full.creditCount, 5);
+  assert.equal(full.zeroCreditCount, 0);
+
+  // 3. Zero credits: 5 completed, 0 received credits -> 5 zero-credit completions
+  const zero = withFinalizationCounts(baseCounts, 0);
+  assert.equal(zero.completedCount, 5);
+  assert.equal(zero.creditCount, 0);
+  assert.equal(zero.zeroCreditCount, 5);
+
+  // 4. Clamping when issuedCreditCount > completedCount: zeroCreditCount is clamped to 0
+  const clamped = withFinalizationCounts(baseCounts, 7);
+  assert.equal(clamped.completedCount, 5);
+  assert.equal(clamped.creditCount, 7);
+  assert.equal(clamped.zeroCreditCount, 0);
+});
+
+// ============================================================================
+// 6. Session Finalization Schema (schemas.ts)
+// ============================================================================
+
+test("endServiceSessionSchema validates request key and session identifier", () => {
+  // Valid UUID inputs
+  const valid = {
+    requestKey: VALID_KEY,
+    sessionId: VALID_SESSION_ID,
+  };
+  const parsed = endServiceSessionSchema.safeParse(valid);
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.equal(parsed.data.requestKey, VALID_KEY);
+    assert.equal(parsed.data.sessionId, VALID_SESSION_ID);
+  }
+
+  // Rejects invalid and missing requestKey with custom message
+  const badKey = endServiceSessionSchema.safeParse({
+    requestKey: "not-a-uuid",
+    sessionId: VALID_SESSION_ID,
+  });
+  assert.equal(badKey.success, false);
+  if (!badKey.success) {
+    const issue = badKey.error.issues.find((i) => i.path[0] === "requestKey");
+    assert.ok(issue);
+    assert.equal(issue.message, "Invalid request key.");
+  }
+
+  const missingKey = endServiceSessionSchema.safeParse({
+    sessionId: VALID_SESSION_ID,
+  });
+  assert.equal(missingKey.success, false);
+
+  // Rejects invalid and missing sessionId with custom message
+  const badSession = endServiceSessionSchema.safeParse({
+    requestKey: VALID_KEY,
+    sessionId: "not-a-uuid",
+  });
+  assert.equal(badSession.success, false);
+  if (!badSession.success) {
+    const issue = badSession.error.issues.find((i) => i.path[0] === "sessionId");
+    assert.ok(issue);
+    assert.equal(issue.message, "Invalid session identifier.");
+  }
+
+  const missingSession = endServiceSessionSchema.safeParse({
+    requestKey: VALID_KEY,
+  });
+  assert.equal(missingSession.success, false);
+});
+

@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowLeft,
+  Award,
   CheckCircle2,
   Clock,
   Info,
@@ -15,35 +16,22 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BucketBadge } from "@/features/discipline/components/disciplinary-badges";
 import { cn } from "@/lib/utils";
-import { extractTimeHHmmManila } from "../calculations";
+import { extractTimeHHmmManila, formatDutyDate } from "../calculations";
 import type {
   AvailableServiceStudent,
+  FinalizationEligibility,
   ServiceSessionDetail as ServiceSessionDetailType,
 } from "../contracts";
 import { AddParticipantsDialog } from "./add-participants-dialog";
+import { FinalizeSessionDialog } from "./finalize-session-dialog";
 import { SessionStatusBadge } from "./service-badges";
 import { SessionParticipantTable } from "./session-participant-table";
-
-const MANILA_DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  dateStyle: "medium",
-});
 
 const MANILA_DATETIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila",
   dateStyle: "medium",
   timeStyle: "short",
 });
-
-function formatDutyDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—";
-  try {
-    const iso = dateStr.includes("T") ? dateStr : `${dateStr}T00:00:00+08:00`;
-    return MANILA_DATE_FORMATTER.format(new Date(iso));
-  } catch {
-    return dateStr;
-  }
-}
 
 function formatManilaDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -57,10 +45,18 @@ function formatManilaDateTime(iso: string | null | undefined): string {
 function getReadOnlyReason(
   endedAt: string | null,
   isCurrentSemester: boolean,
-  isOwner: boolean
+  isOwner: boolean,
+  canShowFinalize: boolean,
+  incompleteCount: number
 ): string {
   if (endedAt !== null) {
     return "This service session has ended. Participant attendance records are locked and read-only.";
+  }
+  if (!isCurrentSemester && canShowFinalize) {
+    return "You are viewing a past semester. Participant attendance cannot be edited, but this session can still be ended.";
+  }
+  if (!isCurrentSemester && isOwner && incompleteCount > 0) {
+    return "This past-semester session can't be ended because some attendance records are incomplete, and past-semester attendance can't be edited. Contact the coordinator.";
   }
   if (!isCurrentSemester) {
     return "You are viewing a past semester. Service session attendance cannot be edited.";
@@ -77,6 +73,8 @@ export function ServiceSessionDetail({
   studentsLoadFailed,
   renderedAt,
   canManage,
+  canShowFinalize,
+  eligibility,
   isOwner,
   isCurrentSemester,
   listHref,
@@ -86,6 +84,8 @@ export function ServiceSessionDetail({
   studentsLoadFailed: boolean;
   renderedAt: string;
   canManage: boolean;
+  canShowFinalize: boolean;
+  eligibility: FinalizationEligibility;
   isOwner: boolean;
   isCurrentSemester: boolean;
   listHref: string;
@@ -94,6 +94,7 @@ export function ServiceSessionDetail({
   const completedTotal = counts.presentOnTime + counts.late;
   const pendingTotal = counts.inProgress + counts.notRecorded;
   const missingTotal = counts.missingTimeIn + counts.missingTimeOut;
+  const revokedCreditCount = session.participants.filter((p) => p.credit?.revoked_at).length;
 
   return (
     <div className="space-y-6">
@@ -151,13 +152,20 @@ export function ServiceSessionDetail({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <RefreshButton renderedAt={renderedAt} />
             {canManage ? (
               <AddParticipantsDialog
                 sessionId={session.id}
                 availableStudents={availableStudents}
                 loadFailed={studentsLoadFailed}
+              />
+            ) : null}
+            {canShowFinalize ? (
+              <FinalizeSessionDialog
+                session={session}
+                eligibility={eligibility}
+                renderedAt={renderedAt}
               />
             ) : null}
           </div>
@@ -171,7 +179,7 @@ export function ServiceSessionDetail({
           className="flex items-start gap-2.5 rounded-lg border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground"
         >
           <Info className="size-4 shrink-0 text-muted-foreground mt-0.5" />
-          <span>{getReadOnlyReason(session.ended_at, isCurrentSemester, isOwner)}</span>
+          <span>{getReadOnlyReason(session.ended_at, isCurrentSemester, isOwner, canShowFinalize, eligibility.incompleteCount)}</span>
         </div>
       )}
 
@@ -213,41 +221,85 @@ export function ServiceSessionDetail({
           </CardContent>
         </Card>
 
-        {/* Card 3: In Progress / Pending */}
-        <Card className="border border-border/70 shadow-xs">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              In Progress / Pending
-            </CardTitle>
-            <Clock className="size-4 text-amber-600 dark:text-amber-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-              {pendingTotal}
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {counts.inProgress} in progress · {counts.notRecorded} not recorded
-            </p>
-          </CardContent>
-        </Card>
+        {session.ended_at === null ? (
+          <>
+            {/* Card 3 (Open): In Progress / Pending */}
+            <Card className="border border-border/70 shadow-xs">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  In Progress / Pending
+                </CardTitle>
+                <Clock className="size-4 text-amber-600 dark:text-amber-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+                  {pendingTotal}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {counts.inProgress} in progress · {counts.notRecorded} not recorded
+                </p>
+              </CardContent>
+            </Card>
 
-        {/* Card 4: Missing Timestamps */}
-        <Card className="border border-border/70 shadow-xs">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Missing Timestamps
-            </CardTitle>
-            <AlertTriangle className="size-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-              {missingTotal}
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {counts.missingTimeIn} missing in · {counts.missingTimeOut} missing out
-            </p>
-          </CardContent>
-        </Card>
+            {/* Card 4 (Open): Missing Timestamps */}
+            <Card className="border border-border/70 shadow-xs">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Missing Timestamps
+                </CardTitle>
+                <AlertTriangle className="size-4 text-destructive" />
+              </CardHeader>
+              <CardContent>
+                <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+                  {missingTotal}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {counts.missingTimeIn} missing in · {counts.missingTimeOut} missing out
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <>
+            {/* Card 3 (Ended): Credits Awarded */}
+            <Card className="border border-border/70 shadow-xs">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Credits Awarded
+                </CardTitle>
+                <Award className="size-4 text-emerald-600 dark:text-emerald-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+                  {counts.creditCount ?? 0}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {revokedCreditCount > 0
+                    ? `${revokedCreditCount} revoked · 1 credit per eligible student`
+                    : "1 credit per eligible student"}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Card 4 (Ended): Retained (0 Credit) */}
+            <Card className="border border-border/70 shadow-xs">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Retained (0 Credit)
+                </CardTitle>
+                <Users className="size-4 text-muted-foreground/70" />
+              </CardHeader>
+              <CardContent>
+                <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+                  {counts.zeroCreditCount ?? 0}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Completed with zero balance
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Participant Roster Section */}

@@ -199,3 +199,17 @@ export const setServiceParticipantsSchema = z
   });
 
 export type SetServiceParticipantsInput = z.infer<typeof setServiceParticipantsSchema>;
+
+/**
+ * Validates ending a service session (FL-038).
+ * Parameters required by PostgreSQL public.end_service_session:
+ * - requestKey: UUID idempotency key
+ * - sessionId: UUID of the service session to finalize
+ */
+export const endServiceSessionSchema = z.object({
+  requestKey: z.string().uuid("Invalid request key."),
+  sessionId: z.string().uuid("Invalid session identifier."),
+});
+
+export type EndServiceSessionInput = z.infer<typeof endServiceSessionSchema>;
+
