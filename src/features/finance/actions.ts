@@ -22,6 +22,7 @@ import {
   canDecideTransferForStudent,
   canRecordCashForStudent,
   canRecordRefundForStudent,
+  commandRolledBack,
   hasSameSemesterObligations,
   sanitizeCashPaymentError,
   sanitizePaymentAccountError,
@@ -29,6 +30,7 @@ import {
   sanitizeTransferDecisionError,
   sanitizeTransferSubmissionError,
   sanitizeWaiveObligationError,
+  UNCONFIRMED_COMMAND_MESSAGE,
 } from "./contracts";
 import {
   assertAuthorizedCouncilExecutive,
@@ -1146,7 +1148,8 @@ export async function decideTransfer(
     });
 
     if (error) {
-      // A raised RPC error rolls back the whole command, including its request key.
+      // Only a database error proves the command and its request key were rolled back; otherwise replay the same key.
+      if (!commandRolledBack(error)) return { success: false, error: UNCONFIRMED_COMMAND_MESSAGE };
       return { success: false, error: sanitizeTransferDecisionError(error), retryWithNewKey: true };
     }
 
@@ -1217,6 +1220,7 @@ export async function waiveObligation(
     });
 
     if (error) {
+      if (!commandRolledBack(error)) return { success: false, error: UNCONFIRMED_COMMAND_MESSAGE };
       return {
         success: false,
         error: sanitizeWaiveObligationError(error),
@@ -1315,6 +1319,7 @@ export async function recordRefund(
     });
 
     if (error) {
+      if (!commandRolledBack(error)) return { success: false, error: UNCONFIRMED_COMMAND_MESSAGE };
       return {
         success: false,
         error: sanitizeRecordRefundError(error),

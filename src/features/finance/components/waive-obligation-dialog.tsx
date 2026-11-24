@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { waiveObligation } from "../actions";
 import { formatPhp } from "../calculations";
-import type { ObligationWithStandingDTO } from "../contracts";
+import { UNCONFIRMED_COMMAND_MESSAGE, type ObligationWithStandingDTO } from "../contracts";
 
 /**
  * Waive an unpaid fee or fine obligation with attributable reason (FL-026 / T-037).
@@ -74,8 +74,10 @@ export function WaiveObligationDialog({
         obligationId: obligation.id,
         reason: trimmedReason,
         requestKey: key,
-      });
+      }).catch(() => null);
 
+      // A failed call to the server may still have committed, so keep the key and replay it.
+      if (!res) return setError(UNCONFIRMED_COMMAND_MESSAGE);
       if (!res.success) {
         setError(res.error);
         if (res.issues || res.retryWithNewKey) setRequestKey(null);
