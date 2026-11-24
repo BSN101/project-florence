@@ -17,7 +17,7 @@ import { isoToManilaInput, manilaInputToIso } from "@/features/events/schemas";
 import { cn } from "@/lib/utils";
 import { recordRefund } from "../actions";
 import { formatPhDate, formatPhp } from "../calculations";
-import type { PaymentHistoryDTO } from "../contracts";
+import { UNCONFIRMED_COMMAND_MESSAGE, type PaymentHistoryDTO } from "../contracts";
 
 /**
  * Record a completed full-payment refund made outside Florence (FL-027 / T-038).
@@ -111,8 +111,10 @@ export function RecordRefundDialog({
         reason: trimmedReason,
         factsConfirmed: true,
         requestKey: key,
-      });
+      }).catch(() => null);
 
+      // A failed call to the server may still have committed, so keep the key and replay it.
+      if (!res) return setError(UNCONFIRMED_COMMAND_MESSAGE);
       if (!res.success) {
         setError(res.error);
         if (res.issues || res.retryWithNewKey) setRequestKey(null);

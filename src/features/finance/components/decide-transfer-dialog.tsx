@@ -17,7 +17,7 @@ import { isoToManilaInput, manilaInputToIso } from "@/features/events/schemas";
 import { cn } from "@/lib/utils";
 import { decideTransfer, getTransferProofUrl } from "../actions";
 import { formatPhDate, formatPhp } from "../calculations";
-import type { PendingTransferReviewDTO } from "../contracts";
+import { UNCONFIRMED_COMMAND_MESSAGE, type PendingTransferReviewDTO } from "../contracts";
 import type { TransferDecisionInput } from "../schemas";
 
 type DecisionMode = TransferDecisionInput["mode"];
@@ -168,7 +168,9 @@ export function DecideTransferDialog({
     }
 
     startTransition(async () => {
-      const res = await decideTransfer(input);
+      // A failed call to the server may still have committed, so keep the key and replay it.
+      const res = await decideTransfer(input).catch(() => null);
+      if (!res) return setError(UNCONFIRMED_COMMAND_MESSAGE);
       if (!res.success) {
         setError(res.error);
         // Nothing was committed (validation or a rolled-back RPC), so the next attempt can use a new key.

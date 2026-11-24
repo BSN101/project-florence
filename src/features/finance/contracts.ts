@@ -686,6 +686,16 @@ export function isPaymentRefundable(
 }
 
 /**
+ * True only when the database answered with an error (SQLSTATE or PostgREST code), so the command
+ * and its request key were rolled back. A dropped connection or gateway page may follow a commit.
+ */
+export const commandRolledBack = (error: { code?: string } | null) =>
+  /^([0-9A-Z]{5}|PGRST\d+)$/.test(error?.code ?? "");
+
+export const UNCONFIRMED_COMMAND_MESSAGE =
+  "The connection dropped before this was confirmed. Submit again without changes to check; it won't be recorded twice.";
+
+/**
  * Defensive error message sanitizer for completed refund recording (FL-027 / T-038).
  * Strips database internals while surfacing actionable guidance.
  */
