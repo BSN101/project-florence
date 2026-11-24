@@ -258,7 +258,7 @@ export function StudentFeesAndFinesView({
               variant={activeSection === "obligations" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveSection("obligations")}
-              className="gap-2 text-xs"
+              className="gap-2 text-xs max-sm:min-h-11"
             >
               <FileText className="size-3.5" />
               <span>Obligations &amp; Dues ({data.obligations.length})</span>
@@ -271,7 +271,7 @@ export function StudentFeesAndFinesView({
               variant={activeSection === "payments" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveSection("payments")}
-              className="gap-2 text-xs"
+              className="gap-2 text-xs max-sm:min-h-11"
             >
               <History className="size-3.5" />
               <span>Payment History ({data.payments.length})</span>
