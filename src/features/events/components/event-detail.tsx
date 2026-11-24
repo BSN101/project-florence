@@ -71,8 +71,10 @@ export function EventDetail({ event, rules, attendees, claims, feedback, canMana
   /** Server render time; Refresh and every capture re-render with fresh data. */
   now: string;
 }) {
+  // Students with a waiting photo, matching the rows in the Verification tab.
+  const waiting = new Set(claims.map((c) => c.student_id)).size;
   const tabs: (readonly [EventTab, string])[] = [
-    ...(canViewAttendance ? [["attendance", "Attendance"], ["verification", `Verification${claims.length ? ` (${claims.length})` : ""}`], ["activity", "Activity"]] as const : []),
+    ...(canViewAttendance ? [["attendance", "Attendance"], ["verification", `Verification${waiting ? ` (${waiting})` : ""}`], ["activity", "Activity"]] as const : []),
     ["details", "Details"],
     ...(canManage ? [["consequences", "Consequences"], ["feedback", "Feedback"]] as const : []),
   ];
