@@ -213,6 +213,25 @@ describe("Task T-039 / FL-028: payment correction rules", () => {
       assert.equal(old.items.length, 1);
       assert.equal(current.items[0].amount, 150);
     });
+
+    test("keeps the original rejection decision through a chain of corrections", () => {
+      const chain = mapPaymentHistory({
+        payments: [
+          payment({ id: pay1, status: "rejected", record_status: "superseded", decision_reason: "Wrong account" }),
+          payment({ id: pay2, status: "rejected", record_status: "superseded", supersedes_payment_id: pay1,
+            decided_at: "2026-11-23T01:00:00Z", decision_reason: "Wrong items" }),
+          payment({ id: pay3, status: "rejected", supersedes_payment_id: pay2,
+            decided_at: "2026-11-24T01:00:00Z", decision_reason: "Wrong items again" }),
+        ],
+        refunds: [],
+      });
+      assert.equal(chain[0].original_decision, null);
+      assert.deepEqual(chain[2].original_decision, {
+        decided_at: "2026-11-20T01:00:00Z",
+        decision_reason: "Wrong account",
+      });
+      assert.equal(chain[2].decision_reason, "Wrong items again");
+    });
   });
 
   describe("previewPaymentCorrection", () => {

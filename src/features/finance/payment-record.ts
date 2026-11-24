@@ -71,17 +71,23 @@ export function describePaymentRecord(
     rows.push({ label: "Receipt no.", value: payment.receipt_id, mono: true });
   }
   rows.push({ label: payment.method === "cash" ? "Recorded" : "Submitted", value: formatPhDate(payment.submitted_at) });
-  if (payment.decided_at) rows.push({ label: "Decided", value: formatPhDate(payment.decided_at) });
   if (payment.supersedes_payment_id) {
-    // A replacement stores the correction note in decision_reason, not a rejection reason.
-    rows.push({ label: "Corrects record", value: payment.supersedes_payment_id, mono: true });
+    // A replacement stores the correction time and note in its decision fields; the original
+    // decision comes from the first record of the correction chain.
+    const original = payment.original_decision;
+    if (original?.decided_at) rows.push({ label: "Decided", value: formatPhDate(original.decided_at) });
+    if (payment.status === "rejected" && original?.decision_reason) {
+      rows.push({ label: "Reason", value: original.decision_reason });
+    }
+    if (payment.decided_at) rows.push({ label: "Corrected", value: formatPhDate(payment.decided_at) });
     if (payment.decision_reason) rows.push({ label: "Correction note", value: payment.decision_reason });
-  } else if (payment.status === "rejected" && payment.decision_reason) {
-    rows.push({ label: "Reason", value: payment.decision_reason });
+  } else {
+    if (payment.decided_at) rows.push({ label: "Decided", value: formatPhDate(payment.decided_at) });
+    if (payment.status === "rejected" && payment.decision_reason) {
+      rows.push({ label: "Reason", value: payment.decision_reason });
+    }
   }
-  if (payment.replaced_by_payment_id) {
-    rows.push({ label: "Replaced by", value: payment.replaced_by_payment_id, mono: true });
-  }
+  // A superseded record says so in its notice; its replacement is the current row in the history.
   if (payment.is_refunded) {
     if (payment.refunded_at) rows.push({ label: "Refunded", value: formatPhDate(payment.refunded_at) });
     if (payment.refund_reason) rows.push({ label: "Refund note", value: payment.refund_reason });

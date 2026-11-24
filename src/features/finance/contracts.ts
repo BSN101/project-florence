@@ -142,6 +142,8 @@ export type PaymentHistoryDTO = Pick<
   supersedes_payment_id?: string | null;
   /** The replacement that superseded this record, derived from the supersedes links (FL-028). */
   replaced_by_payment_id?: string | null;
+  /** On a replacement: the first record's verify/reject decision, which the correction overwrote. */
+  original_decision?: { decided_at: string | null; decision_reason: string | null } | null;
 };
 
 /**
