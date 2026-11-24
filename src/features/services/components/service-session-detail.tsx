@@ -16,7 +16,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BucketBadge } from "@/features/discipline/components/disciplinary-badges";
 import { cn } from "@/lib/utils";
-import { extractTimeHHmmManila, formatDutyDate } from "../calculations";
+import {
+  extractTimeHHmmManila,
+  formatDutyDate,
+  formatManilaDateTime,
+} from "../calculations";
 import type {
   AvailableServiceStudent,
   FinalizationEligibility,
@@ -27,29 +31,18 @@ import { FinalizeSessionDialog } from "./finalize-session-dialog";
 import { SessionStatusBadge } from "./service-badges";
 import { SessionParticipantTable } from "./session-participant-table";
 
-const MANILA_DATETIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-function formatManilaDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  try {
-    return MANILA_DATETIME_FORMATTER.format(new Date(iso));
-  } catch {
-    return "—";
-  }
-}
-
 function getReadOnlyReason(
   endedAt: string | null,
   isCurrentSemester: boolean,
   isOwner: boolean,
   canShowFinalize: boolean,
-  incompleteCount: number
+  incompleteCount: number,
+  hasRevocableCredits: boolean
 ): string {
   if (endedAt !== null) {
+    if (hasRevocableCredits) {
+      return "This service session has ended. Participant attendance records are locked, but you may still revoke eligible service credits you issued.";
+    }
     return "This service session has ended. Participant attendance records are locked and read-only.";
   }
   if (!isCurrentSemester && canShowFinalize) {
@@ -74,6 +67,7 @@ export function ServiceSessionDetail({
   renderedAt,
   canManage,
   canShowFinalize,
+  revocableCreditIds = [],
   eligibility,
   isOwner,
   isCurrentSemester,
@@ -85,6 +79,7 @@ export function ServiceSessionDetail({
   renderedAt: string;
   canManage: boolean;
   canShowFinalize: boolean;
+  revocableCreditIds?: string[];
   eligibility: FinalizationEligibility;
   isOwner: boolean;
   isCurrentSemester: boolean;
@@ -94,7 +89,12 @@ export function ServiceSessionDetail({
   const completedTotal = counts.presentOnTime + counts.late;
   const pendingTotal = counts.inProgress + counts.notRecorded;
   const missingTotal = counts.missingTimeIn + counts.missingTimeOut;
-  const revokedCreditCount = session.participants.filter((p) => p.credit?.revoked_at).length;
+  const creditCount = counts.creditCount ?? 0;
+  const revokedCreditCount =
+    counts.revokedCreditCount ??
+    session.participants.filter((p) => p.credit?.revoked_at).length;
+  const activeCreditCount = Math.max(0, creditCount - revokedCreditCount);
+  const hasRevocableCredits = revocableCreditIds.length > 0;
 
   return (
     <div className="space-y-6">
@@ -179,7 +179,16 @@ export function ServiceSessionDetail({
           className="flex items-start gap-2.5 rounded-lg border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground"
         >
           <Info className="size-4 shrink-0 text-muted-foreground mt-0.5" />
-          <span>{getReadOnlyReason(session.ended_at, isCurrentSemester, isOwner, canShowFinalize, eligibility.incompleteCount)}</span>
+          <span>
+            {getReadOnlyReason(
+              session.ended_at,
+              isCurrentSemester,
+              isOwner,
+              canShowFinalize,
+              eligibility.incompleteCount,
+              hasRevocableCredits
+            )}
+          </span>
         </div>
       )}
 
@@ -271,11 +280,11 @@ export function ServiceSessionDetail({
               </CardHeader>
               <CardContent>
                 <div className="font-heading text-2xl font-semibold tracking-tight tabular-nums text-foreground">
-                  {counts.creditCount ?? 0}
+                  {creditCount}
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
                   {revokedCreditCount > 0
-                    ? `${revokedCreditCount} revoked · 1 credit per eligible student`
+                    ? `${activeCreditCount} active · ${revokedCreditCount} revoked`
                     : "1 credit per eligible student"}
                 </p>
               </CardContent>
@@ -320,6 +329,7 @@ export function ServiceSessionDetail({
           session={session}
           participants={session.participants}
           canManage={canManage}
+          revocableCreditIds={revocableCreditIds}
         />
       </section>
     </div>

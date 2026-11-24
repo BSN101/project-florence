@@ -201,6 +201,15 @@ export function ServiceSessionList({
                               </span>
                             </>
                           )}
+                          {typeof counts.revokedCreditCount === "number" &&
+                            counts.revokedCreditCount > 0 && (
+                              <>
+                                <span aria-hidden="true">•</span>
+                                <span className="font-medium text-rose-700 dark:text-rose-400">
+                                  {counts.revokedCreditCount} revoked
+                                </span>
+                              </>
+                            )}
                           {typeof counts.zeroCreditCount === "number" && counts.zeroCreditCount > 0 && (
                             <>
                               <span aria-hidden="true">•</span>

@@ -8,6 +8,7 @@ import {
   allowedServiceBuckets,
   canCreateServiceSession,
   canManageSession,
+  canRevokeServiceCredit,
   canShowFinalizeSession,
   evaluateFinalizationEligibility,
   getTodayManila,
@@ -148,6 +149,9 @@ export default async function FacultyServiceSessionsPage({
         isSessionCurrentSemester,
         eligibility.incompleteCount
       );
+      const revocableCreditIds = detail.participants
+        .filter((p) => canRevokeServiceCredit(detail, p, access.profile.id, access.roles))
+        .map((p) => p.credit!.id);
 
       // Least-privilege optimization: only fetch eligible student candidates when session can be managed
       let availableStudents: AvailableServiceStudent[] = [];
@@ -172,6 +176,7 @@ export default async function FacultyServiceSessionsPage({
           renderedAt={renderedAt}
           canManage={canManage}
           canShowFinalize={canShowFinalize}
+          revocableCreditIds={revocableCreditIds}
           eligibility={eligibility}
           isOwner={isOwner}
           isCurrentSemester={isSessionCurrentSemester}
