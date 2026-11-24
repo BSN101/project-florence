@@ -1423,11 +1423,12 @@ export async function correctPayment(
     }
     const d = parsed.data;
 
-    // Early RLS-scoped check so self-correction and stale targets are refused before invoking the command client.
+    // Early RLS-scoped self-correction check. Record state is left to correct_payment, so an
+    // unchanged retry of a committed correction replays its stored result instead of failing here.
     const userClient = await createUserClient();
     const { data: payment, error: paymentError } = await userClient
       .from("payments")
-      .select("id, student_id, record_status, is_receipt_record, receipt_id")
+      .select("student_id")
       .eq("id", d.paymentId)
       .maybeSingle();
 
@@ -1442,13 +1443,6 @@ export async function correctPayment(
       return {
         success: false,
         error: "Officers are not permitted to correct their own payments.",
-      };
-    }
-
-    if (payment.record_status === "superseded") {
-      return {
-        success: false,
-        error: "This payment was already corrected. Refresh the page to see the latest record.",
       };
     }
 
