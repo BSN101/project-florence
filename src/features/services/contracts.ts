@@ -37,7 +37,7 @@ export type ServiceParticipantCredit = Pick<
   "id" | "issued_at" | "revoked_at" | "revocation_reason"
 > & {
   /** Computed on the server (`issued_by === access.profile.id`); raw actor UUID is never sent to the client. */
-  issued_by_me?: boolean;
+  issued_by_me: boolean;
 };
 
 /**
