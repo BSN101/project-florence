@@ -79,12 +79,11 @@ export type PaymentMoneyTotalRecord = {
  * - Only current authoritative receipt records (`record_status === "current" && is_receipt_record && receipt_id`)
  *   count toward Gross Received, deduplicated by `receipt_id`.
  * - Each refunded authoritative receipt counts its full amount toward Refunds
- *   (via `is_refunded` or a matching `refundedReceiptIds` entry).
+ *   (via `is_refunded`).
  * - Net Received = Gross Received - Refunds, using integer cents arithmetic.
  */
 export function calculatePaymentMoneyTotals(
-  payments: ReadonlyArray<PaymentMoneyTotalRecord>,
-  refundedReceiptIds?: ReadonlySet<string>
+  payments: ReadonlyArray<PaymentMoneyTotalRecord>
 ): {
   totalGrossReceivedAmount: number;
   totalRefundedAmount: number;
@@ -106,7 +105,7 @@ export function calculatePaymentMoneyTotals(
     const cents = toCents(Number(p.amount));
     grossReceivedCents += cents;
 
-    if (p.is_refunded || refundedReceiptIds?.has(p.receipt_id)) {
+    if (p.is_refunded) {
       refundedCents += cents;
     }
   }
@@ -304,12 +303,10 @@ export function calculateStudentFinancialSummary({
   obligationsWithStanding,
   targetSemesterId,
   payments = [],
-  refundedReceiptIds,
 }: {
   obligationsWithStanding: ObligationWithStandingDTO[];
   targetSemesterId?: string | null;
   payments?: ReadonlyArray<PaymentMoneyTotalRecord>;
-  refundedReceiptIds?: ReadonlySet<string>;
 }): StudentFinancialSummaryDTO {
   let grossCents = 0;
   let waivedCents = 0;
