@@ -213,3 +213,30 @@ export const endServiceSessionSchema = z.object({
 
 export type EndServiceSessionInput = z.infer<typeof endServiceSessionSchema>;
 
+/**
+ * Validates the mandatory reason for revoking a service credit (FL-039).
+ * Matches faculty disciplinary reason bounds (3 to 500 trimmed characters)
+ * and PostgreSQL public.revoke_service_credit non-blank check.
+ */
+export const revokeServiceCreditReasonSchema = z
+  .string()
+  .trim()
+  .min(3, "Revocation reason must be at least 3 characters.")
+  .max(500, "Revocation reason cannot exceed 500 characters.");
+
+/**
+ * Validates revoking an issued service credit (FL-039).
+ * Parameters required by PostgreSQL public.revoke_service_credit:
+ * - requestKey: UUID idempotency key
+ * - creditId: UUID of the service credit to revoke
+ * - reason: Non-blank trimmed reason (3 to 500 characters)
+ */
+export const revokeServiceCreditSchema = z.object({
+  requestKey: z.string().uuid("Invalid request key."),
+  creditId: z.string().uuid("Invalid service credit identifier."),
+  reason: revokeServiceCreditReasonSchema,
+});
+
+export type RevokeServiceCreditInput = z.infer<typeof revokeServiceCreditSchema>;
+
+
