@@ -1394,12 +1394,24 @@ export async function getPaymentCorrectionOptions(
         error: "Unauthorized: Only Council Executives and Operations may correct payment records",
       };
     }
+    // Only getCouncilPaymentCorrectionOptions' own messages reach the browser.
+    const message = err instanceof Error ? err.message : "";
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Unable to load obligations for correction.",
+      error: CORRECTION_OPTION_MESSAGES.has(message)
+        ? message
+        : "Unable to load obligations for correction.",
     };
   }
 }
+
+const CORRECTION_OPTION_MESSAGES = new Set([
+  "This payment record could not be found. Refresh the page and try again.",
+  "Officers are not permitted to correct their own payments.",
+  "Unable to load correction options.",
+  "Unable to load payment refunds.",
+  "This payment record can no longer be corrected. Refresh the page to see its latest status.",
+]);
 
 /**
  * Correct an erroneous received payment by inserting a linked replacement and marking the
