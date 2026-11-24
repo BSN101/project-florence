@@ -120,7 +120,7 @@ export function FinalizeSessionDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!locked || retryableError) {
+        if (!isPending && (!locked || retryableError)) {
           setOpen(next);
           if (!next) {
             if (retryableError) {
@@ -279,6 +279,7 @@ export function FinalizeSessionDialog({
                 variant="outline"
                 size="sm"
                 onClick={startOver}
+                disabled={isPending}
                 className="max-sm:min-h-11"
               >
                 Start over
