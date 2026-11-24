@@ -322,7 +322,7 @@ export function StudentPaymentHistoryTable({
                               variant="outline"
                               size="sm"
                               onClick={() => setInspecting(p)}
-                              className="h-7 cursor-pointer gap-1 rounded-lg border-primary/25 bg-primary/5 px-2.5 text-[11px] font-medium text-primary shadow-2xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:opacity-60"
+                              className="h-7 max-sm:min-h-11 cursor-pointer gap-1 rounded-lg border-primary/25 bg-primary/5 px-2.5 text-[11px] font-medium text-primary shadow-2xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:opacity-60"
                             >
                               <Eye className="size-3 shrink-0 text-primary" />
                               <span>{p.method === "cash" ? "View Receipt" : "View Proof"}</span>
@@ -334,7 +334,7 @@ export function StudentPaymentHistoryTable({
                               variant="outline"
                               size="sm"
                               onClick={() => setRefunding(p)}
-                              className="h-7 cursor-pointer gap-1 rounded-lg border-destructive/30 px-2.5 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive active:opacity-60"
+                              className="h-7 max-sm:min-h-11 cursor-pointer gap-1 rounded-lg border-destructive/30 px-2.5 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive active:opacity-60"
                             >
                               <RotateCcw className="size-3 shrink-0" />
                               <span>Refund</span>
