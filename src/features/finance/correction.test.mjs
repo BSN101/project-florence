@@ -6,6 +6,7 @@ import {
   calculatePaymentMoneyTotals,
   mapPaymentHistory,
   previewPaymentCorrection,
+  selectPaymentCorrectionOptions,
 } from "./calculations.ts";
 import {
   canCorrectPaymentForStudent,
@@ -250,6 +251,72 @@ describe("Task T-039 / FL-028: payment correction rules", () => {
         refundedAmount: "100.00",
       });
       assert.equal(equal.refundMismatch, false);
+    });
+  });
+
+  describe("selectPaymentCorrectionOptions", () => {
+    const ob3 = "77777777-7777-4777-8777-777777777777";
+    const ob4 = "88888888-8888-4888-8888-888888888881";
+    const ob5 = "88888888-8888-4888-8888-888888888882";
+    const otherReceipt = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const otherVerified = payment({ id: pay2, receipt_id: otherReceipt, amount: 150 });
+    const pendingTransfer = payment({ id: pay3, status: "pending", receipt_id: null, is_receipt_record: false, amount: 200 });
+    const obligations = [
+      obligation(ob1, 100), // covered by target pay1
+      obligation(ob2, 150), // settled by otherVerified
+      obligation(ob3, 200), // on pendingTransfer
+      { ...obligation(ob4, 50), waived_at: "2026-11-21T00:00:00Z" }, // waived
+      obligation(ob5, 75), // unpaid
+    ];
+    const paymentItems = [
+      { payment_id: pay1, obligation_id: ob1 },
+      { payment_id: pay2, obligation_id: ob2 },
+      { payment_id: pay3, obligation_id: ob3 },
+    ];
+    const payments = [payment({ id: pay1 }), otherVerified, pendingTransfer];
+
+    test("for a verified unrefunded payment, includes its own items, unpaid items, and pending-transfer items only", () => {
+      const options = selectPaymentCorrectionOptions({
+        obligations,
+        paymentItems,
+        payments,
+        refunds: [],
+        targetPaymentId: pay1,
+        targetSemesterId: semesterId,
+        isTargetRefunded: false,
+        targetStatus: "verified",
+      });
+      assert.deepEqual(
+        options.map((o) => [o.id, o.status]),
+        [
+          [ob1, "unpaid"],
+          [ob3, "pending_verification"],
+          [ob5, "unpaid"],
+        ]
+      );
+    });
+
+    test("for a refunded payment, keeps waived and elsewhere-settled obligations available while flagging pending transfers", () => {
+      const options = selectPaymentCorrectionOptions({
+        obligations,
+        paymentItems,
+        payments,
+        refunds: [{ receipt_id: receiptId }],
+        targetPaymentId: pay1,
+        targetSemesterId: semesterId,
+        isTargetRefunded: true,
+        targetStatus: "verified",
+      });
+      assert.deepEqual(
+        options.map((o) => [o.id, o.status]),
+        [
+          [ob1, "unpaid"],
+          [ob2, "settled"],
+          [ob3, "pending_verification"],
+          [ob4, "waived"],
+          [ob5, "unpaid"],
+        ]
+      );
     });
   });
 });

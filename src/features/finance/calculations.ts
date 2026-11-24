@@ -525,3 +525,53 @@ export function previewPaymentCorrection({
       refundedAmount !== null && toCents(Number(refundedAmount)) !== replacementCents,
   };
 }
+
+/**
+ * Computes candidate obligations for replacing a payment's item allocation (FL-028 / T-039).
+ * Standing is evaluated without the target payment's own settlement so obligations currently
+ * covered only by the target appear as `unpaid` (selectable) unless waived, settled by another
+ * payment, or on a current pending transfer.
+ * - For a settling payment (verified, unrefunded): returns `unpaid` (selectable) and
+ *   `pending_verification` (visible but blocked until the transfer is decided).
+ * - For a refunded payment: `correct_payment` does not settle debt, so waived or later-settled
+ *   obligations in the same semester also remain selectable; only `pending_verification` is blocked.
+ */
+export function selectPaymentCorrectionOptions({
+  obligations,
+  paymentItems,
+  payments,
+  refunds,
+  targetPaymentId,
+  targetSemesterId,
+  isTargetRefunded,
+  targetStatus,
+  semesterCodeMap,
+}: {
+  obligations: ObligationDTO[];
+  paymentItems: PaymentAllocationRecord[];
+  payments: PaymentStandingRecord[];
+  refunds: RefundStandingRecord[];
+  targetPaymentId: string;
+  targetSemesterId: string;
+  isTargetRefunded: boolean;
+  targetStatus: string;
+  semesterCodeMap?: Map<string, string>;
+}): ObligationWithStandingDTO[] {
+  const standing = calculateObligationsStanding({
+    obligations,
+    paymentItems: paymentItems.filter((item) => item.payment_id !== targetPaymentId),
+    payments,
+    refunds,
+    targetSemesterId,
+    semesterCodeMap,
+  });
+
+  const isSettlingPayment = targetStatus === "verified" && !isTargetRefunded;
+  if (!isSettlingPayment) {
+    return standing;
+  }
+
+  return standing.filter(
+    (item) => item.status === "unpaid" || item.status === "pending_verification"
+  );
+}
