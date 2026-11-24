@@ -181,13 +181,7 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
           .select(serviceCreditColumns)
           .eq("session_id", session.id)
       : Promise.resolve({
-          data: [] as {
-            id: string;
-            student_id: string;
-            issued_at: string;
-            revoked_at: string | null;
-            revocation_reason: string | null;
-          }[],
+          data: [] as (ServiceParticipantCredit & { student_id: string })[],
           error: null,
         }),
     // No fallback: rows without names would let attendance be recorded against unidentified students.
