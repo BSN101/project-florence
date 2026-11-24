@@ -46,13 +46,17 @@ function getReadOnlyReason(
   endedAt: string | null,
   isCurrentSemester: boolean,
   isOwner: boolean,
-  canShowFinalize: boolean
+  canShowFinalize: boolean,
+  incompleteCount: number
 ): string {
   if (endedAt !== null) {
     return "This service session has ended. Participant attendance records are locked and read-only.";
   }
   if (!isCurrentSemester && canShowFinalize) {
-    return "You are viewing a past semester. Participant attendance cannot be edited, but this session can still be ended if attendance records are complete.";
+    return "You are viewing a past semester. Participant attendance cannot be edited, but this session can still be ended.";
+  }
+  if (!isCurrentSemester && isOwner && incompleteCount > 0) {
+    return "This past-semester session can't be ended because some attendance records are incomplete, and past-semester attendance can't be edited. Contact the coordinator.";
   }
   if (!isCurrentSemester) {
     return "You are viewing a past semester. Service session attendance cannot be edited.";
@@ -175,7 +179,7 @@ export function ServiceSessionDetail({
           className="flex items-start gap-2.5 rounded-lg border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground"
         >
           <Info className="size-4 shrink-0 text-muted-foreground mt-0.5" />
-          <span>{getReadOnlyReason(session.ended_at, isCurrentSemester, isOwner, canShowFinalize)}</span>
+          <span>{getReadOnlyReason(session.ended_at, isCurrentSemester, isOwner, canShowFinalize, eligibility.incompleteCount)}</span>
         </div>
       )}
 
