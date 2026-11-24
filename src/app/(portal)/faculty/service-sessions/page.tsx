@@ -8,6 +8,7 @@ import {
   allowedServiceBuckets,
   canCreateServiceSession,
   canManageSession,
+  canShowFinalizeSession,
   evaluateFinalizationEligibility,
   getTodayManila,
 } from "@/features/services/calculations";
@@ -140,10 +141,13 @@ export default async function FacultyServiceSessionsPage({
         access.roles,
         renderedAt
       );
-      const canShowFinalize =
-        detail.ended_at === null &&
-        isOwner &&
-        allowedServiceBuckets(access.roles).includes(detail.bucket);
+      const canShowFinalize = canShowFinalizeSession(
+        detail,
+        access.profile.id,
+        access.roles,
+        isSessionCurrentSemester,
+        eligibility.incompleteCount
+      );
 
       // Least-privilege optimization: only fetch eligible student candidates when session can be managed
       let availableStudents: AvailableServiceStudent[] = [];

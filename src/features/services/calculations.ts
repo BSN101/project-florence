@@ -78,29 +78,23 @@ export function canManageSession(
 }
 
 /**
- * Single source of truth for whether an actor may initiate finalization for a service session.
- * Mirrors PostgreSQL end_service_session requirements verbatim:
- * - Session must still be open (ended_at === null)
- * - Actor must be the session creator (created_by === actorId)
- * - Actor must hold the matching instructor role for session.bucket (mirrors f_cmd_instructor)
- * - Clock time (nowIso) must be at or after the scheduled end time (scheduled_end)
- * Note: does not require current semester context, matching SQL.
+ * Whether the "End service session" control is shown. The dialog explains any remaining
+ * time or attendance block, so the scheduled end is not checked here. Past-semester
+ * attendance cannot be edited, so there the control only appears when nothing is incomplete.
  */
-export function canEndServiceSession(
-  session: Pick<ServiceSessionRecord, "created_by" | "ended_at" | "bucket" | "scheduled_end">,
+export function canShowFinalizeSession(
+  session: Pick<ServiceSessionRecord, "created_by" | "ended_at" | "bucket">,
   actorId: string,
   roles: readonly string[],
-  nowIso: string
+  isCurrentSemester: boolean,
+  incompleteCount: number
 ): boolean {
-  if (session.ended_at !== null) return false;
-  if (session.created_by !== actorId) return false;
-  if (!allowedServiceBuckets(roles).includes(session.bucket)) return false;
-
-  const nowMs = Date.parse(nowIso);
-  const scheduledEndMs = Date.parse(session.scheduled_end);
-  if (Number.isNaN(nowMs) || Number.isNaN(scheduledEndMs)) return false;
-
-  return nowMs >= scheduledEndMs;
+  return (
+    session.ended_at === null &&
+    session.created_by === actorId &&
+    allowedServiceBuckets(roles).includes(session.bucket) &&
+    (isCurrentSemester || incompleteCount === 0)
+  );
 }
 
 /**

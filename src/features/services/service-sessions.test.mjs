@@ -4,8 +4,8 @@ import test from "node:test";
 import {
   allowedServiceBuckets,
   canCreateServiceSession,
-  canEndServiceSession,
   canManageSession,
+  canShowFinalizeSession,
   combineDateAndTimeManila,
   countServiceParticipants,
   evaluateAttendanceStatus,
@@ -614,123 +614,26 @@ test("setServiceParticipantsSchema rejects duplicate students and enforces batch
 // 5. Session Finalization Evaluation & Eligibility (calculations.ts)
 // ============================================================================
 
-test("canEndServiceSession enforces completion guards, creator identity, and role assignment", () => {
-  const baseSession = {
-    created_by: ACTOR_ID,
-    ended_at: null,
-    bucket: "office",
-    scheduled_end: "2026-11-25T17:00:00+08:00",
-  };
-  const nowAfter = "2026-11-25T17:05:00+08:00";
-  const nowExact = "2026-11-25T17:00:00+08:00";
-  const nowBefore = "2026-11-25T16:59:59+08:00";
+test("canShowFinalizeSession requires open owned session, matching role, and complete attendance in past semesters", () => {
+  const base = { created_by: ACTOR_ID, ended_at: null, bucket: "office" };
+  const office = ["Academic Instructor"];
 
-  // Active instructor for matching bucket after scheduled end
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, true, 0), true);
+  // Current semester: incomplete attendance is fixable, so the dialog is still offered
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, true, 2), true);
+  // Past semester: shown only when nothing is incomplete (attendance cannot be edited)
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, false, 0), true);
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, office, false, 1), false);
+  // Dual role covers both buckets
   assert.equal(
-    canEndServiceSession(baseSession, ACTOR_ID, ["Academic Instructor"], nowAfter),
+    canShowFinalizeSession({ ...base, bucket: "rle" }, ACTOR_ID, ["Academic Instructor", "Clinical Instructor"], true, 0),
     true
   );
-
-  // Exact boundary: nowIso === scheduled_end allows finalization
-  assert.equal(
-    canEndServiceSession(baseSession, ACTOR_ID, ["Academic Instructor"], nowExact),
-    true
-  );
-
-  // Dual-role instructor permits ending either office or rle sessions
-  assert.equal(
-    canEndServiceSession(
-      baseSession,
-      ACTOR_ID,
-      ["Academic Instructor", "Clinical Instructor"],
-      nowAfter
-    ),
-    true
-  );
-  assert.equal(
-    canEndServiceSession(
-      { ...baseSession, bucket: "rle" },
-      ACTOR_ID,
-      ["Academic Instructor", "Clinical Instructor"],
-      nowAfter
-    ),
-    true
-  );
-
-  // Clinical instructor ending rle session
-  assert.equal(
-    canEndServiceSession(
-      { ...baseSession, bucket: "rle" },
-      ACTOR_ID,
-      ["Clinical Instructor"],
-      nowAfter
-    ),
-    true
-  );
-
-  // Finalized session (ended_at !== null) cannot be ended again
-  assert.equal(
-    canEndServiceSession(
-      { ...baseSession, ended_at: "2026-11-25T17:01:00+08:00" },
-      ACTOR_ID,
-      ["Academic Instructor"],
-      nowAfter
-    ),
-    false
-  );
-
-  // Non-creator cannot finalize session
-  assert.equal(
-    canEndServiceSession(
-      baseSession,
-      "88888888-8888-4888-8888-888888888888",
-      ["Academic Instructor"],
-      nowAfter
-    ),
-    false
-  );
-
-  // Mismatched instructor track (e.g., Clinical Instructor on office session)
-  assert.equal(
-    canEndServiceSession(baseSession, ACTOR_ID, ["Clinical Instructor"], nowAfter),
-    false
-  );
-
-  // Coordinator without active instructor assignment cannot finalize (FL-037/FL-038)
-  assert.equal(
-    canEndServiceSession(baseSession, ACTOR_ID, ["Academic Coordinator"], nowAfter),
-    false
-  );
-  assert.equal(
-    canEndServiceSession(
-      { ...baseSession, bucket: "rle" },
-      ACTOR_ID,
-      ["RLE Coordinator"],
-      nowAfter
-    ),
-    false
-  );
-
-  // Before scheduled end (even 1 second before) is blocked
-  assert.equal(
-    canEndServiceSession(baseSession, ACTOR_ID, ["Academic Instructor"], nowBefore),
-    false
-  );
-
-  // Unparseable timestamps safely return false
-  assert.equal(
-    canEndServiceSession(baseSession, ACTOR_ID, ["Academic Instructor"], "invalid-now"),
-    false
-  );
-  assert.equal(
-    canEndServiceSession(
-      { ...baseSession, scheduled_end: "invalid-end" },
-      ACTOR_ID,
-      ["Academic Instructor"],
-      nowAfter
-    ),
-    false
-  );
+  // Ended, non-owner, mismatched track, coordinator-only
+  assert.equal(canShowFinalizeSession({ ...base, ended_at: "2026-11-25T17:01:00+08:00" }, ACTOR_ID, office, true, 0), false);
+  assert.equal(canShowFinalizeSession(base, "88888888-8888-4888-8888-888888888888", office, true, 0), false);
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, ["Clinical Instructor"], true, 0), false);
+  assert.equal(canShowFinalizeSession(base, ACTOR_ID, ["Academic Coordinator"], true, 0), false);
 });
 
 test("isParticipantFinalizationValid validates attendance completeness, timing windows, and non-self duty", () => {
