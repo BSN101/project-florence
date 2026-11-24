@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 
+import { formatManilaDateTime } from "../calculations";
 import type { AttendanceStatus, ServiceParticipantCredit } from "../contracts";
 
 /**
@@ -108,7 +109,8 @@ export function AttendanceStatusBadge({
 
 /**
  * Badge indicating post-finalization credit outcome for a participant.
- * - If revoked: "Credit Revoked" (destructive/rose token, read-only display)
+ * - If revoked: muted/struck "1 Credit" alongside destructive "Credit Revoked" plus
+ *   the recorded revocation reason and Asia/Manila revocation timestamp (FL-039, schema §10.3)
  * - If credit issued: "1 Credit" (positive emerald token)
  * - If completed with 0 credit: "Retained (0 Credit)" (neutral slate/muted token)
  * - Else (excluded/incomplete): muted "—"
@@ -123,15 +125,29 @@ export function ParticipantCreditBadge({
   className?: string;
 }) {
   if (credit?.revoked_at) {
+    const trimmedReason = credit.revocation_reason?.trim();
     return (
-      <span
-        className={cn(
-          "inline-flex items-center rounded-full border border-rose-600/30 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 whitespace-nowrap",
-          className
-        )}
-      >
-        Credit Revoked
-      </span>
+      <div className={cn("flex min-w-0 flex-col items-start gap-1", className)}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground line-through whitespace-nowrap">
+            1 Credit
+          </span>
+          <span className="inline-flex items-center rounded-full border border-rose-600/30 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 whitespace-nowrap">
+            Credit Revoked
+          </span>
+        </div>
+        <div className="max-w-xs break-words rounded bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground space-y-0.5">
+          {trimmedReason ? (
+            <div>
+              <strong className="font-medium text-foreground">Revocation note:</strong>{" "}
+              {trimmedReason}
+            </div>
+          ) : null}
+          <div className="text-[10px] text-muted-foreground/80">
+            Revoked {formatManilaDateTime(credit.revoked_at)}
+          </div>
+        </div>
+      </div>
     );
   }
 
