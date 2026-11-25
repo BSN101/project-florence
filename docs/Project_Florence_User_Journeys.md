@@ -1000,4 +1000,51 @@ The erroneous service credit is permanently marked revoked with its attributable
 - Revoked rows display both the struck-through **1 Credit** badge and **Credit Revoked** badge plus the bounded **Revocation note** and `Asia/Manila` timestamp across desktop and 390px mobile viewports.
 - All interactive controls (**Revoke credit**, **Cancel**, **Start over**, **Retry revocation**) meet the 44px mobile touch-target floor (`max-sm:min-h-11`).
 
+## Decide assigned merit endorsement
+
+- **Author:** Andrei Catigan
+- **Actors:** Academic Instructor, Clinical Instructor, dual-role Instructor (holding both Academic Instructor and Clinical Instructor roles), and Coordinator acting in their paired instructor capacity as the assigned reviewer (`assigned_instructor_id`); Council Executive and Council Operations (viewing decided outcomes on `/council/merit-endorsements-and-council-demerits`); Student (receiving a `merit_received` notification and spendable merit units upon approval).
+- **Starts at:** Faculty workspace > Endorsements (`/faculty/merit-endorsements`).
+- **References:** FL-032, FL-044, FL-029; database schema (`docs/database/schema.dbml` §9.1 `merit_endorsements`, §9.2 `merits`, §12.1 `notifications`).
+
+### Main flow
+
+1. The assigned instructor opens **Endorsements** (`/faculty/merit-endorsements`) for the selected semester.
+2. On the server, `getMyAssignedMeritEndorsements(semesterId)` queries `public.merit_endorsements` with explicit columns filtered strictly to `assigned_instructor_id = actorId` and `semester_id = semesterId` (ensuring Coordinators never see endorsements assigned to other instructors despite `f_access_private.coordinator()` RLS). When `approvedIds.length > 0`, it also projects `endorsement_id, awarded_on, expires_on` from `public.merits` (`source = 'endorsement'`, `awarded_by = actorId`) in parallel with `loadNames`. It computes `canDecide` server-side via `canDecideMeritEndorsement(row, actorId, access.roles)`, strips `student_id`, `semester_id`, `assigned_instructor_id`, `submitted_by`, and `decided_by` from `FacultyMeritEndorsementRecord`, and returns rows sorted by `sortFacultyEndorsements` (pending newest-submitted first, then decided newest-decided first).
+3. `FacultyEndorsementsView` renders at full workspace width with `RefreshButton` (`renderedAt`), three domain KPI cards (**Pending Endorsements**, **Approved Endorsements**, **Rejected Endorsements** via `countFacultyEndorsements`), search (student name, university ID, or basis), a status `FilterSelect` defaulting to `All`, 25-row pagination (`usePagedRows`), and the endorsements table. When any row has `canDecide === true`, the **Actions** column displays **Approve** (outlined) followed by **Reject** (destructive outline, placed last).
+4. Clicking **Approve** or **Reject** opens `EndorsementDecisionDialog`, which names the student, university ID, requested merit days, endorsement semester, and bounded endorsement basis, and explains the irreversible once-only outcome:
+   - **Approve:** explains that approving creates `requested_days` whole-day merit units dated institutional `TODAY` (`Asia/Manila`), valid for 1 year until `expiresOnManila`, attributed to the endorsement's semester, and sends an automatic **Merit Endorsed** (`merit_received`) notification to the student. No reason field is shown.
+   - **Reject:** explains that rejecting permanently closes the endorsement with zero merit units and no student notification, and provides an optional **Reason for rejection (optional)** textarea (up to 500 characters; blank or whitespace-only input normalizes to `null`).
+5. Confirming submits `{ requestKey, endorsementId, decision, reason }` through `decideMeritEndorsementSchema` to `decideMeritEndorsementAction`.
+6. The server action verifies Faculty workspace access and `hasInstructorRole(context.roles)`, skips any pre-RPC status lookup so identical `requestKey` retries replay cleanly, and executes `public.decide_merit_endorsement(p_key, p_actor, p_endorsement, p_decision, p_reason)` via `createCommandClient()`:
+   - Checks active instructor role (`f_cmd_instructor`), request-key idempotency (`f_cmd_begin` / `f_cmd_finish`), row lock (`FOR UPDATE`), assigned instructor ownership, non-self decision, and `status = 'pending'`.
+   - On `'approved'`, inserts `generate_series(1, e.requested_days)` rows into `public.merits` (`source = 'endorsement'`, `awarded_on = TODAY`, `expires_on = TODAY + 1 year`, `semester_id = e.semester_id`, `awarded_by = p_actor`) and calls `f_cmd_notice(e.student_id, 'merit_received')`.
+   - Updates `public.merit_endorsements` with `status`, `decided_by`, `decided_at`, and `decision_reason` and returns `{ endorsement_id, status, unit_count }`.
+7. Immediately after commit (before inspecting `result.data`), `decideMeritEndorsementAction` revalidates `/faculty/merit-endorsements` and `/council/merit-endorsements-and-council-demerits` on every decision, plus `/student/merits-demerits-and-services`, `/student/notifications`, `/student` (`"layout"`), `/student/clearance`, `/faculty`, `/faculty/academic-clearance`, and `/faculty/rle-clearance` when `decision === "approved"`.
+8. The dialog closes and refreshes the view: approved rows display the **Approved** badge, awarded day count, `Awarded <awarded_on> · Valid until <expires_on>`, and `Decided <decided_at>`; rejected rows display **Rejected**, any bounded non-blank `decision_reason`, and `Decided <decided_at>`.
+
+### System involvement
+
+- Database RPC `public.decide_merit_endorsement` (`20261107050430_florence_commands.sql`), triggers (`endorsements_history`, `unit_guard`, `final_consistency`, `enrollment_check`), and `endorsements_read` RLS (`20261114091446_rls_helper_initplan.sql`).
+- Contracts `FacultyMeritEndorsementRecord`, `FacultyEndorsementCounts`, `MeritEndorsementDecision`, and `DecideMeritEndorsementResult` in `src/features/discipline/contracts.ts`.
+- Calculations `hasInstructorRole`, `canDecideMeritEndorsement`, `countFacultyEndorsements`, `sortFacultyEndorsements`, `formatManilaDate`, and `formatManilaDateTime` in `src/features/discipline/calculations.ts`.
+- Schema `decideMeritEndorsementSchema` in `src/features/discipline/schemas.ts`, query `getMyAssignedMeritEndorsements` in `src/features/discipline/queries.ts`, and action `decideMeritEndorsementAction` in `src/features/discipline/actions.ts`.
+- Components `FacultyEndorsementsView` and `EndorsementDecisionDialog` rendered by `src/app/(portal)/faculty/merit-endorsements/page.tsx`.
+
+### Outcome
+
+The assigned endorsement transitions permanently from `pending` to `approved` or `rejected` with full actor/time attribution; approvals create the exact requested whole-day merit units once (valid for 1 year from institutional `TODAY`, usable by the student under `FL-036`) and notify the student (`FL-044`), while rejections close the recommendation with zero merit awards.
+
+### Important alternatives
+
+- **Historical-Semester Pending Endorsements:** `public.decide_merit_endorsement` intentionally allows deciding pending endorsements from past semesters while retaining `e.semester_id` on created `merits` rows and setting `awarded_on = TODAY (Asia/Manila)`. When viewing a non-current semester with pending items, `FacultyEndorsementsView` and the Approve dialog call out this date/semester rule explicitly.
+- **Coordinator & Dual-Role Parity:** Coordinators without a paired instructor role cannot exist under `resolveAccess` or `assignment_check`, and dual-role instructors (`Academic Instructor` + `Clinical Instructor`) are permitted by `hasInstructorRole` (matching `f_cmd_instructor`). Coordinators only see endorsements assigned directly to them on `/faculty/merit-endorsements`.
+- **Retry & Payload Lock on Transport Interruption:** When `!result.error.code` or a thrown fetch error returns `retryable: true`, `EndorsementDecisionDialog` keeps the `requestKey` and reason locked and switches the footer to **Start over** and **Retry approval** / **Retry rejection**. Dismissing the dialog from `retryableError` calls both `startOver()` and `router.refresh()` in case the dropped reply actually committed.
+
+### Acceptance checks
+
+- Only the assigned instructor (`assigned_instructor_id === actorId`) holding an active Academic or Clinical Instructor role (including dual-role and paired coordinator assignments) sees **Approve** / **Reject** (`canDecide === true`) and can decide the endorsement; self-decision and re-deciding non-pending rows are refused.
+- Approving creates `requested_days` merit rows in `public.merits` (`source = 'endorsement'`) exactly once, dated institutional `TODAY` (`Asia/Manila`) with 1-year expiry under the endorsement's semester, and emits one `merit_received` student notice; `reason` is always normalized to `null`.
+- Rejecting records `status = 'rejected'`, normalizes blank/whitespace reasons to `null` (otherwise trimming up to 500 characters), creates zero `merits` rows, and emits no student notification.
+- `FacultyEndorsementsView` receives zero raw internal actor/student UUIDs (`student_id`, `semester_id`, `assigned_instructor_id`, `submitted_by`, `decided_by`) or `actorId`/`actorRoles` props, renders `whitespace-normal break-words` on basis/reason text, uses `suppressHydrationWarning` on Manila date-time strings, and satisfies ≥44px mobile touch targets (`max-sm:min-h-11`).
 
