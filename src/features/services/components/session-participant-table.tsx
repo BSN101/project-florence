@@ -23,6 +23,7 @@ import type {
   ServiceSessionRecord,
 } from "../contracts";
 import { setServiceParticipantsSchema } from "../schemas";
+import { RevokeServiceCreditDialog } from "./revoke-service-credit-dialog";
 import { AttendanceStatusBadge, ParticipantCreditBadge } from "./service-badges";
 
 type RowDraft = {
@@ -60,13 +61,18 @@ export function SessionParticipantTable({
   session,
   participants,
   canManage,
+  revocableCreditIds = [],
 }: {
   session: ServiceSessionRecord;
   participants: ServiceParticipantDetail[];
   canManage: boolean;
+  revocableCreditIds?: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const revocableSet = useMemo(() => new Set(revocableCreditIds), [revocableCreditIds]);
+  const showActionsColumn =
+    canManage || (session.ended_at !== null && revocableSet.size > 0);
 
   // Signature-based prop sync preserving unsaved draft edits on other rows
   const currentSignature = getParticipantsSignature(participants);
@@ -440,7 +446,7 @@ export function SessionParticipantTable({
                   <th scope="col" className="px-3 py-2.5 min-w-[190px]">
                     Time-Out
                   </th>
-                  {canManage && (
+                  {showActionsColumn && (
                     <th scope="col" className="px-3 py-2.5 text-right">
                       Actions
                     </th>
@@ -451,7 +457,12 @@ export function SessionParticipantTable({
                 {visibleParticipants.length === 0 && (
                   <tr>
                     <td
-                      colSpan={4 + 2 + (session.ended_at !== null ? 1 : 0) + (canManage ? 1 : 0)}
+                      colSpan={
+                        4 +
+                        2 +
+                        (session.ended_at !== null ? 1 : 0) +
+                        (showActionsColumn ? 1 : 0)
+                      }
                       className="px-3 py-6 text-center text-muted-foreground"
                     >
                       No participants match your search.
@@ -613,31 +624,40 @@ export function SessionParticipantTable({
                         )}
                       </td>
 
-                      {/* Actions (Exclude / Re-include) */}
-                      {canManage && (
+                      {/* Actions (Exclude / Re-include when open, or Revoke credit when ended) */}
+                      {showActionsColumn && (
                         <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                          {isExcluded ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="xs"
-                              disabled={locked}
-                              onClick={() => updateDraft(p.student_id, { excluded: false })}
-                              className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 max-sm:min-h-11"
-                            >
-                              Re-include
-                            </Button>
+                          {canManage ? (
+                            isExcluded ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                disabled={locked}
+                                onClick={() => updateDraft(p.student_id, { excluded: false })}
+                                className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 max-sm:min-h-11"
+                              >
+                                Re-include
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                disabled={locked}
+                                onClick={() => updateDraft(p.student_id, { excluded: true })}
+                                className="text-muted-foreground hover:text-destructive max-sm:min-h-11"
+                              >
+                                Exclude
+                              </Button>
+                            )
+                          ) : p.credit != null && revocableSet.has(p.credit.id) ? (
+                            <RevokeServiceCreditDialog
+                              session={session}
+                              participant={p}
+                            />
                           ) : (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="xs"
-                              disabled={locked}
-                              onClick={() => updateDraft(p.student_id, { excluded: true })}
-                              className="text-muted-foreground hover:text-destructive max-sm:min-h-11"
-                            >
-                              Exclude
-                            </Button>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </td>
                       )}

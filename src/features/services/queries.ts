@@ -26,8 +26,8 @@ const uuidSchema = z.string().uuid();
 const serviceSessionColumns =
   "id, semester_id, bucket, duty_on, scheduled_start, scheduled_end, location, late_after_minutes, time_in_from, time_in_until, time_out_from, time_out_until, created_by, ended_at";
 const serviceParticipantColumns = "session_id, student_id, time_in, time_out, excluded_at";
-const serviceCreditColumns = "id, student_id, issued_at, revoked_at, revocation_reason";
-const serviceCreditSummaryColumns = "id, session_id";
+const serviceCreditColumns = "id, student_id, issued_by, issued_at, revoked_at, revocation_reason";
+const serviceCreditSummaryColumns = "id, session_id, revoked_at";
 
 /**
  * Service sessions in one semester for faculty listing.
@@ -92,7 +92,7 @@ export async function getMyServiceSessions(semesterId: string): Promise<ServiceS
           .select(serviceCreditSummaryColumns)
           .in("session_id", endedSessionIds)
       : Promise.resolve({
-          data: [] as { id: string; session_id: string }[],
+          data: [] as (Pick<ServiceParticipantCredit, "id" | "revoked_at"> & { session_id: string })[],
           error: null,
         }),
   ]);
@@ -115,8 +115,15 @@ export async function getMyServiceSessions(semesterId: string): Promise<ServiceS
   }
 
   const creditCountBySession = new Map<string, number>();
+  const revokedCreditCountBySession = new Map<string, number>();
   for (const c of credits) {
     creditCountBySession.set(c.session_id, (creditCountBySession.get(c.session_id) ?? 0) + 1);
+    if (c.revoked_at !== null) {
+      revokedCreditCountBySession.set(
+        c.session_id,
+        (revokedCreditCountBySession.get(c.session_id) ?? 0) + 1
+      );
+    }
   }
 
   const nowIso = new Date().toISOString();
@@ -127,7 +134,11 @@ export async function getMyServiceSessions(semesterId: string): Promise<ServiceS
     const baseCounts = countServiceParticipants(statuses);
     const counts =
       session.ended_at !== null
-        ? withFinalizationCounts(baseCounts, creditCountBySession.get(session.id) ?? 0)
+        ? withFinalizationCounts(
+            baseCounts,
+            creditCountBySession.get(session.id) ?? 0,
+            revokedCreditCountBySession.get(session.id) ?? 0
+          )
         : baseCounts;
 
     return {
@@ -181,7 +192,10 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
           .select(serviceCreditColumns)
           .eq("session_id", session.id)
       : Promise.resolve({
-          data: [] as (ServiceParticipantCredit & { student_id: string })[],
+          data: [] as (Omit<ServiceParticipantCredit, "issued_by_me"> & {
+            student_id: string;
+            issued_by: string;
+          })[],
           error: null,
         }),
     // No fallback: rows without names would let attendance be recorded against unidentified students.
@@ -199,12 +213,17 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
   const credits = creditsRes.data ?? [];
 
   const creditsByStudent = new Map<string, ServiceParticipantCredit>();
+  let revokedCreditCount = 0;
   for (const c of credits) {
+    if (c.revoked_at !== null) {
+      revokedCreditCount++;
+    }
     creditsByStudent.set(c.student_id, {
       id: c.id,
       issued_at: c.issued_at,
       revoked_at: c.revoked_at,
       revocation_reason: c.revocation_reason,
+      issued_by_me: c.issued_by === access.profile.id,
     });
   }
 
@@ -237,7 +256,7 @@ export async function getServiceSessionDetail(sessionId: string): Promise<Servic
   const baseCounts = countServiceParticipants(detailedParticipants.map((p) => p.status));
   const participantCounts =
     session.ended_at !== null
-      ? withFinalizationCounts(baseCounts, credits.length)
+      ? withFinalizationCounts(baseCounts, credits.length, revokedCreditCount)
       : baseCounts;
 
   return {

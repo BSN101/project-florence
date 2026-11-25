@@ -2,6 +2,7 @@ import type {
   AttendanceStatus,
   FinalizationEligibility,
   ServiceBucket,
+  ServiceParticipantDetail,
   ServiceParticipantRecord,
   ServiceSessionParticipantCounts,
   ServiceSessionRecord,
@@ -33,6 +34,24 @@ export function formatDutyDate(dateStr: string | null | undefined): string {
     return MANILA_DATE_FORMATTER.format(new Date(iso));
   } catch {
     return dateStr;
+  }
+}
+
+const MANILA_DATETIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila",
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+/** Formats an ISO timestamp as a medium Asia/Manila date and time, e.g. "Nov 25, 2026, 5:02 PM". */
+export function formatManilaDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    const ms = Date.parse(iso);
+    if (Number.isNaN(ms)) return "—";
+    return MANILA_DATETIME_FORMATTER.format(new Date(ms));
+  } catch {
+    return "—";
   }
 }
 
@@ -95,6 +114,29 @@ export function canShowFinalizeSession(
     allowedServiceBuckets(roles).includes(session.bucket) &&
     (isCurrentSemester || incompleteCount === 0)
   );
+}
+
+/**
+ * Single source of truth for whether an actor may revoke an issued service credit (FL-039).
+ * Mirrors PostgreSQL public.revoke_service_credit requirements 1:1:
+ * - Session has ended (ended_at !== null)
+ * - Actor holds the active matching instructor role for session.bucket (f_cmd_instructor)
+ * - Participant is not the actor (student_id !== actorId)
+ * - Participant has an unrevoked credit row (credit !== null && credit.revoked_at === null)
+ * - Credit was issued by the actor (credit.issued_by_me === true)
+ * Note: does not require current semester context, matching SQL.
+ */
+export function canRevokeServiceCredit(
+  session: Pick<ServiceSessionRecord, "ended_at" | "bucket">,
+  participant: Pick<ServiceParticipantDetail, "student_id" | "credit">,
+  actorId: string,
+  roles: readonly string[]
+): boolean {
+  if (session.ended_at === null) return false;
+  if (!allowedServiceBuckets(roles).includes(session.bucket)) return false;
+  if (participant.student_id === actorId) return false;
+  if (!participant.credit || participant.credit.revoked_at !== null) return false;
+  return participant.credit.issued_by_me === true;
 }
 
 /**
@@ -414,6 +456,7 @@ export function evaluateFinalizationEligibility(
  * Augments participant counts with post-finalization credit and completion tallies.
  * - completedCount: presentOnTime + late (lateness never denies completion)
  * - creditCount: total service credits issued upon finalization
+ * - revokedCreditCount: issued service credits subsequently revoked by the issuer
  * - zeroCreditCount: completed participants who received 0 credit due to zero initial debt
  *
  * Treats any participant with an issued service_credits row as having received a credit
@@ -421,7 +464,8 @@ export function evaluateFinalizationEligibility(
  */
 export function withFinalizationCounts(
   counts: ServiceSessionParticipantCounts,
-  issuedCreditCount: number
+  issuedCreditCount: number,
+  revokedCreditCount = 0
 ): ServiceSessionParticipantCounts {
   const completedCount = counts.presentOnTime + counts.late;
   const creditCount = issuedCreditCount;
@@ -431,6 +475,7 @@ export function withFinalizationCounts(
     ...counts,
     completedCount,
     creditCount,
+    revokedCreditCount,
     zeroCreditCount,
   };
 }

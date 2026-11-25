@@ -35,7 +35,10 @@ export type ServiceParticipantRecord = Pick<
 export type ServiceParticipantCredit = Pick<
   Tables["service_credits"]["Row"],
   "id" | "issued_at" | "revoked_at" | "revocation_reason"
->;
+> & {
+  /** Computed on the server (`issued_by === access.profile.id`); raw actor UUID is never sent to the client. */
+  issued_by_me: boolean;
+};
 
 /**
  * Attendance status for a service participant in an open or ended session:
@@ -70,6 +73,8 @@ export type ServiceSessionParticipantCounts = {
   completedCount?: number;
   /** Count of service credits issued upon finalization. */
   creditCount?: number;
+  /** Count of issued service credits subsequently revoked by the issuer. */
+  revokedCreditCount?: number;
   /** Count of completed participants who completed with zero credit. */
   zeroCreditCount?: number;
 };
@@ -152,5 +157,14 @@ export type EndServiceSessionResult =
       endedAt: string;
       completedCount: number;
       creditCount: number;
+    }
+  | { success: false; error: string; retryable?: true };
+
+/** Result of revoking an issued service credit (FL-039). */
+export type RevokeServiceCreditResult =
+  | {
+      success: true;
+      creditId: string;
+      revokedAt: string;
     }
   | { success: false; error: string; retryable?: true };

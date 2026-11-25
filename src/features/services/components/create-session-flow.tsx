@@ -146,7 +146,7 @@ export function CreateSessionFlow({
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl">
+    <div className="flex w-full flex-col gap-6">
       {/* Header and Back Link */}
       <div className="flex flex-col gap-2">
         <Link
