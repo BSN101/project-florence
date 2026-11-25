@@ -5,6 +5,7 @@ import {
   APPROVED_SEMESTER_TERMS,
   activateSemesterSchema,
   createSemesterSchema,
+  resolveSelectedSemester,
   semesterFilterSchema,
 } from "./schemas.ts";
 
@@ -125,4 +126,16 @@ describe("activateSemesterSchema", () => {
     assert.equal(activateSemesterSchema.safeParse({ semesterId, expectedCurrentSemesterId: "" }).success, false);
     assert.equal(activateSemesterSchema.safeParse({ semesterId }).success, false);
   });
+});
+
+test("resolveSelectedSemester picks the requested, then current, then first semester", () => {
+  const a = { id: "11111111-1111-4111-8111-111111111111", is_current: false };
+  const b = { id: "22222222-2222-4222-8222-222222222222", is_current: true };
+  assert.equal(resolveSelectedSemester([a, b], a.id), a);
+  assert.equal(resolveSelectedSemester([a, b], undefined), b);
+  assert.equal(resolveSelectedSemester([a], undefined), a);
+  assert.equal(resolveSelectedSemester([], undefined), undefined);
+  assert.equal(resolveSelectedSemester([a, b], "33333333-3333-4333-8333-333333333333"), null);
+  assert.equal(resolveSelectedSemester([a, b], "not-a-uuid"), null);
+  assert.equal(resolveSelectedSemester([a, b], [a.id, b.id]), null);
 });
