@@ -5,10 +5,12 @@ import { redirect, RedirectType } from "next/navigation";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createCommandClient } from "@/server/db/command-client";
-import { getTodayManila, instructorBucket } from "./calculations";
+import { getTodayManila, hasInstructorRole, instructorBucket } from "./calculations";
+import type { DecideMeritEndorsementResult, MeritEndorsementDecision } from "./contracts";
 import {
   applyMeritsSchema,
   awardDirectMeritsSchema,
+  decideMeritEndorsementSchema,
   logFacultyDemeritsSchema,
   submitMeritEndorsementsSchema,
 } from "./schemas";
@@ -39,6 +41,32 @@ const RPC_MESSAGES: [string, string][] = [
 // In endorse_merit the instructor check is on the chosen reviewer, not the Council actor.
 const ENDORSEMENT_MESSAGES: [string, string][] = [
   ["Matching instructor assignment required", "The selected instructor can no longer review endorsements. Choose another instructor."],
+  ...RPC_MESSAGES,
+];
+
+const DECIDE_ENDORSEMENT_MESSAGES: [string, string][] = [
+  ["Invalid endorsement decision", "Select Approve or Reject, and enter a non-blank reason if providing one."],
+  ["Assigned instructor required", "Only the assigned instructor can decide this endorsement, and you cannot decide your own endorsement."],
+  ["Endorsement already decided", "This endorsement has already been decided. Refresh to see the recorded outcome."],
+  ["Matching instructor assignment required", "Only active Academic or Clinical Instructors can decide merit endorsements."],
+  ["Active Auth-linked human actor required", "An active authorized instructor account is required to decide endorsements."],
+  ["Commands require READ COMMITTED isolation", "Unable to record this endorsement decision. Try again."],
+  ["Non-null request key/payload required", "Invalid decision request. Refresh the page and try again."],
+  ["Request key reused", "This decision request was already submitted with different details. Refresh and check Endorsements before trying again."],
+  ["Incomplete command receipt; inspect transaction integration", "A previous attempt did not finish cleanly. Refresh to check the current status before retrying."],
+  ["Configure approved institutional timezone in f_cmd_private.settings", "The institutional timezone is not configured. Contact an administrator."],
+  ["Unsupported command notification kind", "Unable to send the student notification for this award. Contact an administrator."],
+  ["Command result cannot be null", "Unable to finalize this decision. Refresh to check the current status."],
+  ["Missing pending command receipt", "Unable to finalize this decision. Refresh to check the current status."],
+  ["Student enrollment in record semester required", "This student is no longer enrolled in the endorsement semester."],
+  ["Self merit award forbidden", "You cannot approve a merit endorsement for yourself."],
+  ["Invalid endorsement award", "This endorsement cannot generate merit awards in its current state. Refresh and try again."],
+  ["Self endorsement forbidden", "You cannot decide a merit endorsement for yourself."],
+  ["Assigned instructor must decide", "Only the assigned instructor can decide this endorsement."],
+  ["merit_endorsements final decision cannot change", "This endorsement has already been decided and cannot be changed."],
+  ["merit_endorsements immutable facts cannot change", "Endorsement details are locked and cannot be modified."],
+  ["merit_endorsements history cannot be deleted", "Endorsement history cannot be deleted."],
+  ["Endorsement decision/award units inconsistent", "The endorsement awards could not be created consistently. Try again."],
   ...RPC_MESSAGES,
 ];
 
@@ -336,4 +364,125 @@ export async function applyMeritsAction(rawInput: unknown): Promise<ApplyMeritsR
   // Replace, so Back from the result card does not reopen the wizard. Dropping
   // ?semester= is safe: applying requires the current semester, the default view.
   redirect(`/student/merits-demerits-and-services?applied=${requestKey}`, RedirectType.replace);
+}
+
+/**
+ * Approves or rejects an assigned Council merit endorsement (FL-032).
+ * Executes `public.decide_merit_endorsement` via `createCommandClient()`:
+ * - Verifies active Academic or Clinical Instructor role (`f_cmd_instructor`)
+ * - Locks the endorsement row (`FOR UPDATE`), verifies assignment and non-self decision
+ * - On approval, creates `requested_days` merit rows once dated institutional TODAY
+ *   (valid 1 year, retaining the endorsement semester) and emits `merit_received` (FL-044)
+ * - Performs no pre-RPC status lookup so identical request-key retries replay cleanly
+ */
+export async function decideMeritEndorsementAction(
+  rawInput: unknown
+): Promise<DecideMeritEndorsementResult> {
+  let actorId: string;
+  let userRoles: string[];
+
+  try {
+    const access = await requireWorkspace("faculty");
+    actorId = access.profile.id;
+    userRoles = access.roles;
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof AccessDeniedError
+          ? "You are not permitted to decide merit endorsements."
+          : "Unable to verify your access. Try again.",
+    };
+  }
+
+  if (!hasInstructorRole(userRoles)) {
+    return {
+      success: false,
+      error: "Only active Academic or Clinical Instructors can decide merit endorsements.",
+    };
+  }
+
+  const parsed = decideMeritEndorsementSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Check the endorsement decision details.",
+    };
+  }
+
+  const { requestKey, endorsementId, decision, reason } = parsed.data;
+  const normalizedReason = decision === "approved" ? null : reason;
+  const client = createCommandClient();
+  let data: unknown;
+
+  try {
+    const result = await client.rpc("decide_merit_endorsement", {
+      p_key: requestKey,
+      p_actor: actorId,
+      p_endorsement: endorsementId,
+      p_decision: decision,
+      ...(normalizedReason !== null ? { p_reason: normalizedReason } : {}),
+    });
+    data = result.data;
+
+    if (result.error) {
+      // supabase-js returns fetch/transport failures without a Postgres code;
+      // the commit may already have succeeded, so the caller must replay the same key.
+      if (!result.error.code) {
+        return {
+          success: false,
+          error:
+            "Unable to reach the server. If the decision was recorded, clicking retry will safely return the result.",
+          retryable: true,
+        };
+      }
+      return {
+        success: false,
+        error: formatRpcError(
+          result.error.message,
+          "Unable to record this endorsement decision. Try again.",
+          DECIDE_ENDORSEMENT_MESSAGES
+        ),
+      };
+    }
+  } catch {
+    return {
+      success: false,
+      error: "Unable to reach the server. Try again.",
+      retryable: true,
+    };
+  }
+
+  // Revalidate immediately after commit and before inspecting response shape.
+  revalidatePath("/faculty/merit-endorsements");
+  revalidatePath("/council/merit-endorsements-and-council-demerits");
+  if (decision === "approved") {
+    revalidatePath("/student/merits-demerits-and-services");
+    revalidatePath("/student/notifications");
+    revalidatePath("/student", "layout");
+    revalidatePath("/student/clearance");
+    revalidatePath("/faculty");
+    revalidatePath("/faculty/academic-clearance");
+    revalidatePath("/faculty/rle-clearance");
+  }
+
+  const d = (data ?? {}) as Record<string, unknown>;
+  const unitCount = Number(d.unit_count);
+  if (
+    typeof d.endorsement_id !== "string" ||
+    (d.status !== "approved" && d.status !== "rejected") ||
+    !Number.isFinite(unitCount)
+  ) {
+    return {
+      success: false,
+      error: "The endorsement decision was recorded, but response data was incomplete. Please refresh.",
+    };
+  }
+
+  return {
+    success: true,
+    endorsementId: d.endorsement_id,
+    status: d.status as MeritEndorsementDecision,
+    unitCount,
+  };
 }
