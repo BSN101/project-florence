@@ -15,12 +15,9 @@ import { RefreshButton } from "@/components/layout/refresh-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BucketBadge } from "@/features/discipline/components/disciplinary-badges";
+import { formatManilaDate, formatManilaDateTime } from "@/lib/manila-date";
 import { cn } from "@/lib/utils";
-import {
-  extractTimeHHmmManila,
-  formatDutyDate,
-  formatManilaDateTime,
-} from "../calculations";
+import { extractTimeHHmmManila } from "../calculations";
 import type {
   AvailableServiceStudent,
   FinalizationEligibility,
@@ -115,7 +112,7 @@ export function ServiceSessionDetail({
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-                {formatDutyDate(session.duty_on)}
+                {formatManilaDate(session.duty_on)}
               </h2>
               <BucketBadge bucket={session.bucket} />
               <SessionStatusBadge endedAt={session.ended_at} />

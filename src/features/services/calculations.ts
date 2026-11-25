@@ -21,40 +21,6 @@ export function getTodayManila(now: Date = new Date()): string {
   return formatter.format(now);
 }
 
-const MANILA_DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  dateStyle: "medium",
-});
-
-/** Formats a duty date ("YYYY-MM-DD" or ISO) as a medium Asia/Manila date, e.g. "Nov 25, 2026". */
-export function formatDutyDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—";
-  try {
-    const iso = dateStr.includes("T") ? dateStr : `${dateStr}T00:00:00+08:00`;
-    return MANILA_DATE_FORMATTER.format(new Date(iso));
-  } catch {
-    return dateStr;
-  }
-}
-
-const MANILA_DATETIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-/** Formats an ISO timestamp as a medium Asia/Manila date and time, e.g. "Nov 25, 2026, 5:02 PM". */
-export function formatManilaDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  try {
-    const ms = Date.parse(iso);
-    if (Number.isNaN(ms)) return "—";
-    return MANILA_DATETIME_FORMATTER.format(new Date(ms));
-  } catch {
-    return "—";
-  }
-}
-
 /**
  * Returns the permitted service duty buckets for an actor based on assigned roles.
  * - Academic Instructor -> "office"

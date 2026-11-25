@@ -16,7 +16,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BucketBadge } from "@/features/discipline/components/disciplinary-badges";
 import { cn } from "@/lib/utils";
-import { extractTimeHHmmManila, formatDutyDate } from "../calculations";
+import { formatManilaDate } from "@/lib/manila-date";
+
+import { extractTimeHHmmManila } from "../calculations";
 import type { ServiceSessionSummary } from "../contracts";
 import { SessionStatusBadge } from "./service-badges";
 
@@ -156,7 +158,7 @@ export function ServiceSessionList({
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-heading text-base font-semibold text-foreground">
-                        {formatDutyDate(s.duty_on)}
+                        {formatManilaDate(s.duty_on)}
                       </span>
                       <BucketBadge bucket={s.bucket} />
                       <SessionStatusBadge endedAt={s.ended_at} />

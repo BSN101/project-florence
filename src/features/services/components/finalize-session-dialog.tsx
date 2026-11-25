@@ -26,9 +26,10 @@ import { displayName } from "@/lib/format-name";
 import { cn } from "@/lib/utils";
 
 import { endServiceSessionAction } from "../actions";
+import { formatManilaDate } from "@/lib/manila-date";
+
 import {
   extractTimeHHmmManila,
-  formatDutyDate,
   isParticipantFinalizationValid,
 } from "../calculations";
 import type { FinalizationEligibility, ServiceSessionDetail } from "../contracts";
@@ -153,7 +154,7 @@ export function FinalizeSessionDialog({
         <DialogHeader>
           <DialogTitle>End service session</DialogTitle>
           <DialogDescription>
-            {session.bucket === "office" ? "Office" : "RLE"} duty · {formatDutyDate(session.duty_on)} ·{" "}
+            {session.bucket === "office" ? "Office" : "RLE"} duty · {formatManilaDate(session.duty_on)} ·{" "}
             {session.location?.trim() || "No location specified"}. Review participant completion and
             attendance readiness before permanently finalizing this session.
           </DialogDescription>
