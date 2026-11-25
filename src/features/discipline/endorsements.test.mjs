@@ -4,11 +4,11 @@ import test from "node:test";
 import {
   canDecideMeritEndorsement,
   countFacultyEndorsements,
-  formatManilaDate,
-  formatManilaDateTime,
+  countPendingBySemester,
   hasInstructorRole,
   sortFacultyEndorsements,
 } from "./calculations.ts";
+import { formatManilaDate, formatManilaDateTime } from "../../lib/manila-date.ts";
 import {
   decideMeritEndorsementSchema,
   requestedDaysSchema,
@@ -406,4 +406,14 @@ test("decideMeritEndorsementSchema rejects invalid decision or UUIDs", () => {
     }).success,
     false
   );
+});
+
+test("countPendingBySemester counts per semester in list order and skips empty semesters", () => {
+  const semesters = [{ id: "s3" }, { id: "s2" }, { id: "s1" }];
+  const rows = [{ semester_id: "s1" }, { semester_id: "s3" }, { semester_id: "s1" }, { semester_id: "unknown" }];
+  assert.deepEqual(countPendingBySemester(rows, semesters), [
+    { semester: { id: "s3" }, count: 1 },
+    { semester: { id: "s1" }, count: 2 },
+  ]);
+  assert.deepEqual(countPendingBySemester([], semesters), []);
 });

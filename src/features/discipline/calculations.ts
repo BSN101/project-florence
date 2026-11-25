@@ -274,6 +274,19 @@ export function countFacultyEndorsements(
   return { pending, approved, rejected };
 }
 
+/** Pending endorsement counts per semester, in `semesters` order; semesters with none are left out. */
+export function countPendingBySemester<T extends { id: string }>(
+  rows: readonly { semester_id: string }[],
+  semesters: readonly T[]
+): { semester: T; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.semester_id, (counts.get(row.semester_id) ?? 0) + 1);
+  return semesters.flatMap((semester) => {
+    const count = counts.get(semester.id);
+    return count ? [{ semester, count }] : [];
+  });
+}
+
 /** Sorts pending endorsements first (newest submitted first), then decided rows (newest decided first). */
 export function sortFacultyEndorsements<
   T extends Pick<FacultyMeritEndorsementRecord, "id" | "status" | "submitted_at" | "decided_at">,
@@ -289,42 +302,4 @@ export function sortFacultyEndorsements<
 
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
-}
-
-const MANILA_DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  dateStyle: "medium",
-});
-
-const MANILA_DATETIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-/** Formats a calendar date (`YYYY-MM-DD`) or ISO timestamp as a medium `Asia/Manila` date, or `"—"` when blank/invalid. */
-export function formatManilaDate(dateStr: string | null | undefined): string {
-  const trimmed = dateStr?.trim();
-  if (!trimmed) return "—";
-  try {
-    const iso = trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00+08:00`;
-    const ms = Date.parse(iso);
-    if (Number.isNaN(ms)) return "—";
-    return MANILA_DATE_FORMATTER.format(new Date(ms));
-  } catch {
-    return "—";
-  }
-}
-
-/** Formats an ISO timestamp as a medium `Asia/Manila` date and time, or `"—"` when blank/invalid. */
-export function formatManilaDateTime(iso: string | null | undefined): string {
-  const trimmed = iso?.trim();
-  if (!trimmed) return "—";
-  try {
-    const ms = Date.parse(trimmed);
-    if (Number.isNaN(ms)) return "—";
-    return MANILA_DATETIME_FORMATTER.format(new Date(ms));
-  } catch {
-    return "—";
-  }
 }
