@@ -6,7 +6,14 @@ import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
 
-import { calculateDisciplinarySummary, evaluateMeritState, getAvailableMeritsFifo, getTodayManila } from "./calculations";
+import {
+  calculateDisciplinarySummary,
+  canDecideMeritEndorsement,
+  evaluateMeritState,
+  getAvailableMeritsFifo,
+  getTodayManila,
+  sortFacultyEndorsements,
+} from "./calculations";
 import type {
   StudentMeritApplicationGroup,
   CouncilDisciplinaryViewData,
@@ -14,8 +21,10 @@ import type {
   DisciplinaryLedger,
   FacultyDemeritGroup,
   FacultyDisciplinaryViewData,
+  FacultyMeritEndorsementRecord,
   FacultyMeritGroup,
   InstructorChoice,
+  MeritRecord,
   MisconductOption,
   StudentDisciplinarySummary,
 } from "./contracts";
@@ -414,4 +423,92 @@ export async function getInstructorChoices(): Promise<InstructorChoice[]> {
     byId.set(row.id, seen ? { ...seen, instructor_role: `${seen.instructor_role} / ${row.instructor_role}` } : row);
   }
   return [...byId.values()];
+}
+
+/**
+ * Faculty workspace query (FL-032).
+ * Loads merit endorsements explicitly assigned to the signed-in instructor in `semesterId`,
+ * computes `canDecide` server-side, strips internal actor/student UUIDs, and attaches
+ * award/expiry dates from `merits` for approved endorsements.
+ */
+export async function getMyAssignedMeritEndorsements(
+  semesterId: string
+): Promise<FacultyMeritEndorsementRecord[]> {
+  const access = await requireWorkspace("faculty");
+  const actorId = access.profile.id;
+  const client = await createUserClient();
+
+  const { data, error } = await client
+    .from("merit_endorsements")
+    .select(
+      "id, student_id, semester_id, assigned_instructor_id, description, requested_days, status, submitted_at, decided_at, decision_reason"
+    )
+    .eq("assigned_instructor_id", actorId)
+    .eq("semester_id", semesterId)
+    .order("submitted_at", { ascending: false });
+
+  if (error) throw new Error("Unable to load assigned merit endorsements");
+  if (!data || data.length === 0) return [];
+
+  const approvedIds = data.filter((e) => e.status === "approved").map((e) => e.id);
+
+  const [names, awardsRes] = await Promise.all([
+    loadNames(
+      client,
+      data.map((e) => e.student_id)
+    ),
+    approvedIds.length > 0
+      ? client
+          .from("merits")
+          .select("endorsement_id, awarded_on, expires_on")
+          .eq("source", "endorsement")
+          .eq("awarded_by", actorId)
+          .in("endorsement_id", approvedIds)
+      : Promise.resolve({
+          data: [] as Pick<MeritRecord, "endorsement_id" | "awarded_on" | "expires_on">[],
+          error: null,
+        }),
+  ]);
+
+  if (awardsRes.error) throw new Error("Unable to load endorsement merits");
+
+  const awardSummaryByEndorsement = new Map<
+    string,
+    { days: number; awarded_on: string; expires_on: string }
+  >();
+  for (const row of awardsRes.data) {
+    if (!row.endorsement_id) continue;
+    const existing = awardSummaryByEndorsement.get(row.endorsement_id);
+    if (!existing) {
+      awardSummaryByEndorsement.set(row.endorsement_id, {
+        days: 1,
+        awarded_on: row.awarded_on,
+        expires_on: row.expires_on,
+      });
+    } else {
+      existing.days += 1;
+    }
+  }
+
+  const projected: FacultyMeritEndorsementRecord[] = data.map((e) => {
+    const award = awardSummaryByEndorsement.get(e.id);
+    return {
+      id: e.id,
+      description: e.description,
+      requested_days: e.requested_days,
+      status: e.status,
+      submitted_at: e.submitted_at,
+      decided_at: e.decided_at,
+      decision_reason: e.decision_reason,
+      student_university_id: names.get(e.student_id)?.university_id ?? null,
+      student_name: nameOf(names, e.student_id),
+      submitter_name: COUNCIL,
+      awarded_days: award?.days ?? 0,
+      awarded_on: award?.awarded_on ?? null,
+      expires_on: award?.expires_on ?? null,
+      canDecide: canDecideMeritEndorsement(e, actorId, access.roles),
+    };
+  });
+
+  return sortFacultyEndorsements(projected);
 }
