@@ -11,7 +11,7 @@ import { FacultyMyDisciplineView } from "@/features/discipline/components/facult
 import { LogDemeritsFlow } from "@/features/discipline/components/log-demerits-flow";
 import type { AwardRecipientOption } from "@/features/discipline/contracts";
 import { getActiveMisconductCatalog, getMyFacultyDemerits, getMyFacultyMerits } from "@/features/discipline/queries";
-import { semesterFilterSchema } from "@/features/semesters/schemas";
+import { resolveSelectedSemester, semesterFilterSchema } from "@/features/semesters/schemas";
 import { getRoster } from "@/features/students/queries";
 import { getAccessContext } from "@/server/auth/access-context";
 
@@ -39,11 +39,7 @@ export default async function FacultyMeritsAndDemeritsPage({
   }
 
   const filter = semesterFilterSchema.safeParse({ semester });
-  const selected = !filter.success
-    ? undefined
-    : filter.data.semester
-    ? access.semesters.find((s) => s.id === filter.data.semester)
-    : access.semesters.find((s) => s.is_current) ?? access.semesters[0];
+  const selected = resolveSelectedSemester(access.semesters, semester) ?? undefined;
   const canAct = Boolean(selected?.is_current);
   const semesterLabel = selected ? `${selected.term} (AY ${selected.academic_year_start}–${selected.academic_year_start + 1})` : "";
   const tabValue = Array.isArray(tab) ? tab[0] : tab;

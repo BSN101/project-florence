@@ -19,7 +19,7 @@ import { displayName } from "@/lib/format-name";
 import { cn } from "@/lib/utils";
 
 import { revokeServiceCreditAction } from "../actions";
-import { formatDutyDate } from "../calculations";
+import { formatManilaDate } from "@/lib/manila-date";
 import type { ServiceParticipantDetail, ServiceSessionRecord } from "../contracts";
 import { revokeServiceCreditSchema } from "../schemas";
 
@@ -168,7 +168,7 @@ export function RevokeServiceCreditDialog({
           <DialogTitle>Revoke service credit</DialogTitle>
           <DialogDescription>
             {studentName} ({participant.university_id}) · {trackLabel} duty ·{" "}
-            {formatDutyDate(session.duty_on)} ·{" "}
+            {formatManilaDate(session.duty_on)} ·{" "}
             {session.location?.trim() || "No location specified"}.
           </DialogDescription>
         </DialogHeader>

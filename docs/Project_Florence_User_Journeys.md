@@ -1000,6 +1000,46 @@ The erroneous service credit is permanently marked revoked with its attributable
 - Revoked rows display both the struck-through **1 Credit** badge and **Credit Revoked** badge plus the bounded **Revocation note** and `Asia/Manila` timestamp across desktop and 390px mobile viewports.
 - All interactive controls (**Revoke credit**, **Cancel**, **Start over**, **Retry revocation**) meet the 44px mobile touch-target floor (`max-sm:min-h-11`).
 
+## Decide assigned merit endorsement
+
+- **Author:** Andrei Catigan
+- **Actors:** Academic Instructor or Clinical Instructor assigned to the endorsement (with or without their matching coordinator assignment); Student; Council (sees the outcome).
+- **Starts at:** Faculty workspace > Endorsements (`/faculty/merit-endorsements`), defaulting to the current semester.
+- **References:** FL-032, FL-044, FL-036; schema §9.1 (`merit_endorsements`), §9.2 (`merits`).
+
+### Main flow
+
+1. The instructor opens **Endorsements** and sees the Council endorsements assigned to them for the selected semester, with pending, approved and rejected counts. If other semesters still hold pending endorsements assigned to them, a callout links to each one.
+2. The instructor chooses **Approve** or **Reject** on a pending endorsement. The confirmation names the student, the requested merit days, the semester and the endorsement basis, and states that the decision is final.
+3. To approve, the instructor confirms. The system creates the requested whole-day merit units dated today (`Asia/Manila`), valid for 1 year and attributed to the endorsement's semester, and sends the student a **Merit Endorsed** notice.
+4. To reject, the instructor may add a reason of up to 500 characters, which the student, Council and coordinators can read, and confirms. No merit is created and no notice is sent.
+5. The endorsement closes with the decision, the deciding instructor and the time recorded. The list shows the outcome, the award and expiry dates for approvals, and the reason for rejections.
+
+### System involvement
+
+- `public.decide_merit_endorsement` checks the active instructor role, that the actor is the assigned instructor and not the student, and that the endorsement is still pending. It locks the row and creates the merits and the notice in one transaction. The request key makes a retried request return the original result.
+- The list reads only endorsements assigned to the actor and never sends internal student or actor IDs to the browser.
+- A decision refreshes the faculty and Council endorsement pages, and approvals also refresh the student's merits, notifications and home pages.
+
+### Outcome
+
+The endorsement is permanently approved or rejected with the issuer and decider attributed. An approval gives the student spendable merit units (FL-036) and a notice (FL-044). A rejection closes the recommendation with no merit.
+
+### Important alternatives
+
+- **Past-semester endorsement:** A pending endorsement from a closed semester can still be decided. Its merit units are dated the day of approval and keep the original semester's attribution. The page says so when such a semester is selected.
+- **Not the assigned instructor:** Coordinators, other instructors and anyone without an active instructor role see no **Approve** or **Reject** controls, and the server refuses the decision. A pending row they can see reads **Pending**.
+- **Already decided:** Deciding an endorsement that is no longer pending is refused and the list refreshes to show the recorded outcome.
+- **Lost connection:** If the reply does not arrive, the dialog keeps the same request and reason and offers **Retry**. **Start over** or closing the dialog refreshes the list in case the first attempt was recorded.
+
+### Acceptance checks
+
+- Only the assigned instructor with an active Academic or Clinical Instructor role can decide; self-decision and deciding a non-pending endorsement are refused.
+- Approval creates exactly the requested number of merit units once, dated today in `Asia/Manila` with 1-year expiry, and sends one **Merit Endorsed** notice.
+- Rejection creates no merit units and no notice, and stores a blank reason as no reason.
+- Pending endorsements in other semesters are linked from the default view.
+- Controls meet the 44 px touch-target minimum on phones and touch tablets.
+
 ## View student home dashboard and permitted quick actions
 
 - **Author:** Israel
@@ -1043,5 +1083,3 @@ The student has an immediate, unified view of their academic identity, financial
 - Layout is fully responsive across mobile, portrait tablet (iPad mini with 256px sidebar), and desktop without card squishing or horizontal overflow.
 - All interactive links and action buttons maintain minimum 44px touch targets.
 - All numbers, currency balances, service credits, and demerits render with `tabular-nums`.
-
-

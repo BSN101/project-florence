@@ -3,6 +3,8 @@ import type {
   BucketDisciplinaryBalance,
   DemeritRecord,
   DisciplinaryBucket,
+  FacultyEndorsementCounts,
+  FacultyMeritEndorsementRecord,
   MeritApplicationRecord,
   MeritRecord,
   ServiceCreditRecord,
@@ -233,4 +235,71 @@ export function calculateDisciplinarySummary(input: {
     totalActiveBalance,
     hasOutstandingDebt,
   };
+}
+
+/** True when the actor holds an active Academic or Clinical Instructor role (matches `f_cmd_instructor`). */
+export function hasInstructorRole(roles: readonly string[]): boolean {
+  return roles.includes("Academic Instructor") || roles.includes("Clinical Instructor");
+}
+
+/**
+ * Pure eligibility check for deciding a Council merit endorsement (FL-032).
+ * Mirrors `public.decide_merit_endorsement` 1:1 (semester-agnostic; pending only; assigned instructor only; no self-decision).
+ */
+export function canDecideMeritEndorsement(
+  endorsement: { status: string; assigned_instructor_id: string; student_id: string },
+  actorId: string,
+  roles: readonly string[]
+): boolean {
+  return (
+    endorsement.status === "pending" &&
+    hasInstructorRole(roles) &&
+    endorsement.assigned_instructor_id === actorId &&
+    endorsement.student_id !== actorId
+  );
+}
+
+/** Counts pending, approved, and rejected endorsements for the Faculty Endorsements summary strip. */
+export function countFacultyEndorsements(
+  endorsements: readonly Pick<FacultyMeritEndorsementRecord, "status">[]
+): FacultyEndorsementCounts {
+  let pending = 0;
+  let approved = 0;
+  let rejected = 0;
+  for (const e of endorsements) {
+    if (e.status === "pending") pending++;
+    else if (e.status === "approved") approved++;
+    else if (e.status === "rejected") rejected++;
+  }
+  return { pending, approved, rejected };
+}
+
+/** Pending endorsement counts per semester, in `semesters` order; semesters with none are left out. */
+export function countPendingBySemester<T extends { id: string }>(
+  rows: readonly { semester_id: string }[],
+  semesters: readonly T[]
+): { semester: T; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.semester_id, (counts.get(row.semester_id) ?? 0) + 1);
+  return semesters.flatMap((semester) => {
+    const count = counts.get(semester.id);
+    return count ? [{ semester, count }] : [];
+  });
+}
+
+/** Sorts pending endorsements first (newest submitted first), then decided rows (newest decided first). */
+export function sortFacultyEndorsements<
+  T extends Pick<FacultyMeritEndorsementRecord, "id" | "status" | "submitted_at" | "decided_at">,
+>(endorsements: readonly T[]): T[] {
+  return [...endorsements].sort((a, b) => {
+    const aPending = a.status === "pending";
+    const bPending = b.status === "pending";
+    if (aPending !== bPending) return aPending ? -1 : 1;
+
+    const aTime = aPending ? a.submitted_at : (a.decided_at ?? a.submitted_at);
+    const bTime = bPending ? b.submitted_at : (b.decided_at ?? b.submitted_at);
+    if (aTime !== bTime) return aTime > bTime ? -1 : 1;
+
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
 }

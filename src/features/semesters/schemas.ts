@@ -10,6 +10,20 @@ export const semesterFilterSchema = z.object({
   semester: z.string().uuid().optional(),
 });
 
+/**
+ * The semester a semester-scoped page shows: the requested `?semester=`, else the current one, else the
+ * first listed. `null` when the request is malformed or not in `semesters`; `undefined` when none exist.
+ */
+export function resolveSelectedSemester<T extends { id: string; is_current: boolean }>(
+  semesters: readonly T[],
+  semester: unknown
+): T | null | undefined {
+  const parsed = semesterFilterSchema.safeParse({ semester });
+  if (!parsed.success) return null;
+  if (parsed.data.semester) return semesters.find((s) => s.id === parsed.data.semester) ?? null;
+  return semesters.find((s) => s.is_current) ?? semesters[0];
+}
+
 export const createSemesterSchema = z.object({
   academic_year_start: z.number().int().min(1900).max(9998),
   term: z.enum(APPROVED_SEMESTER_TERMS),

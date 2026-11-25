@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import { formatManilaDateTime } from "../calculations";
+import { formatManilaDateTime } from "@/lib/manila-date";
 import type { AttendanceStatus, ServiceParticipantCredit } from "../contracts";
 
 /**

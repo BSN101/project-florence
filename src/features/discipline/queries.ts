@@ -2,11 +2,19 @@ import "server-only";
 
 import { z } from "zod";
 
+import { allRows } from "@/features/finance/queries";
 import { displayName } from "@/lib/format-name";
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
 import { createUserClient } from "@/server/db/user-client";
 
-import { calculateDisciplinarySummary, evaluateMeritState, getAvailableMeritsFifo, getTodayManila } from "./calculations";
+import {
+  calculateDisciplinarySummary,
+  canDecideMeritEndorsement,
+  evaluateMeritState,
+  getAvailableMeritsFifo,
+  getTodayManila,
+  sortFacultyEndorsements,
+} from "./calculations";
 import type {
   StudentMeritApplicationGroup,
   CouncilDisciplinaryViewData,
@@ -14,8 +22,10 @@ import type {
   DisciplinaryLedger,
   FacultyDemeritGroup,
   FacultyDisciplinaryViewData,
+  FacultyMeritEndorsementRecord,
   FacultyMeritGroup,
   InstructorChoice,
+  MeritRecord,
   MisconductOption,
   StudentDisciplinarySummary,
 } from "./contracts";
@@ -414,4 +424,114 @@ export async function getInstructorChoices(): Promise<InstructorChoice[]> {
     byId.set(row.id, seen ? { ...seen, instructor_role: `${seen.instructor_role} / ${row.instructor_role}` } : row);
   }
   return [...byId.values()];
+}
+
+/**
+ * Faculty workspace query (FL-032).
+ * Loads merit endorsements explicitly assigned to the signed-in instructor in `semesterId`,
+ * computes `canDecide` server-side, strips internal actor/student UUIDs, and attaches
+ * award/expiry dates from `merits` for approved endorsements.
+ */
+export async function getMyAssignedMeritEndorsements(
+  semesterId: string
+): Promise<FacultyMeritEndorsementRecord[]> {
+  const access = await requireWorkspace("faculty");
+  const actorId = access.profile.id;
+  const client = await createUserClient();
+
+  const data = await allRows(
+    (from, to) =>
+      client
+        .from("merit_endorsements")
+        .select(
+          "id, student_id, semester_id, assigned_instructor_id, description, requested_days, status, submitted_at, decided_at, decision_reason"
+        )
+        .eq("assigned_instructor_id", actorId)
+        .eq("semester_id", semesterId)
+        .order("submitted_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to),
+    "Unable to load assigned merit endorsements"
+  );
+
+  if (data.length === 0) return [];
+
+  const hasApproved = data.some((e) => e.status === "approved");
+
+  const [names, firstUnitMerits] = await Promise.all([
+    loadNames(
+      client,
+      data.map((e) => e.student_id)
+    ),
+    hasApproved
+      ? allRows(
+          (from, to) =>
+            client
+              .from("merits")
+              .select("endorsement_id, awarded_on, expires_on")
+              .eq("semester_id", semesterId)
+              .eq("source", "endorsement")
+              .eq("awarded_by", actorId)
+              .eq("endorsement_unit_index", 1)
+              .order("id", { ascending: true })
+              .range(from, to),
+          "Unable to load endorsement merits"
+        )
+      : Promise.resolve(
+          [] as Pick<MeritRecord, "endorsement_id" | "awarded_on" | "expires_on">[]
+        ),
+  ]);
+
+  const awardDatesByEndorsement = new Map<string, { awarded_on: string; expires_on: string }>();
+  for (const row of firstUnitMerits) {
+    if (!row.endorsement_id) continue;
+    awardDatesByEndorsement.set(row.endorsement_id, {
+      awarded_on: row.awarded_on,
+      expires_on: row.expires_on,
+    });
+  }
+
+  const projected: FacultyMeritEndorsementRecord[] = data.map((e) => {
+    const dates = awardDatesByEndorsement.get(e.id);
+    return {
+      id: e.id,
+      description: e.description,
+      requested_days: e.requested_days,
+      status: e.status,
+      submitted_at: e.submitted_at,
+      decided_at: e.decided_at,
+      decision_reason: e.decision_reason,
+      student_university_id: names.get(e.student_id)?.university_id ?? null,
+      student_name: nameOf(names, e.student_id),
+      submitter_name: COUNCIL,
+      awarded_days: e.status === "approved" ? e.requested_days : 0,
+      awarded_on: dates?.awarded_on ?? null,
+      expires_on: dates?.expires_on ?? null,
+      canDecide: canDecideMeritEndorsement(e, actorId, access.roles),
+    };
+  });
+
+  return sortFacultyEndorsements(projected);
+}
+
+/**
+ * Pending endorsements assigned to the signed-in instructor outside `semesterId`, so ones left from a
+ * closed semester are not missed after the default view moves to the new current semester (FL-032).
+ */
+export async function getMyPendingEndorsementsElsewhere(semesterId: string): Promise<{ semester_id: string }[]> {
+  const access = await requireWorkspace("faculty");
+  const client = await createUserClient();
+
+  return allRows(
+    (from, to) =>
+      client
+        .from("merit_endorsements")
+        .select("semester_id")
+        .eq("assigned_instructor_id", access.profile.id)
+        .eq("status", "pending")
+        .neq("semester_id", semesterId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    "Unable to load pending endorsements in other semesters"
+  );
 }

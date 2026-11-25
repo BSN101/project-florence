@@ -12,11 +12,11 @@ import {
   evaluateAttendanceStatus,
   evaluateFinalizationEligibility,
   extractTimeHHmmManila,
-  formatManilaDateTime,
   isParticipantFinalizationValid,
   isTimeWithinWindow,
   withFinalizationCounts,
 } from "./calculations.ts";
+import { formatManilaDateTime } from "../../lib/manila-date.ts";
 import {
   createServiceSessionSchema,
   endServiceSessionSchema,
