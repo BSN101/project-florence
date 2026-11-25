@@ -270,11 +270,11 @@ export function ServiceSessionDetail({
           </>
         ) : (
           <>
-            {/* Card 3 (Ended): Credits Awarded */}
+            {/* Card 3 (Ended): Credits Issued */}
             <Card className="border border-border/70 shadow-xs">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Credits Awarded
+                  Credits Issued
                 </CardTitle>
                 <Award className="size-4 text-emerald-600 dark:text-emerald-400" />
               </CardHeader>
