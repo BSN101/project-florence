@@ -227,9 +227,8 @@ test("canDecideMeritEndorsement mirrors decide_merit_endorsement guards", () => 
 
 // --- countFacultyEndorsements & sortFacultyEndorsements ----------------
 
-test("countFacultyEndorsements tallies pending, approved, rejected, and total counts", () => {
+test("countFacultyEndorsements tallies pending, approved, and rejected counts", () => {
   assert.deepEqual(countFacultyEndorsements([]), {
-    total: 0,
     pending: 0,
     approved: 0,
     rejected: 0,
@@ -242,7 +241,7 @@ test("countFacultyEndorsements tallies pending, approved, rejected, and total co
     { status: "rejected" },
     { status: "approved" },
   ]);
-  assert.deepEqual(counts, { total: 5, pending: 2, approved: 2, rejected: 1 });
+  assert.deepEqual(counts, { pending: 2, approved: 2, rejected: 1 });
 });
 
 test("sortFacultyEndorsements places pending newest-submitted first, then decided newest-decided", () => {

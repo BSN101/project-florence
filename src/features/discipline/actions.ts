@@ -411,7 +411,6 @@ export async function decideMeritEndorsementAction(
   }
 
   const { requestKey, endorsementId, decision, reason } = parsed.data;
-  const normalizedReason = decision === "approved" ? null : reason;
   const client = createCommandClient();
   let data: unknown;
 
@@ -421,7 +420,7 @@ export async function decideMeritEndorsementAction(
       p_actor: actorId,
       p_endorsement: endorsementId,
       p_decision: decision,
-      ...(normalizedReason !== null ? { p_reason: normalizedReason } : {}),
+      ...(reason !== null ? { p_reason: reason } : {}),
     });
     data = result.data;
 
@@ -460,10 +459,6 @@ export async function decideMeritEndorsementAction(
     revalidatePath("/student/merits-demerits-and-services");
     revalidatePath("/student/notifications");
     revalidatePath("/student", "layout");
-    revalidatePath("/student/clearance");
-    revalidatePath("/faculty");
-    revalidatePath("/faculty/academic-clearance");
-    revalidatePath("/faculty/rle-clearance");
   }
 
   const d = (data ?? {}) as Record<string, unknown>;

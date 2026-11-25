@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, CircleAlert, Loader2, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,21 @@ export function EndorsementDecisionDialog({
   const reasonId = useId();
   const helpId = useId();
   const errorId = useId();
+
+  // Preserved (hidden) pages keep state under <Activity>: reset transient dialog state when route or semester changes.
+  const pathname = usePathname();
+  const locationKey = `${pathname}:${semesterLabel}`;
+  const [seenLocation, setSeenLocation] = useState(locationKey);
+  if (seenLocation !== locationKey && !isPending) {
+    setSeenLocation(locationKey);
+    if (open) setOpen(false);
+    if (error !== null) setError(null);
+    if (reason !== "") setReason("");
+    if (locked || retryableError) {
+      setLocked(false);
+      setRetryableError(false);
+    }
+  }
 
   if (!endorsement.canDecide || endorsement.status !== "pending") {
     return null;
@@ -176,7 +191,7 @@ export function EndorsementDecisionDialog({
         }
       />
 
-      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isApprove ? "Approve merit endorsement" : "Reject merit endorsement"}

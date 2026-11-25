@@ -173,7 +173,6 @@ export type FacultyMeritEndorsementRecord = Pick<
   };
 
 export type FacultyEndorsementCounts = {
-  total: number;
   pending: number;
   approved: number;
   rejected: number;

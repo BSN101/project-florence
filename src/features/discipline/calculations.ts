@@ -271,7 +271,7 @@ export function countFacultyEndorsements(
     else if (e.status === "approved") approved++;
     else if (e.status === "rejected") rejected++;
   }
-  return { total: endorsements.length, pending, approved, rejected };
+  return { pending, approved, rejected };
 }
 
 /** Sorts pending endorsements first (newest submitted first), then decided rows (newest decided first). */

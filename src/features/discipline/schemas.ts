@@ -149,8 +149,6 @@ export const decideMeritEndorsementSchema = z
     reason: data.decision === "approved" ? null : data.reason,
   }));
 
-export type DecideMeritEndorsementInput = z.infer<typeof decideMeritEndorsementSchema>;
-
 // ---------------------------------------------------------------------------
 // Student merit application schemas (FL-036 / T-048)
 // ---------------------------------------------------------------------------

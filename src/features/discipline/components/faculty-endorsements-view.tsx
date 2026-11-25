@@ -71,18 +71,18 @@ export function FacultyEndorsementsView({
     });
   }, [endorsements, normalizedSearch, status]);
 
-  const { pageRows, pager } = usePagedRows(rows, `${status}:${normalizedSearch}`);
+  const { pageRows, pager } = usePagedRows(rows, `${semesterLabel}:${status}:${normalizedSearch}`);
 
   const filters = (
     <div className="flex w-full flex-wrap items-center gap-2">
       <div className="relative w-full max-w-xs">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
           placeholder="Filter by student or basis..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="h-8 pl-8 text-xs"
+          className="pl-9 sm:h-8 sm:text-xs max-sm:min-h-11"
           aria-label="Filter endorsements by student or basis"
         />
       </div>
@@ -95,7 +95,7 @@ export function FacultyEndorsementsView({
       {/* Header Row */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h2 className="font-heading text-lg font-medium text-foreground">
+          <h2 className="section-title text-foreground">
             Assigned Endorsements
           </h2>
           <p className="text-xs text-muted-foreground">
