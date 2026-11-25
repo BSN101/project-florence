@@ -65,7 +65,7 @@ export function StudentUpcomingEventCard({
       {event ? (
         <div className="flex flex-col gap-1.5 min-w-0">
           <h4
-            className="font-heading text-base font-semibold text-foreground truncate"
+            className="font-heading text-base font-semibold text-foreground leading-snug line-clamp-2 break-words"
             title={event.name}
           >
             {event.name}

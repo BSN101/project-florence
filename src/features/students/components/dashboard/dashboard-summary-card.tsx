@@ -29,7 +29,7 @@ export function DashboardSummaryCard({
   children?: React.ReactNode;
 }) {
   return (
-    <Card className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-5 sm:p-6 transition-colors hover:border-primary/40 hover:bg-muted/5 shadow-2xs">
+    <Card className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-4 sm:p-6 transition-colors hover:border-primary/40 hover:bg-muted/5 shadow-2xs">
       <Link
         href={href}
         className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
@@ -37,18 +37,18 @@ export function DashboardSummaryCard({
       />
       <div className="flex flex-col gap-3">
         {/* Header row */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-start justify-between gap-2.5 sm:items-center">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div
               className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${iconClassName}`}
             >
               {icon}
             </div>
-            <h3 className="font-heading text-sm font-semibold text-foreground truncate">
+            <h3 className="font-heading text-sm font-semibold text-foreground leading-snug break-words">
               {title}
             </h3>
           </div>
-          {badge}
+          {badge && <div className="shrink-0 pt-0.5 sm:pt-0">{badge}</div>}
         </div>
 
         {/* Metric content */}
