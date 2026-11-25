@@ -4,7 +4,7 @@ import type { Workspace } from "@/features/access/access-policy";
 import { destinationHref, getWorkspaceNavigation, hasMobileTabBar, isFocusedWorkspace, workspaceLabels } from "@/features/access/workspace-navigation";
 import { SemesterContext } from "@/features/semesters/components/semester-context";
 import { SemesterFilter } from "@/features/semesters/components/semester-filter";
-import { semesterFilterSchema } from "@/features/semesters/schemas";
+import { resolveSelectedSemester } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 import { PageTransition } from "./page-transition";
 import { ScrollEdge } from "./scroll-edge";
@@ -38,12 +38,9 @@ export async function WorkspaceShell({ workspace, destination = "", semester, ch
   const visibleSemesters = workspace === "student"
     ? access.semesters.filter((item) => access.enrollments.some((enrollment) => enrollment.semester_id === item.id))
     : access.semesters;
-  const parsedFilter = semesterFilterSchema.safeParse(currentItem.semesterScoped ? { semester } : {});
-  if (!parsedFilter.success) notFound();
-  if (parsedFilter.data.semester && !visibleSemesters.some((item) => item.id === parsedFilter.data.semester)) notFound();
-  const selectedSemester = parsedFilter.data.semester
-    ?? visibleSemesters.find((item) => item.is_current)?.id
-    ?? visibleSemesters[0]?.id;
+  const resolved = resolveSelectedSemester(visibleSemesters, currentItem.semesterScoped ? semester : undefined);
+  if (resolved === null) notFound();
+  const selectedSemester = resolved?.id;
 
   return (
     <PageTransition>
