@@ -141,6 +141,8 @@ export function RevokeServiceCreditDialog({
           if (!next) {
             if (retryableError) {
               startOver();
+              // The lost reply may have been a recorded revocation; show the current state.
+              router.refresh();
             } else {
               setError(null);
             }
@@ -184,7 +186,7 @@ export function RevokeServiceCreditDialog({
           )}
 
           {/* Revocation Policy Callout */}
-          <div className="flex items-start gap-2.5 rounded-lg border border-amber-600/30 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-600/30 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden="true" />
             <div className="space-y-1">
               <div className="font-medium">One-way credit revocation</div>
@@ -255,7 +257,7 @@ export function RevokeServiceCreditDialog({
                   size="sm"
                   disabled={isPending}
                   onClick={() => handleRevoke()}
-                  className="max-sm:min-h-11 gap-1.5"
+                  className="max-sm:min-h-11 gap-2"
                 >
                   {isPending ? (
                     <>
@@ -288,7 +290,7 @@ export function RevokeServiceCreditDialog({
                   variant="destructive"
                   size="sm"
                   disabled={locked || isPending || trimmedReason.length < 3}
-                  className="max-sm:min-h-11 gap-1.5"
+                  className="max-sm:min-h-11 gap-2"
                 >
                   {isPending ? (
                     <>
