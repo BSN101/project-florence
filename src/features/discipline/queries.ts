@@ -513,3 +513,25 @@ export async function getMyAssignedMeritEndorsements(
 
   return sortFacultyEndorsements(projected);
 }
+
+/**
+ * Pending endorsements assigned to the signed-in instructor outside `semesterId`, so ones left from a
+ * closed semester are not missed after the default view moves to the new current semester (FL-032).
+ */
+export async function getMyPendingEndorsementsElsewhere(semesterId: string): Promise<{ semester_id: string }[]> {
+  const access = await requireWorkspace("faculty");
+  const client = await createUserClient();
+
+  return allRows(
+    (from, to) =>
+      client
+        .from("merit_endorsements")
+        .select("semester_id")
+        .eq("assigned_instructor_id", access.profile.id)
+        .eq("status", "pending")
+        .neq("semester_id", semesterId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    "Unable to load pending endorsements in other semesters"
+  );
+}
