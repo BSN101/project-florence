@@ -128,7 +128,7 @@ export function ParticipantCreditBadge({
     const trimmedReason = credit.revocation_reason?.trim();
     return (
       <div className={cn("flex min-w-0 flex-col items-start gap-1", className)}>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground line-through whitespace-nowrap">
             1 Credit
           </span>
@@ -136,14 +136,15 @@ export function ParticipantCreditBadge({
             Credit Revoked
           </span>
         </div>
-        <div className="max-w-xs break-words rounded bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground space-y-0.5">
+        <div className="max-w-xs whitespace-normal break-words rounded bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground space-y-1">
           {trimmedReason ? (
             <div>
               <strong className="font-medium text-foreground">Revocation note:</strong>{" "}
               {trimmedReason}
             </div>
           ) : null}
-          <div className="text-[10px] text-muted-foreground/80">
+          {/* Server (Node ICU) and browser Intl output can differ in spacing. */}
+          <div className="text-[10px] text-muted-foreground/80" suppressHydrationWarning>
             Revoked {formatManilaDateTime(credit.revoked_at)}
           </div>
         </div>
