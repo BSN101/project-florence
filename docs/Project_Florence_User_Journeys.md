@@ -1000,4 +1000,47 @@ The erroneous service credit is permanently marked revoked with its attributable
 - Revoked rows display both the struck-through **1 Credit** badge and **Credit Revoked** badge plus the bounded **Revocation note** and `Asia/Manila` timestamp across desktop and 390px mobile viewports.
 - All interactive controls (**Revoke credit**, **Cancel**, **Start over**, **Retry revocation**) meet the 44px mobile touch-target floor (`max-sm:min-h-11`).
 
+## View student home dashboard and permitted quick actions
+
+- **Author:** Israel
+- **Actors:** Nursing Student.
+- **Starts at:** Student workspace > Home (`/student`), defaulting to the current semester (or latest enrolled term); any enrolled semester can be selected.
+- **References:** FL-043, FL-012, FL-014, FL-022, FL-023, FL-029, FL-042, FL-044; schema §11.1 (`clearances`), `florence_my_events`, `florence_bucket_balances`, `getStudentFinancialAccount`, `getStudentClearanceSummary`, `getUnreadNotificationCount`.
+
+### Main flow
+
+1. The student navigates to `/student` (or selects "Home" in the student navigation / mobile tab bar).
+2. The page renders a personalized welcome header, the render timestamp refresh control, and verifies student enrollment for the selected semester.
+3. The Personal Attendance QR Card displays the student's name, formatted student number (`XX-1-XXXXX`), enrolled year level, academic status, high-contrast QR code, and a download button for event check-ins.
+4. The Academic & Financial Overview section presents an ergonomic 1-to-2 column responsive grid (1 column on mobile and portrait tablets, 2 columns on desktop) summarizing all permitted domain records:
+   - **Financial Obligations Card:** Displays the net outstanding balance (`₱X.XX` or "All Dues Cleared"), prior overdue notices, and pending payment review amounts, with a link to `/student/fees-and-fines`.
+   - **Conduct & Discipline Card:** Displays active net demerits, bucket breakdown (Office vs RLE), and completed corrective service hours, with a link to `/student/merits-demerits-and-services`.
+   - **Clearance Status Card:** Displays the at-a-glance 3-tier clearance progress ("X of 3 Confirmed") with individual status chips for Council, Academic, and RLE, with a link to `/student/clearance`.
+   - **Events & Attendance Card:** Highlights the next ongoing or upcoming event with scheduled times in Asia/Manila and venue, or an "up to date" state when none are scheduled, with a link to `/student/events`.
+5. The student may switch to any enrolled semester to view historical records for that term.
+
+### System involvement
+
+- Reuses existing feature queries and contracts concurrently via `Promise.allSettled` to isolate failures:
+  - `getStudentFinancialAccount` from `@/features/finance`
+  - `getMyDisciplinaryRecords` from `@/features/discipline`
+  - `getStudentClearanceSummary` from `@/features/clearance`
+  - `getMyEvents` from `@/features/events`
+  - `generateAttendanceQrDataUrl` from `@/features/students/qr`
+- Unread notifications are handled exclusively via the workspace chrome (header bell icon and sidebar navigation badge), avoiding redundant banners in the content view.
+- Does not compute separate calculations or introduce new database aggregations.
+- Does not include heavy charting libraries or analytics suites.
+- Only enrolled semesters can be selected; `WorkspaceShell` validates access and handles gating.
+
+### Outcome
+
+The student has an immediate, unified view of their academic identity, financial obligations, disciplinary standing, clearance progress, upcoming events, and unread notifications, with one-tap navigation to every feature workspace.
+
+### Acceptance checks
+
+- Student sees only their own permitted records; unauthorized roles are redirected or gated by `WorkspaceShell`.
+- Layout is fully responsive across mobile, portrait tablet (iPad mini with 256px sidebar), and desktop without card squishing or horizontal overflow.
+- All interactive links and action buttons maintain minimum 44px touch targets.
+- All numbers, currency balances, hours, and demerits render with `tabular-nums`.
+
 
