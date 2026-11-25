@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
+import { findNextUpcomingEvent } from "../events/event-state.ts";
 import {
   buildSemesterHref,
-  findNextUpcomingEvent,
   getDisciplinaryStatus,
+  settleCard,
 } from "./dashboard.ts";
 
 describe("Task T-056 / FL-043: Student Dashboard Helpers", () => {
@@ -121,23 +122,12 @@ describe("Task T-056 / FL-043: Student Dashboard Helpers", () => {
     assert.deepEqual(result, { highlight: null, totalUpcoming: 0 });
   });
 
-  test("ignores events with missing or invalid time_in_from", () => {
-    const invalidEvent = {
-      ...baseMockEvent,
-      event_id: "evt-invalid",
-      time_in_from: null,
-    };
-    const invalidDateEvent = {
-      ...baseMockEvent,
-      event_id: "evt-invalid-date",
-      time_in_from: "not-a-date",
-    };
-
-    const result = findNextUpcomingEvent(
-      [invalidEvent, invalidDateEvent],
-      "2026-11-24T08:00:00+08:00"
-    );
-    assert.deepEqual(result, { highlight: null, totalUpcoming: 0 });
+  test("treats a missing time_in_from like the events page: ongoing until feedback opens", () => {
+    const noTimeIn = { ...baseMockEvent, event_id: "evt-no-time-in", time_in_from: null };
+    const result = findNextUpcomingEvent([noTimeIn], "2026-11-24T08:00:00+08:00");
+    assert.deepEqual(result, { highlight: { event: noTimeIn, isOngoing: true }, totalUpcoming: 1 });
+    const after = findNextUpcomingEvent([noTimeIn], "2026-11-26T08:00:00+08:00");
+    assert.deepEqual(after, { highlight: null, totalUpcoming: 0 });
   });
 
   test("picks earliest ongoing event when multiple events are ongoing", () => {
@@ -192,5 +182,17 @@ describe("Task T-056 / FL-043: Student Dashboard Helpers", () => {
     test("returns Active Demerits when student has outstanding debt", () => {
       assert.equal(getDisciplinaryStatus({ hasOutstandingDebt: true }), "Active Demerits");
     });
+  });
+
+  test("settleCard reports failure without rejecting, and null means nothing to read", async () => {
+    const error = console.error;
+    console.error = () => {};
+    try {
+      assert.deepEqual(await settleCard(Promise.reject(new Error("rls")), "test"), { data: null, failed: true });
+    } finally {
+      console.error = error;
+    }
+    assert.deepEqual(await settleCard(Promise.resolve(5), "test"), { data: 5, failed: false });
+    assert.deepEqual(await settleCard(null, "test"), { data: null, failed: false });
   });
 });

@@ -1,8 +1,10 @@
 import { RefreshButton } from "@/components/layout/refresh-button";
+import { Suspense } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { AttendanceQrCard } from "./attendance-qr-card";
+import { DashboardCardSkeleton } from "./dashboard/dashboard-summary-card";
 import { StudentClearanceCard } from "./dashboard/student-clearance-card";
 import { StudentDisciplinaryCard } from "./dashboard/student-disciplinary-card";
 import { StudentFinancialCard } from "./dashboard/student-financial-card";
@@ -80,27 +82,18 @@ export function StudentHomeView({
 
         {/* 1-to-2 column responsive grid (1 column on mobile & portrait tablets, 2 columns on lg+) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
-          <StudentFinancialCard
-            summary={data.finance.summary}
-            error={data.finance.error}
-            semesterId={semesterId}
-          />
-          <StudentDisciplinaryCard
-            summary={data.discipline.summary}
-            error={data.discipline.error}
-            semesterId={semesterId}
-          />
-          <StudentClearanceCard
-            summary={data.clearance.summary}
-            error={data.clearance.error}
-            semesterId={semesterId}
-          />
-          <StudentUpcomingEventCard
-            highlight={data.events.highlight}
-            totalUpcoming={data.events.totalUpcoming}
-            error={data.events.error}
-            semesterId={semesterId}
-          />
+          <Suspense fallback={<DashboardCardSkeleton />}>
+            <StudentFinancialCard result={data.finance} semesterId={semesterId} />
+          </Suspense>
+          <Suspense fallback={<DashboardCardSkeleton />}>
+            <StudentDisciplinaryCard result={data.discipline} semesterId={semesterId} />
+          </Suspense>
+          <Suspense fallback={<DashboardCardSkeleton />}>
+            <StudentClearanceCard result={data.clearance} semesterId={semesterId} />
+          </Suspense>
+          <Suspense fallback={<DashboardCardSkeleton />}>
+            <StudentUpcomingEventCard result={data.events} semesterId={semesterId} />
+          </Suspense>
         </div>
       </div>
     </div>

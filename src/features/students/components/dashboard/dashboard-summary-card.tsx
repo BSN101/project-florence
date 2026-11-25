@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { buildSemesterHref } from "@/features/students/dashboard";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export { buildSemesterHref };
+export function DashboardCardSkeleton() {
+  return <Skeleton className="h-52 rounded-2xl" />;
+}
 
 export function DashboardSummaryCard({
   title,
@@ -29,7 +31,7 @@ export function DashboardSummaryCard({
   children?: React.ReactNode;
 }) {
   return (
-    <Card className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-4 sm:p-6 transition-colors hover:border-primary/40 hover:bg-muted/5 shadow-2xs">
+    <Card className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-4 sm:p-6 transition-colors hover:border-primary/40 hover:bg-muted/5 shadow-2xs has-[a:active]:opacity-60">
       <Link
         href={href}
         className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"

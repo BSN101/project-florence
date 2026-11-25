@@ -7,10 +7,8 @@ import { getMyEvents } from "@/features/events/queries";
 import { getStudentFinancialAccount } from "@/features/finance/queries";
 import { semesterFilterSchema } from "@/features/semesters/schemas";
 import { StudentHomeView } from "@/features/students/components/student-home-view";
-import {
-  findNextUpcomingEvent,
-  type StudentDashboardData,
-} from "@/features/students/dashboard";
+import { findNextUpcomingEvent } from "@/features/events/event-state";
+import { settleCard, type StudentDashboardData } from "@/features/students/dashboard";
 import { generateAttendanceQrDataUrl } from "@/features/students/qr";
 import { displayName } from "@/lib/format-name";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -51,6 +49,22 @@ export default async function StudentPage({
   );
 
   const nowIso = new Date().toISOString();
+
+  // Started, not awaited: each card streams in behind its own <Suspense> while the QR renders.
+  const finance = settleCard(
+    semesterId ? getStudentFinancialAccount({ semesterId }).then((r) => r.summary) : null,
+    "financial account",
+  );
+  const discipline = settleCard(
+    semesterId ? getMyDisciplinaryRecords(semesterId).then((r) => r.summary) : null,
+    "disciplinary records",
+  );
+  const clearance = settleCard(semesterId ? getStudentClearanceSummary(semesterId) : null, "clearance");
+  const events = settleCard(
+    semesterId ? getMyEvents(semesterId).then((rows) => findNextUpcomingEvent(rows, nowIso)) : null,
+    "events",
+  );
+
   let qrDataUrl: string | null = null;
   let qrError: string | null = null;
 
@@ -63,62 +77,6 @@ export default async function StudentPage({
     }
   }
 
-  const [
-    financeRes,
-    disciplineRes,
-    clearanceRes,
-    eventsRes,
-  ] = await Promise.allSettled([
-    semesterId
-      ? getStudentFinancialAccount({ semesterId })
-      : Promise.resolve(null),
-    semesterId
-      ? getMyDisciplinaryRecords(semesterId)
-      : Promise.resolve(null),
-    semesterId
-      ? getStudentClearanceSummary(semesterId)
-      : Promise.resolve(null),
-    semesterId ? getMyEvents(semesterId) : Promise.resolve([]),
-  ]);
-
-  const financeSummary =
-    financeRes.status === "fulfilled" && financeRes.value
-      ? financeRes.value.summary
-      : null;
-  const financeError =
-    financeRes.status === "rejected"
-      ? "Unable to load financial records."
-      : null;
-
-  const disciplineSummary =
-    disciplineRes.status === "fulfilled" && disciplineRes.value
-      ? disciplineRes.value.summary
-      : null;
-  const disciplineError =
-    disciplineRes.status === "rejected"
-      ? "Unable to load disciplinary records."
-      : null;
-
-  const clearanceSummary =
-    clearanceRes.status === "fulfilled" && clearanceRes.value
-      ? clearanceRes.value
-      : null;
-  const clearanceError =
-    clearanceRes.status === "rejected"
-      ? "Unable to load clearance records."
-      : null;
-
-  const rawEvents =
-    eventsRes.status === "fulfilled" && Array.isArray(eventsRes.value)
-      ? eventsRes.value
-      : [];
-  const eventsError =
-    eventsRes.status === "rejected" ? "Unable to load events." : null;
-  const { highlight, totalUpcoming } = findNextUpcomingEvent(
-    rawEvents,
-    nowIso
-  );
-
   const dashboardData: StudentDashboardData = {
     student: {
       name: studentName,
@@ -128,23 +86,10 @@ export default async function StudentPage({
     },
     qrDataUrl,
     qrError,
-    finance: {
-      summary: financeSummary,
-      error: financeError,
-    },
-    discipline: {
-      summary: disciplineSummary,
-      error: disciplineError,
-    },
-    clearance: {
-      summary: clearanceSummary,
-      error: clearanceError,
-    },
-    events: {
-      highlight,
-      totalUpcoming,
-      error: eventsError,
-    },
+    finance,
+    discipline,
+    clearance,
+    events,
   };
 
   return (

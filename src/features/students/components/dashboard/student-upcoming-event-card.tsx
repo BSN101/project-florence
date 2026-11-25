@@ -1,10 +1,9 @@
+import { use } from "react";
 import { CalendarDays, MapPin } from "lucide-react";
 
-import type { UpcomingEventHighlight } from "@/features/students/dashboard";
-import {
-  buildSemesterHref,
-  DashboardSummaryCard,
-} from "./dashboard-summary-card";
+import type { UpcomingEventHighlight } from "@/features/events/event-state";
+import { buildSemesterHref, type CardResult } from "@/features/students/dashboard";
+import { DashboardSummaryCard } from "./dashboard-summary-card";
 
 const dateFormat = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium",
@@ -17,16 +16,15 @@ const timeFormat = new Intl.DateTimeFormat("en-PH", {
 });
 
 export function StudentUpcomingEventCard({
-  highlight,
-  totalUpcoming,
-  error,
+  result,
   semesterId,
 }: {
-  highlight: UpcomingEventHighlight | null;
-  totalUpcoming: number;
-  error: string | null;
+  result: Promise<CardResult<{ highlight: UpcomingEventHighlight | null; totalUpcoming: number }>>;
   semesterId?: string;
 }) {
+  const { data, failed } = use(result);
+  const highlight = data?.highlight ?? null;
+  const totalUpcoming = data?.totalUpcoming ?? 0;
   const href = buildSemesterHref("/student/events", semesterId);
   const event = highlight?.event;
   const startTime = event?.time_in_from ? new Date(event.time_in_from) : null;
@@ -58,9 +56,7 @@ export function StudentUpcomingEventCard({
       badge={badge}
       href={href}
       footerLabel="Browse all events & attendance claims"
-      error={error ? "Unable to load scheduled events. Tap below to inspect." : null}
-      empty={!event}
-      emptyMessage={undefined}
+      error={failed ? "Unable to load scheduled events. Tap below to inspect." : null}
     >
       {event ? (
         <div className="flex flex-col gap-1.5 min-w-0">

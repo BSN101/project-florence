@@ -1,20 +1,18 @@
+import { use } from "react";
 import { Check, ClipboardCheck } from "lucide-react";
 
 import type { StudentClearanceSummary } from "@/features/clearance/contracts";
-import {
-  buildSemesterHref,
-  DashboardSummaryCard,
-} from "./dashboard-summary-card";
+import { buildSemesterHref, type CardResult } from "@/features/students/dashboard";
+import { DashboardSummaryCard } from "./dashboard-summary-card";
 
 export function StudentClearanceCard({
-  summary,
-  error,
+  result,
   semesterId,
 }: {
-  summary: StudentClearanceSummary | null;
-  error: string | null;
+  result: Promise<CardResult<StudentClearanceSummary>>;
   semesterId?: string;
 }) {
+  const { data: summary, failed } = use(result);
   const href = buildSemesterHref("/student/clearance", semesterId);
 
   const clearedCount = summary
@@ -50,7 +48,7 @@ export function StudentClearanceCard({
       badge={badge}
       href={href}
       footerLabel="Check sign-off details & history"
-      error={error ? "Unable to load clearance status. Tap below to inspect." : null}
+      error={failed ? "Unable to load clearance status. Tap below to inspect." : null}
       empty={!summary}
       emptyMessage="No clearance records available for this semester."
     >

@@ -1,21 +1,19 @@
+import { use } from "react";
 import { CircleDollarSign } from "lucide-react";
 
 import { formatPhp } from "@/features/finance/calculations";
 import type { StudentFinancialSummaryDTO } from "@/features/finance/contracts";
-import {
-  buildSemesterHref,
-  DashboardSummaryCard,
-} from "./dashboard-summary-card";
+import { buildSemesterHref, type CardResult } from "@/features/students/dashboard";
+import { DashboardSummaryCard } from "./dashboard-summary-card";
 
 export function StudentFinancialCard({
-  summary,
-  error,
+  result,
   semesterId,
 }: {
-  summary: StudentFinancialSummaryDTO | null;
-  error: string | null;
+  result: Promise<CardResult<StudentFinancialSummaryDTO>>;
   semesterId?: string;
 }) {
+  const { data: summary, failed } = use(result);
   const href = buildSemesterHref("/student/fees-and-fines", semesterId);
 
   const badge = summary ? (
@@ -45,7 +43,7 @@ export function StudentFinancialCard({
       badge={badge}
       href={href}
       footerLabel="View fees ledger & payment options"
-      error={error ? "Unable to load financial status. Tap below to inspect dues." : null}
+      error={failed ? "Unable to load financial status. Tap below to inspect dues." : null}
       empty={!summary}
       emptyMessage="No financial account data available for this semester."
     >

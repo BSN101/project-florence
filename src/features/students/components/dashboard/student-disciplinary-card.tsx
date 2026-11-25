@@ -1,21 +1,20 @@
+import { use } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import type { StudentDisciplinarySummary } from "@/features/discipline/contracts";
-import { getDisciplinaryStatus } from "@/features/students/dashboard";
-import {
-  buildSemesterHref,
-  DashboardSummaryCard,
-} from "./dashboard-summary-card";
+import { buildSemesterHref, getDisciplinaryStatus, type CardResult } from "@/features/students/dashboard";
+import { DashboardSummaryCard } from "./dashboard-summary-card";
+
+const formatDays = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
 export function StudentDisciplinaryCard({
-  summary,
-  error,
+  result,
   semesterId,
 }: {
-  summary: StudentDisciplinarySummary | null;
-  error: string | null;
+  result: Promise<CardResult<StudentDisciplinarySummary>>;
   semesterId?: string;
 }) {
+  const { data: summary, failed } = use(result);
   const href = buildSemesterHref("/student/merits-demerits-and-services", semesterId);
   const status = summary ? getDisciplinaryStatus(summary) : null;
   const isClean = status === "Clean Record";
@@ -47,9 +46,9 @@ export function StudentDisciplinaryCard({
       badge={badge}
       href={href}
       footerLabel="View merits, demerits & service logs"
-      error={error ? "Unable to load disciplinary records. Tap below to inspect." : null}
+      error={failed ? "Unable to load disciplinary records. Tap below to inspect." : null}
       empty={!summary}
-      emptyMessage="No disciplinary ledger available for this semester."
+      emptyMessage="No conduct record to show yet."
     >
       {summary && (
         <div className="flex flex-col gap-1.5">
@@ -62,8 +61,10 @@ export function StudentDisciplinaryCard({
             </span>
           </div>
           <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+            {/* Balances are cumulative (FL-029), not per semester. */}
+            <span>Current standing across all semesters</span>
             <span className="tabular-nums">
-              Office: {summary.office.balance} day{summary.office.balance === 1 ? "" : "s"} • RLE: {summary.rle.balance} day{summary.rle.balance === 1 ? "" : "s"}
+              Office: {formatDays(Math.max(0, summary.office.balance))} • RLE: {formatDays(Math.max(0, summary.rle.balance))}
             </span>
             {summary.office.activeServiceCredits + summary.rle.activeServiceCredits > 0 ? (
               <span className="tabular-nums font-medium text-foreground">
