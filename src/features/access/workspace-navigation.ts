@@ -20,7 +20,7 @@ export const workspaceLabels: Record<Workspace, string> = {
 };
 
 const studentItems: NavigationItem[] = [
-  { label: "Home", slug: "", shortLabel: "Home" },
+  { label: "Home", slug: "", semesterScoped: true, shortLabel: "Home" },
   { label: "Events", slug: "events", semesterScoped: true, shortLabel: "Events" },
   { label: "Fees & fines", slug: "fees-and-fines", semesterScoped: true, shortLabel: "Fees" },
   { label: "Conduct", slug: "merits-demerits-and-services", semesterScoped: true, shortLabel: "Conduct" },
