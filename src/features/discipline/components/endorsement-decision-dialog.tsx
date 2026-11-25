@@ -18,7 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 
 import { decideMeritEndorsementAction } from "../actions";
-import { formatManilaDate } from "../calculations";
+import { getTodayManila, meritExpiryDate } from "../calculations";
+import { formatManilaDate } from "@/lib/manila-date";
 import type { FacultyMeritEndorsementRecord, MeritEndorsementDecision } from "../contracts";
 import { decideMeritEndorsementSchema } from "../schemas";
 
@@ -33,15 +34,11 @@ export function EndorsementDecisionDialog({
   endorsement,
   semesterLabel,
   isCurrentSemester,
-  todayManila,
-  expiresOnManila,
 }: {
   decision: MeritEndorsementDecision;
   endorsement: FacultyMeritEndorsementRecord;
   semesterLabel: string;
   isCurrentSemester: boolean;
-  todayManila: string;
-  expiresOnManila: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -77,6 +74,9 @@ export function EndorsementDecisionDialog({
   }
 
   const isApprove = decision === "approved";
+  // Worked out per render, not at page render, so a page left open past Manila midnight shows the date the database will store.
+  const todayManila = getTodayManila();
+  const expiresOnManila = meritExpiryDate(todayManila);
   const studentName = endorsement.student_name ?? "Student";
   const daysLabel = `${endorsement.requested_days} ${endorsement.requested_days === 1 ? "day" : "days"}`;
 
@@ -174,7 +174,7 @@ export function EndorsementDecisionDialog({
               type="button"
               variant="outline"
               size="xs"
-              className="border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 max-sm:min-h-11"
+              className="border-emerald-600/30 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 max-sm:min-h-11 pointer-coarse:min-h-11"
             >
               Approve
             </Button>
@@ -183,7 +183,7 @@ export function EndorsementDecisionDialog({
               type="button"
               variant="outline"
               size="xs"
-              className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive max-sm:min-h-11"
+              className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive max-sm:min-h-11 pointer-coarse:min-h-11"
             >
               Reject
             </Button>
@@ -253,8 +253,8 @@ export function EndorsementDecisionDialog({
                 <div className="font-medium">One-way endorsement rejection</div>
                 <p className="leading-relaxed text-amber-900/90">
                   Rejecting permanently closes this endorsement with zero merit units created and no
-                  student notification sent. The outcome and any note below are visible to Council
-                  and cannot be undone.
+                  student notification sent. The outcome and any note below are visible to the student,
+                  Council and coordinators, and cannot be undone.
                 </p>
               </div>
             </div>
@@ -284,7 +284,7 @@ export function EndorsementDecisionDialog({
                   setError(null);
                   setReason(e.target.value);
                 }}
-                placeholder="Optionally explain why this endorsement is being rejected (visible to Council)..."
+                placeholder="Optionally explain why this endorsement is being rejected (visible to the student)..."
                 className={cn(
                   "w-full rounded-lg border border-input bg-background px-3 py-2 text-base text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm",
                   (isPending || locked) && "cursor-not-allowed opacity-75"
@@ -303,7 +303,11 @@ export function EndorsementDecisionDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={startOver}
+                  onClick={() => {
+                    startOver();
+                    // The dropped reply may have committed on the server; refresh current state.
+                    router.refresh();
+                  }}
                   disabled={isPending}
                   className="max-sm:min-h-11"
                 >
