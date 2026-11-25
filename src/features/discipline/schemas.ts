@@ -123,6 +123,35 @@ export const submitMeritEndorsementsSchema = z.object({
 export type SubmitMeritEndorsementsInput = z.infer<typeof submitMeritEndorsementsSchema>;
 
 // ---------------------------------------------------------------------------
+// Merit endorsement decision schemas (FL-032 / T-044)
+// ---------------------------------------------------------------------------
+
+const endorsementDecisionSchema = z.enum(["approved", "rejected"], {
+  message: "Select Approve or Reject.",
+});
+
+const endorsementDecisionReasonSchema = z
+  .string()
+  .trim()
+  .max(500, "Reason cannot exceed 500 characters.")
+  .nullish()
+  .transform((val) => (val && val.length > 0 ? val : null));
+
+export const decideMeritEndorsementSchema = z
+  .object({
+    requestKey: z.string().uuid("Invalid request key."),
+    endorsementId: z.string().uuid("Invalid endorsement identifier."),
+    decision: endorsementDecisionSchema,
+    reason: endorsementDecisionReasonSchema,
+  })
+  .transform((data) => ({
+    ...data,
+    reason: data.decision === "approved" ? null : data.reason,
+  }));
+
+export type DecideMeritEndorsementInput = z.infer<typeof decideMeritEndorsementSchema>;
+
+// ---------------------------------------------------------------------------
 // Student merit application schemas (FL-036 / T-048)
 // ---------------------------------------------------------------------------
 
