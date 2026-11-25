@@ -3,6 +3,8 @@ import type {
   BucketDisciplinaryBalance,
   DemeritRecord,
   DisciplinaryBucket,
+  FacultyEndorsementCounts,
+  FacultyMeritEndorsementRecord,
   MeritApplicationRecord,
   MeritRecord,
   ServiceCreditRecord,
@@ -233,4 +235,96 @@ export function calculateDisciplinarySummary(input: {
     totalActiveBalance,
     hasOutstandingDebt,
   };
+}
+
+/** True when the actor holds an active Academic or Clinical Instructor role (matches `f_cmd_instructor`). */
+export function hasInstructorRole(roles: readonly string[]): boolean {
+  return roles.includes("Academic Instructor") || roles.includes("Clinical Instructor");
+}
+
+/**
+ * Pure eligibility check for deciding a Council merit endorsement (FL-032).
+ * Mirrors `public.decide_merit_endorsement` 1:1 (semester-agnostic; pending only; assigned instructor only; no self-decision).
+ */
+export function canDecideMeritEndorsement(
+  endorsement: { status: string; assigned_instructor_id: string; student_id: string },
+  actorId: string,
+  roles: readonly string[]
+): boolean {
+  return (
+    endorsement.status === "pending" &&
+    hasInstructorRole(roles) &&
+    endorsement.assigned_instructor_id === actorId &&
+    endorsement.student_id !== actorId
+  );
+}
+
+/** Counts pending, approved, and rejected endorsements for the Faculty Endorsements summary strip. */
+export function countFacultyEndorsements(
+  endorsements: readonly Pick<FacultyMeritEndorsementRecord, "status">[]
+): FacultyEndorsementCounts {
+  let pending = 0;
+  let approved = 0;
+  let rejected = 0;
+  for (const e of endorsements) {
+    if (e.status === "pending") pending++;
+    else if (e.status === "approved") approved++;
+    else if (e.status === "rejected") rejected++;
+  }
+  return { total: endorsements.length, pending, approved, rejected };
+}
+
+/** Sorts pending endorsements first (newest submitted first), then decided rows (newest decided first). */
+export function sortFacultyEndorsements<
+  T extends Pick<FacultyMeritEndorsementRecord, "id" | "status" | "submitted_at" | "decided_at">,
+>(endorsements: readonly T[]): T[] {
+  return [...endorsements].sort((a, b) => {
+    const aPending = a.status === "pending";
+    const bPending = b.status === "pending";
+    if (aPending !== bPending) return aPending ? -1 : 1;
+
+    const aTime = aPending ? a.submitted_at : (a.decided_at ?? a.submitted_at);
+    const bTime = bPending ? b.submitted_at : (b.decided_at ?? b.submitted_at);
+    if (aTime !== bTime) return aTime > bTime ? -1 : 1;
+
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+}
+
+const MANILA_DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila",
+  dateStyle: "medium",
+});
+
+const MANILA_DATETIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila",
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+/** Formats a calendar date (`YYYY-MM-DD`) or ISO timestamp as a medium `Asia/Manila` date, or `"—"` when blank/invalid. */
+export function formatManilaDate(dateStr: string | null | undefined): string {
+  const trimmed = dateStr?.trim();
+  if (!trimmed) return "—";
+  try {
+    const iso = trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00+08:00`;
+    const ms = Date.parse(iso);
+    if (Number.isNaN(ms)) return "—";
+    return MANILA_DATE_FORMATTER.format(new Date(ms));
+  } catch {
+    return "—";
+  }
+}
+
+/** Formats an ISO timestamp as a medium `Asia/Manila` date and time, or `"—"` when blank/invalid. */
+export function formatManilaDateTime(iso: string | null | undefined): string {
+  const trimmed = iso?.trim();
+  if (!trimmed) return "—";
+  try {
+    const ms = Date.parse(trimmed);
+    if (Number.isNaN(ms)) return "—";
+    return MANILA_DATETIME_FORMATTER.format(new Date(ms));
+  } catch {
+    return "—";
+  }
 }
