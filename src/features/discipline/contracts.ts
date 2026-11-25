@@ -152,3 +152,33 @@ export type MeritEndorsementRecipientOption = Pick<
 
 /** Active instructor choice for Council merit endorsement assignment. */
 export type InstructorChoice = Database["public"]["Functions"]["florence_instructor_choices"]["Returns"][number];
+
+export type MeritEndorsementDecision = "approved" | "rejected";
+
+/**
+ * Faculty-scoped merit endorsement row for `/faculty/merit-endorsements` (FL-032).
+ * Strips `student_id`, `semester_id`, `assigned_instructor_id`, `submitted_by`, and
+ * `decided_by` so only rendered fields and `id` (for `decide_merit_endorsement`) reach the client.
+ */
+export type FacultyMeritEndorsementRecord = Pick<
+  Tables["merit_endorsements"]["Row"],
+  "id" | "description" | "requested_days" | "status" | "submitted_at" | "decided_at" | "decision_reason"
+> &
+  StudentIdentity & {
+    submitter_name: string | null;
+    awarded_days: number;
+    awarded_on: string | null;
+    expires_on: string | null;
+    canDecide: boolean;
+  };
+
+export type FacultyEndorsementCounts = {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+};
+
+export type DecideMeritEndorsementResult =
+  | { success: true; endorsementId: string; status: MeritEndorsementDecision; unitCount: number }
+  | { success: false; error: string; retryable?: true };
