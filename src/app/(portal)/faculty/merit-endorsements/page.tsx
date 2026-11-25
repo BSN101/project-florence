@@ -3,13 +3,20 @@ import { AlertCircle } from "lucide-react";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { Card } from "@/components/ui/card";
-import { getTodayManila, meritExpiryDate } from "@/features/discipline/calculations";
+import { countPendingBySemester } from "@/features/discipline/calculations";
 import { FacultyEndorsementsView } from "@/features/discipline/components/faculty-endorsements-view";
-import { getMyAssignedMeritEndorsements } from "@/features/discipline/queries";
-import { semesterFilterSchema } from "@/features/semesters/schemas";
+import {
+  getMyAssignedMeritEndorsements,
+  getMyPendingEndorsementsElsewhere,
+} from "@/features/discipline/queries";
+import { resolveSelectedSemester } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
 
 export const instant = false;
+
+function semesterLabelOf(s: { term: string; academic_year_start: number }) {
+  return `${s.term} (AY ${s.academic_year_start}–${s.academic_year_start + 1})`;
+}
 
 export default async function FacultyMeritEndorsementsPage({
   searchParams,
@@ -30,23 +37,24 @@ export default async function FacultyMeritEndorsementsPage({
     );
   }
 
-  const filter = semesterFilterSchema.safeParse({ semester });
-  const selected = !filter.success
-    ? undefined
-    : filter.data.semester
-    ? access.semesters.find((s) => s.id === filter.data.semester)
-    : access.semesters.find((s) => s.is_current) ?? access.semesters[0];
-
-  const isCurrentSemester = Boolean(selected?.is_current);
-  const semesterLabel = selected
-    ? `${selected.term} (AY ${selected.academic_year_start}–${selected.academic_year_start + 1})`
-    : "";
-  const todayManila = getTodayManila();
-  const expiresOnManila = meritExpiryDate(todayManila);
+  const selected = resolveSelectedSemester(access.semesters, semester);
   const renderedAt = new Date().toISOString();
 
   let content: React.ReactNode = null;
   if (selected) {
+    // Secondary read: started now, streamed into the callout behind <Suspense>.
+    const pendingElsewhere = getMyPendingEndorsementsElsewhere(selected.id)
+      .then((rows) =>
+        countPendingBySemester(rows, access.semesters).map(({ semester: s, count }) => ({
+          id: s.id,
+          label: semesterLabelOf(s),
+          count,
+        }))
+      )
+      .catch((error) => {
+        console.error("Pending endorsements in other semesters failed to load", error);
+        return [];
+      });
     const endorsements = await getMyAssignedMeritEndorsements(selected.id).catch(() => null);
     content = !endorsements ? (
       <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center">
@@ -58,10 +66,9 @@ export default async function FacultyMeritEndorsementsPage({
     ) : (
       <FacultyEndorsementsView
         endorsements={endorsements}
-        semesterLabel={semesterLabel}
-        isCurrentSemester={isCurrentSemester}
-        todayManila={todayManila}
-        expiresOnManila={expiresOnManila}
+        semesterLabel={semesterLabelOf(selected)}
+        isCurrentSemester={selected.is_current}
+        pendingElsewhere={pendingElsewhere}
         renderedAt={renderedAt}
       />
     );
