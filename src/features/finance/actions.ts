@@ -1001,6 +1001,7 @@ export async function submitTransferEvidence(
     }
 
     revalidatePath("/student/fees-and-fines");
+    revalidatePath("/student");
     return {
       success: true,
       paymentId: result.payment_id,

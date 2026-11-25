@@ -5,6 +5,7 @@ import { Camera, MessageSquareText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { MyClaim, MyEventRow } from "../contracts";
+import { studentEventGroup, type StudentEventGroup } from "../event-state";
 import type { FeedbackResponses } from "../feedback";
 import { Badge, StatusBadge } from "./event-badges";
 import { AttendanceClaimDialog } from "./attendance-claim-dialog";
@@ -15,7 +16,7 @@ const time = new Intl.DateTimeFormat("en-PH", { timeStyle: "short", timeZone: "A
 const fmt = (value: string | null, f = time) => (value ? f.format(new Date(value)) : "—");
 const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
 
-type Group = "ongoing" | "upcoming" | "past";
+type Group = StudentEventGroup;
 type Side = "time_in" | "time_out";
 const sideLabel = { time_in: "Time-in", time_out: "Time-out" } as const;
 
@@ -69,9 +70,7 @@ export function StudentEvents({ events, feedback, claims, now: serverNow }: {
     );
   }
 
-  const group = (e: MyEventRow): Group =>
-    e.time_in_from && now < Date.parse(e.time_in_from) ? "upcoming"
-      : !e.attendance_locked_at && now < Date.parse(e.feedback_opens_at) ? "ongoing" : "past";
+  const group = (e: MyEventRow) => studentEventGroup(e, now);
   const groups: [Group, string][] = [["ongoing", "Happening now"], ["upcoming", "Upcoming"], ["past", "Past"]];
 
   if (events.length === 0) {

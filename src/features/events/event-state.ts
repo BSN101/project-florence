@@ -1,4 +1,4 @@
-import type { AttendeeRow, AttendeeStatus, ConsequencePreviewRow, ConsequenceTotals, EventDTO } from "./contracts";
+import type { AttendeeRow, AttendeeStatus, ConsequencePreviewRow, ConsequenceTotals, EventDTO, MyEventRow } from "./contracts";
 
 /** Capture needs a published, unarchived event whose attendance is not yet locked. */
 export function canCapture(event: EventDTO) {
@@ -19,6 +19,37 @@ export function closesAt(event: Pick<EventDTO, "ends_at" | "time_in_until" | "ti
 /** Generation opens once the event and both capture windows have closed (the database rechecks). */
 export function canGenerate(event: EventDTO, now: number) {
   return canCapture(event) && now >= closesAt(event);
+}
+
+export type StudentEventGroup = "ongoing" | "upcoming" | "past";
+
+/** Student view: upcoming until time-in opens, then ongoing until feedback opens or attendance locks. */
+export function studentEventGroup(
+  event: Pick<MyEventRow, "time_in_from" | "attendance_locked_at" | "feedback_opens_at">,
+  now: number,
+): StudentEventGroup {
+  if (event.time_in_from && now < Date.parse(event.time_in_from)) return "upcoming";
+  return !event.attendance_locked_at && now < Date.parse(event.feedback_opens_at) ? "ongoing" : "past";
+}
+
+export type UpcomingEventHighlight = { event: MyEventRow; isOngoing: boolean };
+
+/** Student Home: the earliest ongoing event, else the earliest upcoming one, and how many of both there are. */
+export function findNextUpcomingEvent(events: MyEventRow[], nowIso: string): {
+  highlight: UpcomingEventHighlight | null;
+  totalUpcoming: number;
+} {
+  const now = Date.parse(nowIso);
+  if (Number.isNaN(now)) return { highlight: null, totalUpcoming: 0 };
+  const start = (e: MyEventRow) => Date.parse(e.time_in_from ?? e.feedback_opens_at);
+  const inGroup = (group: StudentEventGroup) =>
+    events.filter((e) => studentEventGroup(e, now) === group).sort((a, b) => start(a) - start(b));
+  const ongoing = inGroup("ongoing");
+  const upcoming = inGroup("upcoming");
+  const total = ongoing.length + upcoming.length;
+  if (ongoing[0]) return { highlight: { event: ongoing[0], isOngoing: true }, totalUpcoming: total };
+  if (upcoming[0]) return { highlight: { event: upcoming[0], isOngoing: false }, totalUpcoming: total };
+  return { highlight: null, totalUpcoming: 0 };
 }
 
 export type EventPhase = "draft" | "upcoming" | "open" | "closed" | "generated" | "archived";
