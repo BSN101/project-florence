@@ -52,8 +52,8 @@ export function findNextUpcomingEvent(
     return { highlight: null, totalUpcoming: 0 };
   }
 
-  const ongoing: MyEventRow[] = [];
-  const upcoming: MyEventRow[] = [];
+  const ongoing: { event: MyEventRow; timeInFrom: number }[] = [];
+  const upcoming: { event: MyEventRow; timeInFrom: number }[] = [];
 
   for (const e of events) {
     if (!e.time_in_from) continue;
@@ -61,36 +61,53 @@ export function findNextUpcomingEvent(
     if (isNaN(timeInFrom)) continue;
 
     if (now < timeInFrom) {
-      upcoming.push(e);
+      upcoming.push({ event: e, timeInFrom });
     } else {
       const feedbackOpens = e.feedback_opens_at ? Date.parse(e.feedback_opens_at) : NaN;
       const isStillOngoing =
         !e.attendance_locked_at && !isNaN(feedbackOpens) && now < feedbackOpens;
       if (isStillOngoing) {
-        ongoing.push(e);
+        ongoing.push({ event: e, timeInFrom });
       }
     }
   }
 
   // Sort chronologically ascending
-  upcoming.sort((a, b) => Date.parse(a.time_in_from) - Date.parse(b.time_in_from));
-  ongoing.sort((a, b) => Date.parse(a.time_in_from) - Date.parse(b.time_in_from));
+  upcoming.sort((a, b) => a.timeInFrom - b.timeInFrom);
+  ongoing.sort((a, b) => a.timeInFrom - b.timeInFrom);
 
   const totalUpcoming = ongoing.length + upcoming.length;
 
   if (ongoing.length > 0) {
     return {
-      highlight: { event: ongoing[0], isOngoing: true },
+      highlight: { event: ongoing[0].event, isOngoing: true },
       totalUpcoming,
     };
   }
 
   if (upcoming.length > 0) {
     return {
-      highlight: { event: upcoming[0], isOngoing: false },
+      highlight: { event: upcoming[0].event, isOngoing: false },
       totalUpcoming,
     };
   }
 
   return { highlight: null, totalUpcoming: 0 };
 }
+
+/**
+ * Constructs a semester-scoped URL or falls back to the base path.
+ */
+export function buildSemesterHref(basePath: string, semesterId?: string): string {
+  return semesterId
+    ? `${basePath}?semester=${encodeURIComponent(semesterId)}`
+    : basePath;
+}
+
+/**
+ * Derives the student conduct badge status from authoritative outstanding debt.
+ */
+export function getDisciplinaryStatus(summary: { hasOutstandingDebt: boolean }): "Clean Record" | "Active Demerits" {
+  return !summary.hasOutstandingDebt ? "Clean Record" : "Active Demerits";
+}
+

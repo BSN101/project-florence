@@ -1014,7 +1014,7 @@ The erroneous service credit is permanently marked revoked with its attributable
 3. The Personal Attendance QR Card displays the student's name, formatted student number (`XX-1-XXXXX`), enrolled year level, academic status, high-contrast QR code, and a download button for event check-ins.
 4. The Academic & Financial Overview section presents an ergonomic 1-to-2 column responsive grid (1 column on mobile and portrait tablets, 2 columns on desktop) summarizing all permitted domain records:
    - **Financial Obligations Card:** Displays the net outstanding balance (`₱X.XX` or "All Dues Cleared"), prior overdue notices, and pending payment review amounts, with a link to `/student/fees-and-fines`.
-   - **Conduct & Discipline Card:** Displays active net demerits, bucket breakdown (Office vs RLE), and completed corrective service hours, with a link to `/student/merits-demerits-and-services`.
+   - **Conduct & Discipline Card:** Displays active net demerits, bucket breakdown (Office vs RLE), and completed corrective service credits, with a link to `/student/merits-demerits-and-services`.
    - **Clearance Status Card:** Displays the at-a-glance 3-tier clearance progress ("X of 3 Confirmed") with individual status chips for Council, Academic, and RLE, with a link to `/student/clearance`.
    - **Events & Attendance Card:** Highlights the next ongoing or upcoming event with scheduled times in Asia/Manila and venue, or an "up to date" state when none are scheduled, with a link to `/student/events`.
 5. The student may switch to any enrolled semester to view historical records for that term.
@@ -1041,6 +1041,6 @@ The student has an immediate, unified view of their academic identity, financial
 - Student sees only their own permitted records; unauthorized roles are redirected or gated by `WorkspaceShell`.
 - Layout is fully responsive across mobile, portrait tablet (iPad mini with 256px sidebar), and desktop without card squishing or horizontal overflow.
 - All interactive links and action buttons maintain minimum 44px touch targets.
-- All numbers, currency balances, hours, and demerits render with `tabular-nums`.
+- All numbers, currency balances, service credits, and demerits render with `tabular-nums`.
 
 

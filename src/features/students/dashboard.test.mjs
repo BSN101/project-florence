@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { findNextUpcomingEvent } from "./dashboard.ts";
+import {
+  buildSemesterHref,
+  findNextUpcomingEvent,
+  getDisciplinaryStatus,
+} from "./dashboard.ts";
 
 describe("Task T-056 / FL-043: Student Dashboard Helpers", () => {
   const baseMockEvent = {
@@ -115,5 +119,78 @@ describe("Task T-056 / FL-043: Student Dashboard Helpers", () => {
   test("handles invalid date gracefully", () => {
     const result = findNextUpcomingEvent([baseMockEvent], "invalid-date");
     assert.deepEqual(result, { highlight: null, totalUpcoming: 0 });
+  });
+
+  test("ignores events with missing or invalid time_in_from", () => {
+    const invalidEvent = {
+      ...baseMockEvent,
+      event_id: "evt-invalid",
+      time_in_from: null,
+    };
+    const invalidDateEvent = {
+      ...baseMockEvent,
+      event_id: "evt-invalid-date",
+      time_in_from: "not-a-date",
+    };
+
+    const result = findNextUpcomingEvent(
+      [invalidEvent, invalidDateEvent],
+      "2026-11-24T08:00:00+08:00"
+    );
+    assert.deepEqual(result, { highlight: null, totalUpcoming: 0 });
+  });
+
+  test("picks earliest ongoing event when multiple events are ongoing", () => {
+    const ongoingEarly = {
+      ...baseMockEvent,
+      event_id: "evt-early",
+      time_in_from: "2026-11-24T07:00:00+08:00",
+      feedback_opens_at: "2026-11-24T12:00:00+08:00",
+      attendance_locked_at: null,
+    };
+    const ongoingLater = {
+      ...baseMockEvent,
+      event_id: "evt-later",
+      time_in_from: "2026-11-24T09:00:00+08:00",
+      feedback_opens_at: "2026-11-24T14:00:00+08:00",
+      attendance_locked_at: null,
+    };
+
+    const result = findNextUpcomingEvent(
+      [ongoingLater, ongoingEarly],
+      "2026-11-24T10:00:00+08:00"
+    );
+    assert.equal(result.totalUpcoming, 2);
+    assert.equal(result.highlight?.isOngoing, true);
+    assert.equal(result.highlight?.event.event_id, "evt-early");
+  });
+
+  describe("buildSemesterHref", () => {
+    test("returns base path when semesterId is undefined or empty", () => {
+      assert.equal(buildSemesterHref("/student/clearance"), "/student/clearance");
+      assert.equal(buildSemesterHref("/student/clearance", undefined), "/student/clearance");
+      assert.equal(buildSemesterHref("/student/clearance", ""), "/student/clearance");
+    });
+
+    test("appends encoded semester query parameter when semesterId is provided", () => {
+      assert.equal(
+        buildSemesterHref("/student/clearance", "sem-123"),
+        "/student/clearance?semester=sem-123"
+      );
+      assert.equal(
+        buildSemesterHref("/student/fees-and-fines", "sem 1st/2026"),
+        "/student/fees-and-fines?semester=sem%201st%2F2026"
+      );
+    });
+  });
+
+  describe("getDisciplinaryStatus", () => {
+    test("returns Clean Record when student has zero outstanding debt", () => {
+      assert.equal(getDisciplinaryStatus({ hasOutstandingDebt: false }), "Clean Record");
+    });
+
+    test("returns Active Demerits when student has outstanding debt", () => {
+      assert.equal(getDisciplinaryStatus({ hasOutstandingDebt: true }), "Active Demerits");
+    });
   });
 });
