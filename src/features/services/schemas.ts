@@ -218,7 +218,7 @@ export type EndServiceSessionInput = z.infer<typeof endServiceSessionSchema>;
  * Matches faculty disciplinary reason bounds (3 to 500 trimmed characters)
  * and PostgreSQL public.revoke_service_credit non-blank check.
  */
-export const revokeServiceCreditReasonSchema = z
+const revokeServiceCreditReasonSchema = z
   .string()
   .trim()
   .min(3, "Revocation reason must be at least 3 characters.")

@@ -187,9 +187,9 @@ export function RevokeServiceCreditDialog({
           <div className="flex items-start gap-2.5 rounded-lg border border-amber-600/30 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden="true" />
             <div className="space-y-1">
-              <div className="font-semibold">One-way credit revocation</div>
+              <div className="font-medium">One-way credit revocation</div>
               <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-                Revoking removes the <strong className="font-semibold">1-day service credit offset</strong>{" "}
+                Revoking removes the <strong className="font-medium">1-day service credit offset</strong>{" "}
                 from {studentName}&apos;s cumulative {trackLabel} duty balance while preserving their
                 completed session attendance record. This action cannot be undone or automatically
                 regenerated, and it does not reverse any already-confirmed semester clearance.
