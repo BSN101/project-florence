@@ -1,17 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Suspense, use, useMemo, useState } from "react";
 import { Award, CheckCircle2, Clock, Info, Search, XCircle } from "lucide-react";
 
 import { RefreshButton } from "@/components/layout/refresh-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-import {
-  countFacultyEndorsements,
-  formatManilaDate,
-  formatManilaDateTime,
-} from "../calculations";
+import { formatManilaDate, formatManilaDateTime } from "@/lib/manila-date";
+
+import { countFacultyEndorsements } from "../calculations";
 import type { FacultyMeritEndorsementRecord } from "../contracts";
 import { EndorsementStatusBadge } from "./disciplinary-badges";
 import { EndorsementDecisionDialog } from "./endorsement-decision-dialog";
@@ -24,6 +23,8 @@ import {
   usePagedRows,
 } from "./table-controls";
 
+type PendingElsewhere = { id: string; label: string; count: number };
+
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "pending", label: "Pending" },
@@ -35,15 +36,13 @@ export function FacultyEndorsementsView({
   endorsements,
   semesterLabel,
   isCurrentSemester,
-  todayManila,
-  expiresOnManila,
+  pendingElsewhere,
   renderedAt,
 }: {
   endorsements: FacultyMeritEndorsementRecord[];
   semesterLabel: string;
   isCurrentSemester: boolean;
-  todayManila: string;
-  expiresOnManila: string;
+  pendingElsewhere: Promise<PendingElsewhere[]>;
   renderedAt: string;
 }) {
   const [search, setSearch] = useState("");
@@ -113,12 +112,15 @@ export function FacultyEndorsementsView({
           <p className="leading-relaxed">
             Pending endorsements assigned to you in{" "}
             <strong className="font-medium text-foreground">{semesterLabel}</strong> remain
-            decidable. Approving records merit units dated today ({formatManilaDate(todayManila)},
-            valid until {formatManilaDate(expiresOnManila)}) while keeping {semesterLabel}{" "}
-            attribution.
+            decidable. Approving records merit units dated the day you approve, valid for 1 year,
+            while keeping {semesterLabel} attribution.
           </p>
         </div>
       )}
+
+      <Suspense fallback={null}>
+        <PendingElsewhereCallout pendingElsewhere={pendingElsewhere} />
+      </Suspense>
 
       {/* Domain-Exact KPI Strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -273,7 +275,7 @@ export function FacultyEndorsementsView({
 
                       {e.status === "pending" && (
                         <span className="text-[11px] italic text-muted-foreground">
-                          Awaiting your decision
+                          {e.canDecide ? "Awaiting your decision" : "Pending"}
                         </span>
                       )}
                     </td>
@@ -287,16 +289,12 @@ export function FacultyEndorsementsView({
                               endorsement={e}
                               semesterLabel={semesterLabel}
                               isCurrentSemester={isCurrentSemester}
-                              todayManila={todayManila}
-                              expiresOnManila={expiresOnManila}
                             />
                             <EndorsementDecisionDialog
                               decision="rejected"
                               endorsement={e}
                               semesterLabel={semesterLabel}
                               isCurrentSemester={isCurrentSemester}
-                              todayManila={todayManila}
-                              expiresOnManila={expiresOnManila}
                             />
                           </div>
                         ) : (
@@ -311,6 +309,36 @@ export function FacultyEndorsementsView({
           </table>
         </TableFrame>
       )}
+    </div>
+  );
+}
+
+/** Links to other semesters that still hold pending endorsements assigned to this instructor. */
+function PendingElsewhereCallout({ pendingElsewhere }: { pendingElsewhere: Promise<PendingElsewhere[]> }) {
+  const semesters = use(pendingElsewhere);
+  if (semesters.length === 0) return null;
+
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2 rounded-lg border border-amber-600/30 bg-amber-50/50 p-3 text-xs text-amber-900"
+    >
+      <Clock className="mt-0.5 size-4 shrink-0 text-amber-700" aria-hidden="true" />
+      <div className="space-y-1">
+        <p className="font-medium">Pending endorsements in other semesters</p>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1">
+          {semesters.map((s) => (
+            <li key={s.id}>
+              <Link
+                href={`/faculty/merit-endorsements?semester=${s.id}`}
+                className="inline-flex items-center font-medium underline underline-offset-2 hover:text-amber-950 max-sm:min-h-11 pointer-coarse:min-h-11"
+              >
+                {s.label}: <span className="ml-1 tabular-nums">{s.count} pending</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
