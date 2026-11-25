@@ -1,15 +1,16 @@
-import Link from "next/link";
-import {
-  CalendarDays,
-  CircleDollarSign,
-  ClipboardCheck,
-  Medal,
-  ShieldAlert,
-} from "lucide-react";
+import { connection } from "next/server";
 
-import { Card } from "@/components/ui/card";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
-import { AttendanceQrCard } from "@/features/students/components/attendance-qr-card";
+import { getStudentClearanceSummary } from "@/features/clearance/queries";
+import { getMyDisciplinaryRecords } from "@/features/discipline/queries";
+import { getMyEvents } from "@/features/events/queries";
+import { getStudentFinancialAccount } from "@/features/finance/queries";
+import { semesterFilterSchema } from "@/features/semesters/schemas";
+import { StudentHomeView } from "@/features/students/components/student-home-view";
+import {
+  findNextUpcomingEvent,
+  type StudentDashboardData,
+} from "@/features/students/dashboard";
 import { generateAttendanceQrDataUrl } from "@/features/students/qr";
 import { displayName } from "@/lib/format-name";
 import { getAccessContext } from "@/server/auth/access-context";
@@ -21,20 +22,35 @@ export default async function StudentPage({
 }: {
   searchParams: Promise<{ semester?: string | string[] }>;
 }) {
+  await connection();
   const { semester } = await searchParams;
   const access = await getAccessContext();
-  const ready = access.status === "ready" ? access : null;
+  if (access.status !== "ready" || !access.workspaces.includes("student")) {
+    return (
+      <WorkspaceShell workspace="student" destination="" semester={semester} />
+    );
+  }
 
-  const profile = ready?.profile;
+  // Same selection as WorkspaceShell: only semesters the student is enrolled in.
+  const enrolled = access.semesters.filter((s) =>
+    access.enrollments.some((e) => e.semester_id === s.id)
+  );
+  const filter = semesterFilterSchema.safeParse({ semester });
+  const selected = !filter.success
+    ? undefined
+    : filter.data.semester
+    ? enrolled.find((s) => s.id === filter.data.semester)
+    : enrolled.find((s) => s.is_current) ?? enrolled[0];
+  const semesterId = selected?.id;
+
+  const profile = access.profile;
   const universityId = profile?.university_id;
   const studentName = profile ? displayName(profile) : "Student";
+  const currentEnrollment = access.enrollments.find(
+    (e) => e.semester_id === semesterId
+  );
 
-  // Same semester selection as WorkspaceShell; no enrollment there means no year/status shown.
-  const selected = ready
-    ? ready.semesters.find((s) => s.id === semester) ?? ready.currentSemester ?? ready.semesters[0]
-    : undefined;
-  const currentEnrollment = ready?.enrollments.find((e) => e.semester_id === selected?.id);
-
+  const nowIso = new Date().toISOString();
   let qrDataUrl: string | null = null;
   let qrError: string | null = null;
 
@@ -42,111 +58,102 @@ export default async function StudentPage({
     try {
       qrDataUrl = await generateAttendanceQrDataUrl(universityId);
     } catch {
-      qrError = "Unable to generate attendance QR code. Please ensure your student number is formatted properly.";
+      qrError =
+        "Unable to generate attendance QR code. Please ensure your student number is formatted properly.";
     }
   }
 
+  const [
+    financeRes,
+    disciplineRes,
+    clearanceRes,
+    eventsRes,
+  ] = await Promise.allSettled([
+    semesterId
+      ? getStudentFinancialAccount({ semesterId })
+      : Promise.resolve(null),
+    semesterId
+      ? getMyDisciplinaryRecords(semesterId)
+      : Promise.resolve(null),
+    semesterId
+      ? getStudentClearanceSummary(semesterId)
+      : Promise.resolve(null),
+    semesterId ? getMyEvents(semesterId) : Promise.resolve([]),
+  ]);
+
+  const financeSummary =
+    financeRes.status === "fulfilled" && financeRes.value
+      ? financeRes.value.summary
+      : null;
+  const financeError =
+    financeRes.status === "rejected"
+      ? "Unable to load financial records."
+      : null;
+
+  const disciplineSummary =
+    disciplineRes.status === "fulfilled" && disciplineRes.value
+      ? disciplineRes.value.summary
+      : null;
+  const disciplineError =
+    disciplineRes.status === "rejected"
+      ? "Unable to load disciplinary records."
+      : null;
+
+  const clearanceSummary =
+    clearanceRes.status === "fulfilled" && clearanceRes.value
+      ? clearanceRes.value
+      : null;
+  const clearanceError =
+    clearanceRes.status === "rejected"
+      ? "Unable to load clearance records."
+      : null;
+
+  const rawEvents =
+    eventsRes.status === "fulfilled" && Array.isArray(eventsRes.value)
+      ? eventsRes.value
+      : [];
+  const eventsError =
+    eventsRes.status === "rejected" ? "Unable to load events." : null;
+  const { highlight, totalUpcoming } = findNextUpcomingEvent(
+    rawEvents,
+    nowIso
+  );
+
+  const dashboardData: StudentDashboardData = {
+    student: {
+      name: studentName,
+      universityId: universityId ?? "",
+      yearLevel: currentEnrollment?.year_level,
+      academicStatus: currentEnrollment?.academic_status,
+    },
+    qrDataUrl,
+    qrError,
+    finance: {
+      summary: financeSummary,
+      error: financeError,
+    },
+    discipline: {
+      summary: disciplineSummary,
+      error: disciplineError,
+    },
+    clearance: {
+      summary: clearanceSummary,
+      error: clearanceError,
+    },
+    events: {
+      highlight,
+      totalUpcoming,
+      error: eventsError,
+    },
+  };
+
   return (
     <WorkspaceShell workspace="student" destination="" semester={semester}>
-      <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full">
-        {/* Welcome Banner */}
-        <div className="flex flex-col gap-1 text-center sm:text-left">
-          <h2 className="section-title text-foreground">
-            Welcome, {profile?.first_name ?? "Student"}
-          </h2>
-          <p className="text-xs text-muted-foreground sm:text-sm">
-            Access your personal attendance QR code and student academic tools.
-          </p>
-        </div>
-
-        {/* QR Section */}
-        {!universityId ? (
-          <Card className="flex flex-col items-center justify-center gap-3 p-8 text-center max-w-md mx-auto">
-            <ShieldAlert className="size-10 text-amber-500" />
-            <h3 className="font-heading text-base font-semibold text-foreground">
-              Student Number Required
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Your profile does not currently have an assigned university student number. Please contact your Council Officer or Platform Administrator to establish your roster enrollment.
-            </p>
-          </Card>
-        ) : qrError || !qrDataUrl ? (
-          <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center max-w-md mx-auto">
-            <ShieldAlert className="size-10 text-destructive" />
-            <p className="text-xs text-muted-foreground">
-              {qrError ?? "Unable to display QR code."}
-            </p>
-          </Card>
-        ) : (
-          <AttendanceQrCard
-            universityId={universityId}
-            studentName={studentName}
-            yearLevel={currentEnrollment?.year_level}
-            academicStatus={currentEnrollment?.academic_status}
-            qrDataUrl={qrDataUrl}
-          />
-        )}
-
-        {/* Quick Links */}
-        <div className="flex flex-col gap-3">
-          <h3 className="font-heading text-sm font-semibold text-foreground">
-            Student Quick Links
-          </h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-            <Link
-              href="/student/events"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40 hover:border-primary/40 shadow-2xs"
-            >
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <CalendarDays className="size-5" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-foreground">Events</span>
-                <span className="text-[11px] text-muted-foreground truncate">Upcoming & attendance</span>
-              </div>
-            </Link>
-
-            <Link
-              href="/student/fees-and-fines"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40 hover:border-primary/40 shadow-2xs"
-            >
-              <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <CircleDollarSign className="size-5" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-foreground">Fees & Fines</span>
-                <span className="text-[11px] text-muted-foreground truncate">Dues & payment history</span>
-              </div>
-            </Link>
-
-            <Link
-              href="/student/merits-demerits-and-services"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40 hover:border-primary/40 shadow-2xs"
-            >
-              <div className="flex size-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                <Medal className="size-5" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-foreground">Merits & Services</span>
-                <span className="text-[11px] text-muted-foreground truncate">Office & RLE records</span>
-              </div>
-            </Link>
-
-            <Link
-              href="/student/clearance"
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40 hover:border-primary/40 shadow-2xs"
-            >
-              <div className="flex size-9 items-center justify-center rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                <ClipboardCheck className="size-5" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-foreground">Clearance</span>
-                <span className="text-[11px] text-muted-foreground truncate">Semester sign-offs</span>
-              </div>
-            </Link>
-          </div>
-        </div>
-      </div>
+      <StudentHomeView
+        data={dashboardData}
+        semesterId={semesterId}
+        renderedAt={nowIso}
+      />
     </WorkspaceShell>
   );
 }
