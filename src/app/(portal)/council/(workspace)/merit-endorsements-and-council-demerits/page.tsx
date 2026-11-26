@@ -14,7 +14,7 @@ import {
   getCouncilDisciplinaryRecords,
   getInstructorChoices,
 } from "@/features/discipline/queries";
-import { semesterFilterSchema } from "@/features/semesters/schemas";
+import { resolveSelectedSemester } from "@/features/semesters/schemas";
 import { getRoster } from "@/features/students/queries";
 import { getAccessContext } from "@/server/auth/access-context";
 
@@ -53,17 +53,17 @@ export default async function CouncilMeritEndorsementsAndDemeritsPage({
     notFound();
   }
 
-  const filter = semesterFilterSchema.safeParse({ semester });
-  const selected = !filter.success
-    ? undefined
-    : filter.data.semester
-    ? access.semesters.find((item) => item.id === filter.data.semester)
-    : access.semesters.find((item) => item.is_current) ?? access.semesters[0];
-
+  const selected = resolveSelectedSemester(access.semesters, semester) ?? undefined;
   const canAct = Boolean(selected?.is_current);
+  const semesterLabel = selected
+    ? `${selected.term} (AY ${selected.academic_year_start}–${selected.academic_year_start + 1})`
+    : "";
+  const renderedAt = new Date().toISOString();
 
   const path = "/council/merit-endorsements-and-council-demerits";
-  const baseHref = filter.data?.semester ? `${path}?semester=${filter.data.semester}` : path;
+  const explicitSemester =
+    selected && typeof semester === "string" && semester === selected.id ? semester : undefined;
+  const baseHref = explicitSemester ? `${path}?semester=${explicitSemester}` : path;
   const endorseListHref = baseHref.includes("?")
     ? `${baseHref}&tab=endorsements`
     : `${baseHref}?tab=endorsements`;
@@ -133,6 +133,9 @@ export default async function CouncilMeritEndorsementsAndDemeritsPage({
           defaultTab={defaultTab}
           canAct={canAct}
           endorseHref={endorseHref}
+          semesterLabel={semesterLabel}
+          isCurrentSemester={canAct}
+          renderedAt={renderedAt}
         />
       );
     }

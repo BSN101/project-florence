@@ -90,7 +90,7 @@ export type FacultyDisciplinaryViewData = DisciplinaryLedger & {
 };
 
 export type CouncilDisciplinaryViewData = {
-  demerits: DemeritRecord[];
+  demerits: CouncilDemeritRecord[];
   endorsements: MeritEndorsementRecord[];
 };
 

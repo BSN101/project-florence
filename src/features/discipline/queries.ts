@@ -19,6 +19,7 @@ import {
 } from "./calculations";
 import type {
   StudentMeritApplicationGroup,
+  CouncilDemeritRecord,
   CouncilDisciplinaryViewData,
   DisciplinaryBucket,
   DisciplinaryLedger,
@@ -211,50 +212,94 @@ export async function getMyMeritApplicationGroup(
 }
 
 /**
- * Council workspace query (FL-029).
+ * Council workspace query (FL-029 / FL-034).
  * Scoped to Council-generated demerits and Council-origin merit endorsements with the
  * merit units their approval created. Excludes whole-ledger balances, Faculty demerits,
- * merit applications and service sessions.
+ * merit applications and service sessions. Computes `canWaive` strictly from Executive
+ * authority, unwaived state, and non-self check without querying cumulative balances.
  */
 export async function getCouncilDisciplinaryRecords(semesterId: string): Promise<CouncilDisciplinaryViewData> {
-  await requireCouncilDisciplinaryViewer();
+  const access = await requireCouncilDisciplinaryViewer();
   const client = await createUserClient();
 
-  const [demeritsRes, endorsementsRes, awardsRes] = await Promise.all([
-    client
-      .from("demerits")
-      .select(DEMERIT_COLUMNS)
-      .eq("source", "council")
-      .eq("semester_id", semesterId)
-      .order("incident_on", { ascending: false }),
-    client
-      .from("merit_endorsements")
-      .select("id, student_id, semester_id, assigned_instructor_id, description, requested_days, status, submitted_by, submitted_at, decided_by, decided_at, decision_reason")
-      .eq("semester_id", semesterId)
-      .order("submitted_at", { ascending: false }),
+  const [demeritsData, endorsementsData, awardsData] = await Promise.all([
+    allRows(
+      (from, to) =>
+        client
+          .from("demerits")
+          .select(
+            "id, student_id, bucket, source, description, incident_on, consequence_outcome, source_unit_index, issued_by, waived_at, waiver_reason, created_at"
+          )
+          .eq("source", "council")
+          .eq("semester_id", semesterId)
+          .order("incident_on", { ascending: false })
+          .order("created_at", { ascending: false })
+          .order("source_unit_index", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "Unable to load Council demerits"
+    ),
+    allRows(
+      (from, to) =>
+        client
+          .from("merit_endorsements")
+          .select(
+            "id, student_id, semester_id, assigned_instructor_id, description, requested_days, status, submitted_by, submitted_at, decided_by, decided_at, decision_reason"
+          )
+          .eq("semester_id", semesterId)
+          .order("submitted_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "Unable to load merit endorsements"
+    ),
     // Approval keeps the endorsement semester on its merits.
-    client.from("merits").select("endorsement_id").eq("source", "endorsement").eq("semester_id", semesterId),
+    allRows(
+      (from, to) =>
+        client
+          .from("merits")
+          .select("endorsement_id")
+          .eq("source", "endorsement")
+          .eq("semester_id", semesterId)
+          .order("id", { ascending: true })
+          .range(from, to),
+      "Unable to load endorsement merits"
+    ),
   ]);
-  if (demeritsRes.error) throw new Error("Unable to load Council demerits");
-  if (endorsementsRes.error) throw new Error("Unable to load merit endorsements");
-  if (awardsRes.error) throw new Error("Unable to load endorsement merits");
 
   const names = await loadNames(client, [
-    ...demeritsRes.data.map((d) => d.student_id),
-    ...endorsementsRes.data.flatMap((e) => [e.student_id, e.assigned_instructor_id]),
+    ...demeritsData.map((d) => d.student_id),
+    ...endorsementsData.flatMap((e) => [e.student_id, e.assigned_instructor_id]),
   ]);
   const awardedDays = new Map<string, number>();
-  for (const { endorsement_id } of awardsRes.data) {
+  for (const { endorsement_id } of awardsData) {
     if (endorsement_id) awardedDays.set(endorsement_id, (awardedDays.get(endorsement_id) ?? 0) + 1);
   }
 
+  const actor = {
+    actorId: access.profile.id,
+    roles: access.roles,
+    councilRole: access.councilRole,
+  };
+
   return {
-    demerits: demeritsRes.data.map((d) => ({
-      ...toDemerit(d, names),
+    demerits: demeritsData.map((d): CouncilDemeritRecord => ({
+      id: d.id,
+      bucket: d.bucket,
+      source: "council",
+      description: d.description,
+      incident_on: d.incident_on,
+      consequence_outcome: d.consequence_outcome,
+      source_unit_index: d.source_unit_index,
+      waived_at: d.waived_at,
+      waiver_reason: d.waiver_reason,
+      created_at: d.created_at,
       student_university_id: names.get(d.student_id)?.university_id ?? null,
       student_name: nameOf(names, d.student_id),
+      issuer_name: COUNCIL,
+      waived_by_name: d.waived_at ? COUNCIL : null,
+      canWaive: canWaiveDemerit(d, actor),
     })),
-    endorsements: endorsementsRes.data.map((e) => ({
+    endorsements: endorsementsData.map((e) => ({
       ...e,
       student_university_id: names.get(e.student_id)?.university_id ?? null,
       student_name: nameOf(names, e.student_id),
