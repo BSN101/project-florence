@@ -3,6 +3,7 @@ import type {
   BucketDisciplinaryBalance,
   DemeritRecord,
   DisciplinaryBucket,
+  FacultyDemeritUnitRecord,
   FacultyEndorsementCounts,
   FacultyMeritEndorsementRecord,
   MeritApplicationRecord,
@@ -300,6 +301,80 @@ export function sortFacultyEndorsements<
     const bTime = bPending ? b.submitted_at : (b.decided_at ?? b.submitted_at);
     if (aTime !== bTime) return aTime > bTime ? -1 : 1;
 
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+}
+
+/**
+ * Pure eligibility check for waiving one demerit unit (FL-034).
+ * Mirrors `public.waive_demerit` + `f_cmd_instructor(p_actor, d.bucket)` 1:1
+ * (without checking cumulative bucket balance, which `waive_demerit` verifies atomically).
+ */
+export function canWaiveDemerit(
+  demerit: {
+    source: string;
+    bucket: DisciplinaryBucket;
+    student_id: string;
+    issued_by: string;
+    waived_at: string | null;
+  },
+  actor: {
+    actorId: string;
+    roles: readonly string[];
+    councilRole: string | null;
+  }
+): boolean {
+  if (demerit.waived_at !== null || demerit.student_id === actor.actorId) {
+    return false;
+  }
+
+  if (demerit.source === "council") {
+    return actor.councilRole === "executive";
+  }
+
+  if (demerit.issued_by !== actor.actorId) {
+    return false;
+  }
+
+  const hasMatchingInstructorRole =
+    (demerit.bucket === "office" && actor.roles.includes("Academic Instructor")) ||
+    (demerit.bucket === "rle" && actor.roles.includes("Clinical Instructor"));
+
+  if (!hasMatchingInstructorRole) {
+    return false;
+  }
+
+  if (demerit.source === "faculty") {
+    return true;
+  }
+
+  if (demerit.source === "external_ci") {
+    return demerit.bucket === "rle" && actor.roles.includes("RLE Coordinator");
+  }
+
+  return false;
+}
+
+/**
+ * Sorts Faculty demerit units deterministically (`incident_on` DESC, `created_at` DESC,
+ * `incident_unit_index` ASC, `id` ASC) so multi-day incident units stay contiguous in order.
+ */
+export function sortFacultyDemeritUnits<
+  T extends Pick<
+    FacultyDemeritUnitRecord,
+    "id" | "incident_on" | "created_at" | "incident_unit_index"
+  >,
+>(units: readonly T[]): T[] {
+  return [...units].sort((a, b) => {
+    if (a.incident_on !== b.incident_on) {
+      return a.incident_on > b.incident_on ? -1 : 1;
+    }
+    if (a.created_at !== b.created_at) {
+      return a.created_at > b.created_at ? -1 : 1;
+    }
+    if (a.incident_unit_index !== b.incident_unit_index) {
+      return a.incident_unit_index - b.incident_unit_index;
+    }
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
 }
