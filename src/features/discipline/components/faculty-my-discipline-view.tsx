@@ -51,7 +51,7 @@ export function FacultyMyDisciplineView({
             onClick={() => handleTabChange("merits")}
             className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
           >
-            <Award className="size-3.5" aria-hidden="true" />
+            <Award className="size-4" aria-hidden="true" />
             <span>Awarded Merits ({merits.length})</span>
           </Button>
 
@@ -62,7 +62,7 @@ export function FacultyMyDisciplineView({
             onClick={() => handleTabChange("demerits")}
             className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
           >
-            <FileWarning className="size-3.5" aria-hidden="true" />
+            <FileWarning className="size-4" aria-hidden="true" />
             <span>Issued Demerits ({demerits.length})</span>
           </Button>
         </div>

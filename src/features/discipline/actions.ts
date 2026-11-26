@@ -642,6 +642,7 @@ export async function waiveDemeritAction(rawInput: unknown): Promise<WaiveDemeri
   revalidatePath("/faculty/external-ci-records");
   revalidatePath("/council/merit-endorsements-and-council-demerits");
   revalidatePath("/student");
+  revalidatePath("/student/events");
   revalidatePath("/student/merits-demerits-and-services");
   revalidatePath("/student/clearance");
   revalidatePath("/council/clearance");

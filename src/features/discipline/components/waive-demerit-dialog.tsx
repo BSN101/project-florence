@@ -44,7 +44,7 @@ export function WaiveDemeritDialog({
   const [isPending, startTransition] = useTransition();
 
   const [reason, setReason] = useState("");
-  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
+  const [requestKey, setRequestKey] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryableError, setRetryableError] = useState(false);
@@ -62,6 +62,7 @@ export function WaiveDemeritDialog({
     if (open) setOpen(false);
     if (error !== null) setError(null);
     if (reason !== "") setReason("");
+    if (requestKey !== null) setRequestKey(null);
     if (locked || retryableError) {
       setLocked(false);
       setRetryableError(false);
@@ -81,7 +82,7 @@ export function WaiveDemeritDialog({
     setLocked(false);
     setError(null);
     setRetryableError(false);
-    setRequestKey(crypto.randomUUID());
+    setRequestKey(null);
   }
 
   function resetAll() {
@@ -93,13 +94,9 @@ export function WaiveDemeritDialog({
     event?.preventDefault();
     if (locked && !retryableError) return;
 
-    if (trimmedReason.length < 3) {
-      setError("Waiver reason must be at least 3 characters.");
-      return;
-    }
-
+    const nextKey = requestKey ?? crypto.randomUUID();
     const parsed = waiveDemeritSchema.safeParse({
-      requestKey,
+      requestKey: nextKey,
       demeritId: demerit.id,
       reason,
     });
@@ -111,6 +108,7 @@ export function WaiveDemeritDialog({
       return;
     }
 
+    if (requestKey === null) setRequestKey(nextKey);
     setError(null);
     setLocked(true);
 
@@ -125,7 +123,7 @@ export function WaiveDemeritDialog({
           } else {
             setLocked(false);
             setRetryableError(false);
-            setRequestKey(crypto.randomUUID());
+            setRequestKey(null);
             setError(res.error);
             router.refresh();
           }
@@ -201,7 +199,7 @@ export function WaiveDemeritDialog({
               role="alert"
               className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
             >
-              <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" />
               <span>{error}</span>
             </div>
           )}
@@ -228,7 +226,7 @@ export function WaiveDemeritDialog({
 
           {/* Irreversible Waiver & Balance Guard Callout */}
           <div className="flex items-start gap-2 rounded-lg border border-amber-600/30 bg-amber-50/50 p-3 text-xs text-amber-900">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" aria-hidden="true" />
+            <AlertTriangle className="mt-1 size-4 shrink-0 text-amber-700" aria-hidden="true" />
             <div className="space-y-2">
               <div className="font-medium">One-way demerit waiver</div>
               <p className="leading-relaxed text-amber-900/90">
@@ -287,7 +285,7 @@ export function WaiveDemeritDialog({
             </p>
           </div>
 
-          <DialogFooter className="pt-2">
+          <DialogFooter>
             {retryableError ? (
               <div className="flex w-full items-center justify-between gap-2">
                 <Button

@@ -71,7 +71,7 @@ export function FacultyDemeritsTable({
           placeholder="Filter by student, violation, or note..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 sm:h-8 sm:text-xs max-sm:min-h-11"
+          className="pl-9 sm:h-8 sm:text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
           aria-label="Filter demerits by student, violation, or note"
         />
       </div>
@@ -151,7 +151,7 @@ export function FacultyDemeritsTable({
                     )}
                     {isWaived && d.waiver_reason && (
                       <div className="mt-1 flex items-start gap-2 rounded-lg border border-border/60 bg-muted/60 p-2 text-[11px] text-muted-foreground">
-                        <AlertCircle className="mt-0.5 size-3 shrink-0 text-primary" aria-hidden="true" />
+                        <AlertCircle className="mt-1 size-3 shrink-0 text-primary" aria-hidden="true" />
                         <div className="min-w-0 space-y-1">
                           <p className="whitespace-normal break-words">
                             <span className="font-medium text-foreground">Waiver reason:</span>{" "}

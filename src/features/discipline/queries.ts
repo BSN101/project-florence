@@ -234,6 +234,7 @@ export async function getCouncilDisciplinaryRecords(semesterId: string): Promise
           .eq("semester_id", semesterId)
           .order("incident_on", { ascending: false })
           .order("created_at", { ascending: false })
+          .order("incident_group_id", { ascending: true })
           .order("source_unit_index", { ascending: true })
           .order("id", { ascending: true })
           .range(from, to),

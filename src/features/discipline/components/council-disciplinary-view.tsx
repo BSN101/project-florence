@@ -45,7 +45,7 @@ export function CouncilDisciplinaryView({
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <div className="flex flex-col gap-3 border-b border-border pb-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 border-b border-border pb-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -54,7 +54,7 @@ export function CouncilDisciplinaryView({
             onClick={() => handleTabChange("demerits")}
             className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
           >
-            <FileWarning className="size-3.5" aria-hidden="true" />
+            <FileWarning className="size-4" aria-hidden="true" />
             <span>Council Demerits ({data.demerits.length})</span>
           </Button>
 
@@ -65,7 +65,7 @@ export function CouncilDisciplinaryView({
             onClick={() => handleTabChange("endorsements")}
             className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
           >
-            <Award className="size-3.5" aria-hidden="true" />
+            <Award className="size-4" aria-hidden="true" />
             <span>Merit Endorsements ({data.endorsements.length})</span>
           </Button>
         </div>
@@ -80,7 +80,7 @@ export function CouncilDisciplinaryView({
               render={<Link href={endorseHref} />}
               className="gap-2 text-xs max-sm:w-full max-sm:min-h-11 pointer-coarse:min-h-11"
             >
-              <Award className="size-3.5" aria-hidden="true" /> Endorse for merit
+              <Award className="size-4" aria-hidden="true" /> Endorse for merit
             </Button>
           ) : (
             <Button
@@ -90,7 +90,7 @@ export function CouncilDisciplinaryView({
               className="gap-2 text-xs max-sm:w-full max-sm:min-h-11 pointer-coarse:min-h-11"
               title="Merit endorsements can only be submitted for the active semester."
             >
-              <Award className="size-3.5" aria-hidden="true" /> Endorse for merit
+              <Award className="size-4" aria-hidden="true" /> Endorse for merit
             </Button>
           )}
         </div>

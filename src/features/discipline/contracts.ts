@@ -163,7 +163,7 @@ export type DecideMeritEndorsementResult =
   | { success: true; endorsementId: string; status: MeritEndorsementDecision; unitCount: number }
   | { success: false; error: string; retryable?: true };
 
-export type DemeritSource = "faculty" | "council" | "external_ci";
+type DemeritSource = "faculty" | "council" | "external_ci";
 
 /**
  * Faculty-scoped demerit unit row for `/faculty/my-merits-and-demerits` (FL-034).
