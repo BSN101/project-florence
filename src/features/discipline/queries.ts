@@ -10,9 +10,11 @@ import { createUserClient } from "@/server/db/user-client";
 import {
   calculateDisciplinarySummary,
   canDecideMeritEndorsement,
+  canWaiveDemerit,
   evaluateMeritState,
   getAvailableMeritsFifo,
   getTodayManila,
+  sortFacultyDemeritUnits,
   sortFacultyEndorsements,
 } from "./calculations";
 import type {
@@ -20,7 +22,7 @@ import type {
   CouncilDisciplinaryViewData,
   DisciplinaryBucket,
   DisciplinaryLedger,
-  FacultyDemeritGroup,
+  FacultyDemeritUnitRecord,
   FacultyDisciplinaryViewData,
   FacultyMeritEndorsementRecord,
   FacultyMeritGroup,
@@ -348,62 +350,71 @@ export async function getActiveMisconductCatalog(): Promise<MisconductOption[]> 
 }
 
 /**
- * Faculty workspace query (FL-033).
- * Fetches demerits issued by the authenticated instructor in the given semester,
- * strictly filtered to source = 'faculty' and issued_by = actor to keep future
- * external-CI records (T-047) isolated.
- * Grouped by incident_group_id with total units and waived units derived from waived_at.
+ * Faculty workspace query (FL-033 / FL-034).
+ * Fetches individual demerit units issued by the authenticated instructor in the given semester,
+ * strictly filtered to `source = 'faculty'` and `issued_by = actor` to keep external-CI records
+ * (T-047) isolated. Computes group unit counts, resolves student and waiver actor names via
+ * `florence_discipline_names`, calculates `canWaive` server-side, and strips raw UUIDs.
  */
-export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyDemeritGroup[]> {
+export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyDemeritUnitRecord[]> {
   const access = await requireWorkspace("faculty");
   const actorId = access.profile.id;
   const client = await createUserClient();
 
-  const { data, error } = await client
-    .from("demerits")
-    .select(
-      "id, incident_group_id, student_id, semester_id, bucket, description, incident_on, waived_at, created_at"
-    )
-    .eq("issued_by", actorId)
-    .eq("semester_id", semesterId)
-    .eq("source", "faculty")
-    .order("incident_on", { ascending: false })
-    .order("created_at", { ascending: false });
+  const data = await allRows(
+    (from, to) =>
+      client
+        .from("demerits")
+        .select(
+          "id, incident_group_id, incident_unit_index, student_id, bucket, source, description, incident_on, issued_by, waived_at, waived_by, waiver_reason, created_at"
+        )
+        .eq("issued_by", actorId)
+        .eq("semester_id", semesterId)
+        .eq("source", "faculty")
+        .order("incident_on", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("incident_unit_index", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    "Unable to load faculty demerit records"
+  );
 
-  if (error) throw new Error("Unable to load faculty demerit records");
-  if (!data || data.length === 0) return [];
+  if (data.length === 0) return [];
 
-  const names = await loadNames(client, data.map((d) => d.student_id));
-  const groupsMap = new Map<string, FacultyDemeritGroup>();
+  const names = await loadNames(client, [
+    ...data.map((d) => d.student_id),
+    ...data.map((d) => d.waived_by),
+  ]);
 
+  const groupCounts = new Map<string, number>();
   for (const row of data) {
-    const groupKey = row.incident_group_id;
-    const existing = groupsMap.get(groupKey);
-    const isWaived = Boolean(row.waived_at);
-
-    if (!existing) {
-      groupsMap.set(groupKey, {
-        id: groupKey,
-        student_id: row.student_id,
-        student_name: nameOf(names, row.student_id),
-        student_university_id: names.get(row.student_id)?.university_id ?? null,
-        semester_id: row.semester_id,
-        bucket: row.bucket,
-        description: row.description,
-        incident_on: row.incident_on,
-        days: 1,
-        waivedDays: isWaived ? 1 : 0,
-        created_at: row.created_at,
-      });
-    } else {
-      existing.days += 1;
-      if (isWaived) {
-        existing.waivedDays += 1;
-      }
-    }
+    groupCounts.set(row.incident_group_id, (groupCounts.get(row.incident_group_id) ?? 0) + 1);
   }
 
-  return Array.from(groupsMap.values());
+  const actor = {
+    actorId,
+    roles: access.roles,
+    councilRole: access.councilRole,
+  };
+
+  const units: FacultyDemeritUnitRecord[] = data.map((row) => ({
+    id: row.id,
+    incident_unit_index: row.incident_unit_index,
+    group_unit_count: groupCounts.get(row.incident_group_id) ?? 1,
+    bucket: row.bucket,
+    source: "faculty",
+    description: row.description,
+    incident_on: row.incident_on,
+    waived_at: row.waived_at,
+    waiver_reason: row.waiver_reason,
+    created_at: row.created_at,
+    student_university_id: names.get(row.student_id)?.university_id ?? null,
+    student_name: nameOf(names, row.student_id),
+    waived_by_name: nameOf(names, row.waived_by),
+    canWaive: canWaiveDemerit(row, actor),
+  }));
+
+  return sortFacultyDemeritUnits(units);
 }
 
 /**

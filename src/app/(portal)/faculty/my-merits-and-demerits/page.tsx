@@ -42,6 +42,7 @@ export default async function FacultyMeritsAndDemeritsPage({
   const selected = resolveSelectedSemester(access.semesters, semester) ?? undefined;
   const canAct = Boolean(selected?.is_current);
   const semesterLabel = selected ? `${selected.term} (AY ${selected.academic_year_start}–${selected.academic_year_start + 1})` : "";
+  const renderedAt = new Date().toISOString();
   const tabValue = Array.isArray(tab) ? tab[0] : tab;
   const defaultTab: "merits" | "demerits" = tabValue === "demerits" ? "demerits" : "merits";
   // The list keeps an explicit semester; entry forms always target the current one.
@@ -151,10 +152,20 @@ export default async function FacultyMeritsAndDemeritsPage({
         {!canAct && (
           <p className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0 text-primary" />
-            <span>You are viewing {semesterLabel}. Merits and demerits can only be issued in the current semester.</span>
+            <span>
+              You are viewing {semesterLabel}. Awarding merits and logging demerits require the
+              current semester, while waiving eligible past-semester demerits remains allowed.
+            </span>
           </p>
         )}
-        <FacultyMyDisciplineView merits={merits} demerits={demerits} defaultTab={defaultTab} />
+        <FacultyMyDisciplineView
+          merits={merits}
+          demerits={demerits}
+          defaultTab={defaultTab}
+          semesterLabel={semesterLabel}
+          isCurrentSemester={canAct}
+          renderedAt={renderedAt}
+        />
       </div>
     );
   }
