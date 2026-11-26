@@ -181,3 +181,67 @@ export type FacultyEndorsementCounts = {
 export type DecideMeritEndorsementResult =
   | { success: true; endorsementId: string; status: MeritEndorsementDecision; unitCount: number }
   | { success: false; error: string; retryable?: true };
+
+export type DemeritSource = "faculty" | "council" | "external_ci";
+
+/**
+ * Faculty-scoped demerit unit row for `/faculty/my-merits-and-demerits` (FL-034).
+ * Strips internal actor/student/group/attendance/catalog UUIDs so only rendered fields and `id` reach the client.
+ */
+export type FacultyDemeritUnitRecord = Pick<
+  Tables["demerits"]["Row"],
+  | "id"
+  | "incident_unit_index"
+  | "bucket"
+  | "description"
+  | "incident_on"
+  | "waived_at"
+  | "waiver_reason"
+  | "created_at"
+> &
+  StudentIdentity & {
+    source: "faculty";
+    group_unit_count: number;
+    waived_by_name: string | null;
+    canWaive: boolean;
+  };
+
+/**
+ * Council-scoped demerit unit row for `/council/merit-endorsements-and-council-demerits` (FL-034).
+ * Strips internal actor/student/attendance/catalog UUIDs so only rendered fields and `id` reach the client.
+ */
+export type CouncilDemeritRecord = Pick<
+  Tables["demerits"]["Row"],
+  | "id"
+  | "bucket"
+  | "description"
+  | "incident_on"
+  | "consequence_outcome"
+  | "source_unit_index"
+  | "waived_at"
+  | "waiver_reason"
+  | "created_at"
+> &
+  StudentIdentity & {
+    source: "council";
+    issuer_name: string | null;
+    waived_by_name: string | null;
+    canWaive: boolean;
+  };
+
+/** Minimal unit context needed by the shared `WaiveDemeritDialog` across Faculty, Council, and External CI views. */
+export type WaiveDemeritTarget = {
+  id: string;
+  student_name: string | null;
+  student_university_id: string | null;
+  bucket: DisciplinaryBucket;
+  source: DemeritSource;
+  description: string;
+  incident_on: string;
+  unitLabel?: string | null;
+  external_source_name?: string | null;
+};
+
+export type WaiveDemeritResult =
+  | { success: true; demeritId: string; waivedAt: string }
+  | { success: false; error: string; retryable?: true };
