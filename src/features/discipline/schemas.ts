@@ -180,3 +180,61 @@ export const waiveDemeritSchema = z.object({
   demeritId: z.string().uuid("Invalid demerit identifier."),
   reason: waiveDemeritReasonSchema,
 });
+
+// ---------------------------------------------------------------------------
+// External CI merit and demerit schemas (FL-035 / T-047)
+// ---------------------------------------------------------------------------
+
+const externalCiRecipientsSchema = z
+  .array(
+    z.object({
+      studentId: z.string().uuid("Invalid student identifier."),
+      requestKey: z.string().uuid("Invalid request key."),
+    })
+  )
+  .min(1, "Select at least one student.")
+  .refine(
+    (list) => new Set(list.map((r) => r.studentId)).size === list.length,
+    "Each student can be selected once."
+  );
+
+const externalCiSourceNameSchema = z
+  .string()
+  .trim()
+  .min(2, "External CI name must be at least 2 characters.")
+  .max(120, "External CI name cannot exceed 120 characters.");
+
+const externalCiDemeritNotesSchema = z
+  .string()
+  .trim()
+  .max(500, "Notes cannot exceed 500 characters.")
+  .nullish()
+  .transform((val) => (val && val.length > 0 ? val : null));
+
+export const awardExternalCiMeritsSchema = z.object({
+  recipients: externalCiRecipientsSchema,
+  externalSource: externalCiSourceNameSchema,
+  days: meritDaysSchema,
+  awardedOn: z.iso.date("Award date must be a valid date."),
+  description: meritDescriptionSchema,
+});
+
+export const logExternalCiDemeritsSchema = z
+  .object({
+    recipients: externalCiRecipientsSchema,
+    externalSource: externalCiSourceNameSchema,
+    days: demeritDaysSchema,
+    misconductId: z.string().uuid("Select a misconduct option."),
+    isOther: z.boolean(),
+    incidentOn: z.iso.date("Incident date must be a valid date."),
+    notes: externalCiDemeritNotesSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.isOther && (!data.notes || data.notes.length < 3)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["notes"],
+        message: "Describe the specific misconduct when selecting Other (at least 3 characters).",
+      });
+    }
+  });
