@@ -1114,13 +1114,13 @@ The selected demerit unit changes permanently from active to **Waived**, reduces
 - **Zero or non-positive matching-bucket balance:** If applied merits or active service credits have already reduced the student's cumulative Office or RLE balance to zero, waiving is refused and the dialog explains why without revealing the student's Faculty ledger to Council.
 - **Past-semester demerit:** Eligible demerits from a closed semester remain waivable while the student's current cumulative matching-bucket balance is positive; the dialog notes that the waiver reduces the current cumulative balance while keeping original semester attribution.
 - **Not authorized to waive:** Council Operations, Council Representatives, instructors on another instructor's entries (even with coordinator status), and instructors without the matching bucket role see no **Waive** control, and the server refuses the action.
-- **Self-waiver or already waived:** A user cannot waive a demerit on their own student record or waive a unit that is already waived; the list refreshes to show the recorded outcome if another actor waived it first.
+- **Self-waiver or already waived:** A user cannot waive a demerit on their own student record or waive a unit that is already waived. The dialog stays open with the reason for the refusal, and closing it refreshes the list to show the recorded outcome if another actor waived it first.
 - **Lost connection:** If the reply does not arrive, the dialog keeps the same request and reason and offers **Retry waiver** and **Start over**. Choosing **Start over** or closing the dialog from that state refreshes the list in case the waiver already committed.
 
 ### Acceptance checks
 
 - Any active Council Executive can waive an eligible Council-generated demerit regardless of which Council member generated it; Operations and Representatives cannot waive.
 - Faculty entries remain restricted to the original issuing instructor holding the matching bucket role; coordinator status never overrides another instructor's entry.
-- Multi-day Faculty incidents display 1 row per unit (`Unit 1 of 3`, `Unit 2 of 3`, etc.) so individual units can be waived independently without hiding partially waived state.
+- Multi-day Faculty incidents display 1 row per unit (`Unit 1 of 3`, `Unit 2 of 3`, etc.), kept together in unit order, so individual units can be waived independently without hiding partially waived state.
 - Self-waivers, already-waived units, zero-balance waivers and blank or sub-3-character reasons are refused.
 - Row **Waive** buttons, tab buttons, search inputs and dialog controls meet the 44 px touch-target minimum on phones and touch tablets.
