@@ -3,7 +3,6 @@ import type {
   BucketDisciplinaryBalance,
   DemeritRecord,
   DisciplinaryBucket,
-  FacultyDemeritUnitRecord,
   FacultyEndorsementCounts,
   FacultyMeritEndorsementRecord,
   MeritApplicationRecord,
@@ -353,28 +352,4 @@ export function canWaiveDemerit(
   }
 
   return false;
-}
-
-/**
- * Sorts Faculty demerit units deterministically (`incident_on` DESC, `created_at` DESC,
- * `incident_unit_index` ASC, `id` ASC) so multi-day incident units stay contiguous in order.
- */
-export function sortFacultyDemeritUnits<
-  T extends Pick<
-    FacultyDemeritUnitRecord,
-    "id" | "incident_on" | "created_at" | "incident_unit_index"
-  >,
->(units: readonly T[]): T[] {
-  return [...units].sort((a, b) => {
-    if (a.incident_on !== b.incident_on) {
-      return a.incident_on > b.incident_on ? -1 : 1;
-    }
-    if (a.created_at !== b.created_at) {
-      return a.created_at > b.created_at ? -1 : 1;
-    }
-    if (a.incident_unit_index !== b.incident_unit_index) {
-      return a.incident_unit_index - b.incident_unit_index;
-    }
-    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-  });
 }

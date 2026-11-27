@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canWaiveDemerit, instructorBucket, sortFacultyDemeritUnits } from "./calculations.ts";
+import { canWaiveDemerit, instructorBucket } from "./calculations.ts";
 import { demeritDaysSchema, logFacultyDemeritsSchema, waiveDemeritSchema } from "./schemas.ts";
 
 const KEY_1 = "11111111-1111-4111-8111-111111111111";
@@ -377,28 +377,6 @@ test("canWaiveDemerit rejects unknown sources", () => {
       { actorId: ACTOR_1, roles: ["Academic Instructor"], councilRole: "executive" }
     ),
     false
-  );
-});
-
-// --- sortFacultyDemeritUnits -------------------------------------------
-
-test("sortFacultyDemeritUnits sorts deterministically and keeps multi-day units contiguous in order", () => {
-  const input = [
-    { id: "d-old", incident_on: "2026-11-10", created_at: "2026-11-10T08:00:00Z", incident_unit_index: 1 },
-    { id: "d-b3", incident_on: "2026-11-16", created_at: "2026-11-16T09:00:00Z", incident_unit_index: 3 },
-    { id: "d-earlier-same-day", incident_on: "2026-11-16", created_at: "2026-11-16T07:00:00Z", incident_unit_index: 1 },
-    { id: "d-b1", incident_on: "2026-11-16", created_at: "2026-11-16T09:00:00Z", incident_unit_index: 1 },
-    { id: "d-tie-b", incident_on: "2026-11-16", created_at: "2026-11-16T09:00:00Z", incident_unit_index: 2 },
-    { id: "d-tie-a", incident_on: "2026-11-16", created_at: "2026-11-16T09:00:00Z", incident_unit_index: 2 },
-  ];
-
-  const sorted = sortFacultyDemeritUnits(input);
-
-  // Must not mutate input order.
-  assert.equal(input[0].id, "d-old");
-  assert.deepEqual(
-    sorted.map((u) => u.id),
-    ["d-b1", "d-tie-a", "d-tie-b", "d-b3", "d-earlier-same-day", "d-old"]
   );
 });
 

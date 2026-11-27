@@ -14,7 +14,6 @@ import {
   evaluateMeritState,
   getAvailableMeritsFifo,
   getTodayManila,
-  sortFacultyDemeritUnits,
   sortFacultyEndorsements,
 } from "./calculations";
 import type {
@@ -419,6 +418,7 @@ export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyD
         .eq("source", "faculty")
         .order("incident_on", { ascending: false })
         .order("created_at", { ascending: false })
+        .order("incident_group_id", { ascending: true })
         .order("incident_unit_index", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to),
@@ -460,7 +460,7 @@ export async function getMyFacultyDemerits(semesterId: string): Promise<FacultyD
     canWaive: canWaiveDemerit(row, actor),
   }));
 
-  return sortFacultyDemeritUnits(units);
+  return units;
 }
 
 /**
