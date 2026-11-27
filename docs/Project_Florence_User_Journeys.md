@@ -1142,8 +1142,8 @@ The selected demerit unit changes permanently from active to **Waived**, reduces
 
 ### System involvement
 
-- External CI merits (`source = 'external_ci'`) expire 1 year after their award date, can offset either Office or RLE balances when applied by the student, and notify each recipient.
-- External CI demerits (`source = 'external_ci'`) are locked to the **RLE** bucket, increase each recipient's RLE balance immediately, and notify each recipient.
+- External CI merits expire 1 year after their award date, can offset either Office or RLE balances when applied by the student, and notify each recipient in Florence.
+- External CI demerits are locked to the **RLE** bucket, increase each recipient's RLE balance immediately, and notify each recipient in Florence.
 - Any active RLE Coordinator can view all external CI records for the semester (including entries from another or former RLE Coordinator) with both external CI and entering coordinator attribution, while **Waive** actions and server authorization remain strictly limited to the RLE Coordinator who entered the unit.
 - Recording entries refreshes External CI records and the affected student Home, Notifications, Conduct, and Clearance views; recording RLE demerits or waiving them also refreshes Faculty RLE clearance.
 
@@ -1164,5 +1164,5 @@ External CI merits and RLE demerits are permanently recorded with external CI an
 - Only an active RLE Coordinator paired with Clinical Instructor access can open `/faculty/external-ci-records` or record external CI merits and RLE demerits; other Faculty roles receive not-found and server refusals.
 - External CI merits and demerits appear on External CI records, Student Conduct, and Coordinator views with external CI attribution and stay excluded from Faculty **My entries**.
 - Multi-day external CI demerits display 1 row per unit kept together in unit order, and only the entering RLE Coordinator sees **Waive** and can waive an unwaived unit when the student's cumulative RLE balance is positive.
-- Recording merits or demerits notifies recipients (`merit_received` / `demerit_incurred`); waiving demerits sends no notification.
+- Recording merits or demerits sends an in-app notification to each recipient; waiving demerits sends no notification.
 - Entry action buttons, tab buttons, search inputs, student picker rows, and waiver controls meet the 44 px touch-target minimum on phones and touch tablets.
