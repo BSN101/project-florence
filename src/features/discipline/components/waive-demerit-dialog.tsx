@@ -182,6 +182,9 @@ export function WaiveDemeritDialog({
             type="button"
             variant="outline"
             size="xs"
+            aria-label={`Waive demerit for ${studentName}, ${formattedIncidentDate}${
+              demerit.unitLabel ? `, ${demerit.unitLabel}` : ""
+            }`}
             className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive max-sm:min-h-11 pointer-coarse:min-h-11"
           >
             Waive
