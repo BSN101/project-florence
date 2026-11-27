@@ -4,15 +4,21 @@ import { revalidatePath } from "next/cache";
 import { redirect, RedirectType } from "next/navigation";
 
 import { AccessDeniedError, requireWorkspace } from "@/server/auth/require-workspace";
+import { getAccessContext } from "@/server/auth/access-context";
 import { createCommandClient } from "@/server/db/command-client";
 import { getTodayManila, hasInstructorRole, instructorBucket } from "./calculations";
-import type { DecideMeritEndorsementResult, MeritEndorsementDecision } from "./contracts";
+import type {
+  DecideMeritEndorsementResult,
+  MeritEndorsementDecision,
+  WaiveDemeritResult,
+} from "./contracts";
 import {
   applyMeritsSchema,
   awardDirectMeritsSchema,
   decideMeritEndorsementSchema,
   logFacultyDemeritsSchema,
   submitMeritEndorsementsSchema,
+  waiveDemeritSchema,
 } from "./schemas";
 
 const RPC_MESSAGES: [string, string][] = [
@@ -479,5 +485,181 @@ export async function decideMeritEndorsementAction(
     endorsementId: d.endorsement_id,
     status: d.status as MeritEndorsementDecision,
     unitCount,
+  };
+}
+
+// Standalone waiver error map (all 23 direct, helper, and trigger exceptions of `waive_demerit`).
+const WAIVE_DEMERIT_MESSAGES: [string, string][] = [
+  ["Waiver reason required", "A waiver reason is required to waive a demerit."],
+  ["Demerit not found", "This demerit record could not be found. Refresh to see the latest list."],
+  [
+    "Only original authorized issuer may waive this entry",
+    "Only the instructor or RLE Coordinator who entered this demerit can waive it.",
+  ],
+  ["Demerit context changed", "Demerit details changed while processing. Refresh and try again."],
+  ["Self demerit waiver forbidden", "You cannot waive a demerit on your own student record."],
+  [
+    "Demerit already waived",
+    "This demerit unit has already been waived. Refresh to see the recorded waiver.",
+  ],
+  [
+    "Waiver is not eligible at current matching balance",
+    "This demerit cannot be waived because the student has no remaining outstanding balance in this bucket.",
+  ],
+  ["Commands require READ COMMITTED isolation", "Unable to record this waiver right now. Try again."],
+  [
+    "Active Auth-linked human actor required",
+    "An active authorized account is required to waive demerits.",
+  ],
+  ["Council action not authorized", "Only active Council Executives can waive Council-generated demerits."],
+  [
+    "Matching instructor assignment required",
+    "An active Academic Instructor (Office) or Clinical Instructor (RLE) assignment matching this bucket is required.",
+  ],
+  [
+    "Non-null request key/payload required",
+    "Invalid waiver request. Refresh the page and try again.",
+  ],
+  [
+    "Request key reused with different command, actor or input",
+    "This waiver request was already submitted with different details. Refresh and check the list before trying again.",
+  ],
+  [
+    "Incomplete command receipt; inspect transaction integration",
+    "A previous attempt did not finish cleanly. Refresh to check the current status before retrying.",
+  ],
+  ["Command result cannot be null", "Unable to finalize this waiver. Refresh to check the current status."],
+  ["Missing pending command receipt", "Unable to finalize this waiver. Refresh to check the current status."],
+  ["demerits history cannot be deleted", "Demerit history cannot be deleted."],
+  ["demerits immutable facts cannot change", "Demerit details are locked and cannot be modified."],
+  [
+    "demerits final decision cannot change",
+    "This demerit has already been waived and cannot be changed.",
+  ],
+  [
+    "Balance mutations require READ COMMITTED",
+    "Unable to verify balance eligibility right now. Try again.",
+  ],
+  [
+    "Insufficient matching balance",
+    "This demerit cannot be waived because the student has no remaining outstanding balance in this bucket.",
+  ],
+  ["Self waiver forbidden", "You cannot waive a demerit on your own student record."],
+  [
+    "Only original issuer may waive Faculty entry",
+    "Only the original issuing instructor can waive this Faculty demerit.",
+  ],
+];
+
+/**
+ * Waives a single demerit unit with an attributable reason (FL-034).
+ * Serves Faculty My entries, Faculty External CI records (T-047), and Council Conduct
+ * without trusting any client-supplied workspace hint:
+ * - Resolves actor authority from `getAccessContext()` (active Instructor or Council Executive)
+ * - Performs zero pre-RPC `demerits` reads so identical `requestKey` retries replay cleanly
+ * - Calls `public.waive_demerit`, which enforces issuer/Executive authority, non-self,
+ *   unwaived state, and positive cumulative matching-bucket balance atomically
+ */
+export async function waiveDemeritAction(rawInput: unknown): Promise<WaiveDemeritResult> {
+  const access = await getAccessContext();
+  if (access.status === "error") {
+    return {
+      success: false,
+      error: "Unable to verify your access. Try again.",
+    };
+  }
+  if (access.status !== "ready") {
+    return {
+      success: false,
+      error: "You are not permitted to waive demerits.",
+    };
+  }
+
+  const canFacultyWaive =
+    access.workspaces.includes("faculty") && hasInstructorRole(access.roles);
+  const canCouncilExecutiveWaive =
+    access.workspaces.includes("council") && access.councilRole === "executive";
+
+  if (!canFacultyWaive && !canCouncilExecutiveWaive) {
+    return {
+      success: false,
+      error: "You are not permitted to waive demerits.",
+    };
+  }
+
+  const parsed = waiveDemeritSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Check the demerit waiver details.",
+    };
+  }
+
+  const { requestKey, demeritId, reason } = parsed.data;
+  const client = createCommandClient();
+  let data: unknown;
+
+  try {
+    const result = await client.rpc("waive_demerit", {
+      p_key: requestKey,
+      p_actor: access.profile.id,
+      p_demerit: demeritId,
+      p_reason: reason,
+    });
+    data = result.data;
+
+    if (result.error) {
+      // supabase-js returns fetch/transport failures without a Postgres code;
+      // the commit may already have succeeded, so the caller must replay the same key.
+      if (!result.error.code) {
+        return {
+          success: false,
+          error:
+            "Unable to reach the server. If the waiver was recorded, clicking retry will safely return the result.",
+          retryable: true,
+        };
+      }
+      return {
+        success: false,
+        error: formatRpcError(
+          result.error.message,
+          "Unable to waive this demerit. Try again.",
+          WAIVE_DEMERIT_MESSAGES
+        ),
+      };
+    }
+  } catch {
+    return {
+      success: false,
+      error:
+        "Unable to reach the server. If the waiver was recorded, clicking retry will safely return the result.",
+      retryable: true,
+    };
+  }
+
+  // Revalidate all affected routes immediately after commit and before inspecting response shape.
+  revalidatePath("/faculty/my-merits-and-demerits");
+  revalidatePath("/faculty/external-ci-records");
+  revalidatePath("/council/merit-endorsements-and-council-demerits");
+  revalidatePath("/student");
+  revalidatePath("/student/events");
+  revalidatePath("/student/merits-demerits-and-services");
+  revalidatePath("/student/clearance");
+  revalidatePath("/council/clearance");
+  revalidatePath("/faculty/academic-clearance");
+  revalidatePath("/faculty/rle-clearance");
+
+  const d = (data ?? {}) as Record<string, unknown>;
+  if (typeof d.demerit_id !== "string" || typeof d.waived_at !== "string") {
+    return {
+      success: false,
+      error: "The demerit waiver was recorded, but response data was incomplete. Please refresh.",
+    };
+  }
+
+  return {
+    success: true,
+    demeritId: d.demerit_id,
+    waivedAt: d.waived_at,
   };
 }

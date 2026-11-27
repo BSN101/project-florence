@@ -90,7 +90,7 @@ export type FacultyDisciplinaryViewData = DisciplinaryLedger & {
 };
 
 export type CouncilDisciplinaryViewData = {
-  demerits: DemeritRecord[];
+  demerits: CouncilDemeritRecord[];
   endorsements: MeritEndorsementRecord[];
 };
 
@@ -115,25 +115,6 @@ export type FacultyMeritGroup = {
   awarded_on: string;
   expires_on: string;
   days: number;
-  created_at: string;
-};
-
-/** Grouped faculty-issued demerit incident for the instructor's own entries table. */
-export type FacultyDemeritGroup = {
-  /** `incident_group_id` from the database, shared by all units in the incident. */
-  id: string;
-  student_id: string;
-  student_name: string | null;
-  student_university_id: string | null;
-  semester_id: string;
-  bucket: DisciplinaryBucket;
-  /** Frozen at logging as "<misconduct label>[: notes]". */
-  description: string;
-  incident_on: string;
-  /** Total 1-day unit rows sharing this `incident_group_id`. */
-  days: number;
-  /** Units where `waived_at` is set. */
-  waivedDays: number;
   created_at: string;
 };
 
@@ -180,4 +161,68 @@ export type FacultyEndorsementCounts = {
 
 export type DecideMeritEndorsementResult =
   | { success: true; endorsementId: string; status: MeritEndorsementDecision; unitCount: number }
+  | { success: false; error: string; retryable?: true };
+
+type DemeritSource = "faculty" | "council" | "external_ci";
+
+/**
+ * Faculty-scoped demerit unit row for `/faculty/my-merits-and-demerits` (FL-034).
+ * Strips internal actor/student/group/attendance/catalog UUIDs so only rendered fields and `id` reach the client.
+ */
+export type FacultyDemeritUnitRecord = Pick<
+  Tables["demerits"]["Row"],
+  | "id"
+  | "incident_unit_index"
+  | "bucket"
+  | "description"
+  | "incident_on"
+  | "waived_at"
+  | "waiver_reason"
+  | "created_at"
+> &
+  StudentIdentity & {
+    source: "faculty";
+    group_unit_count: number;
+    waived_by_name: string | null;
+    canWaive: boolean;
+  };
+
+/**
+ * Council-scoped demerit unit row for `/council/merit-endorsements-and-council-demerits` (FL-034).
+ * Strips internal actor/student/attendance/catalog UUIDs so only rendered fields and `id` reach the client.
+ */
+export type CouncilDemeritRecord = Pick<
+  Tables["demerits"]["Row"],
+  | "id"
+  | "bucket"
+  | "description"
+  | "incident_on"
+  | "consequence_outcome"
+  | "source_unit_index"
+  | "waived_at"
+  | "waiver_reason"
+  | "created_at"
+> &
+  StudentIdentity & {
+    source: "council";
+    issuer_name: string | null;
+    waived_by_name: string | null;
+    canWaive: boolean;
+  };
+
+/** Minimal unit context needed by the shared `WaiveDemeritDialog` across Faculty, Council, and External CI views. */
+export type WaiveDemeritTarget = {
+  id: string;
+  student_name: string | null;
+  student_university_id: string | null;
+  bucket: DisciplinaryBucket;
+  source: DemeritSource;
+  description: string;
+  incident_on: string;
+  unitLabel?: string | null;
+  external_source_name?: string | null;
+};
+
+export type WaiveDemeritResult =
+  | { success: true; demeritId: string; waivedAt: string }
   | { success: false; error: string; retryable?: true };

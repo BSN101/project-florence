@@ -303,3 +303,53 @@ export function sortFacultyEndorsements<
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
 }
+
+/**
+ * Pure eligibility check for waiving one demerit unit (FL-034).
+ * Mirrors `public.waive_demerit` + `f_cmd_instructor(p_actor, d.bucket)` 1:1
+ * (without checking cumulative bucket balance, which `waive_demerit` verifies atomically).
+ */
+export function canWaiveDemerit(
+  demerit: {
+    source: string;
+    bucket: DisciplinaryBucket;
+    student_id: string;
+    issued_by: string;
+    waived_at: string | null;
+  },
+  actor: {
+    actorId: string;
+    roles: readonly string[];
+    councilRole: string | null;
+  }
+): boolean {
+  if (demerit.waived_at !== null || demerit.student_id === actor.actorId) {
+    return false;
+  }
+
+  if (demerit.source === "council") {
+    return actor.councilRole === "executive";
+  }
+
+  if (demerit.issued_by !== actor.actorId) {
+    return false;
+  }
+
+  const hasMatchingInstructorRole =
+    (demerit.bucket === "office" && actor.roles.includes("Academic Instructor")) ||
+    (demerit.bucket === "rle" && actor.roles.includes("Clinical Instructor"));
+
+  if (!hasMatchingInstructorRole) {
+    return false;
+  }
+
+  if (demerit.source === "faculty") {
+    return true;
+  }
+
+  if (demerit.source === "external_ci") {
+    return demerit.bucket === "rle" && actor.roles.includes("RLE Coordinator");
+  }
+
+  return false;
+}

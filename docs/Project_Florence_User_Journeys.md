@@ -1083,3 +1083,44 @@ The student has an immediate, unified view of their academic identity, financial
 - Layout is fully responsive across mobile, portrait tablet (iPad mini with 256px sidebar), and desktop without card squishing or horizontal overflow.
 - All interactive links and action buttons maintain minimum 44px touch targets.
 - All numbers, currency balances, service credits, and demerits render with `tabular-nums`.
+
+## Waive demerit
+
+- **Author:** Andrei Catigan
+- **Actors:** Academic Instructor or Clinical Instructor (own issued Faculty demerits); Council Executive (any Council-generated demerit).
+- **Starts at:** Faculty workspace > My entries (`/faculty/my-merits-and-demerits`, Issued Demerits tab) or Council workspace > Conduct (`/council/merit-endorsements-and-council-demerits`, Council Demerits tab), defaulting to the current semester.
+- **References:** FL-034, FL-029; schema §8.2 (`demerits`), §16.6 (`waive_demerit`). *(Waiving external-CI records remains scoped to External CI records under FL-035.)*
+
+### Main flow
+
+1. The authorized instructor or Council Executive opens **My entries** (Faculty) or **Conduct** (Council) for the selected semester and reviews the demerit units, filtering by student, description, bucket (`Office` or `RLE`) or status (`Active` or `Waived`).
+2. On an eligible active unit, the user chooses **Waive**. The confirmation dialog names the student, university number, bucket, incident date, unit context (such as `Unit 1 of 3` on multi-day incidents) and incident description, and explains that waiving is permanent and requires a positive cumulative balance in that bucket.
+3. The user enters a waiver reason of 3 to 500 characters (noting who can read it: the student, coordinators and the issuing instructor for Faculty entries; the student, Council and coordinators for Council entries) and confirms **Waive demerit**.
+4. The system verifies authority, non-self ownership, unwaived status and a positive cumulative matching-bucket balance, marks that unit **Waived** with the waiving actor, time and reason, and keeps the original issuer and incident details intact.
+5. The list refreshes to show the **Waived** status, the waiver reason and the `Asia/Manila` waiver time (displaying **Council** as the actor label on Council entries while keeping individual attribution in the record).
+
+### System involvement
+
+- `public.waive_demerit` locks the student's matching-bucket balance before locking the demerit row, checks issuer or Council Executive authority and non-self ownership, blocks waivers when the cumulative bucket balance is zero or less, and records the waiver once. A request key makes a retried request return the original result without disclosing underlying Faculty ledger totals to Council.
+- Client views receive only the visible unit fields and never expose internal student or actor identifiers or whole-ledger balances on Council Conduct.
+- A waiver refreshes Faculty My entries, Council Conduct, Student Home, Student Events, Student Conduct and Student/Council/Faculty clearance views.
+
+### Outcome
+
+The selected demerit unit changes permanently from active to **Waived**, reduces the student's cumulative matching-bucket balance by 1 day, preserves both the original issuer and the waiving actor, and leaves any already-confirmed semester clearances unchanged.
+
+### Important alternatives
+
+- **Zero or non-positive matching-bucket balance:** If applied merits or active service credits have already reduced the student's cumulative Office or RLE balance to zero, waiving is refused and the dialog explains why without revealing the student's Faculty ledger to Council.
+- **Past-semester demerit:** Eligible demerits from a closed semester remain waivable while the student's current cumulative matching-bucket balance is positive; the dialog notes that the waiver reduces the current cumulative balance while keeping original semester attribution.
+- **Not authorized to waive:** Council Operations, Council Representatives, instructors on another instructor's entries (even with coordinator status), and instructors without the matching bucket role see no **Waive** control, and the server refuses the action.
+- **Self-waiver or already waived:** A user cannot waive a demerit on their own student record or waive a unit that is already waived. The dialog stays open with the reason for the refusal, and closing it refreshes the list to show the recorded outcome if another actor waived it first.
+- **Lost connection:** If the reply does not arrive, the dialog keeps the same request and reason and offers **Retry waiver** and **Start over**. Choosing **Start over** or closing the dialog from that state refreshes the list in case the waiver already committed.
+
+### Acceptance checks
+
+- Any active Council Executive can waive an eligible Council-generated demerit regardless of which Council member generated it; Operations and Representatives cannot waive.
+- Faculty entries remain restricted to the original issuing instructor holding the matching bucket role; coordinator status never overrides another instructor's entry.
+- Multi-day Faculty incidents display 1 row per unit (`Unit 1 of 3`, `Unit 2 of 3`, etc.), kept together in unit order, so individual units can be waived independently without hiding partially waived state.
+- Self-waivers, already-waived units, zero-balance waivers and blank or sub-3-character reasons are refused.
+- Row **Waive** buttons, tab buttons, search inputs and dialog controls meet the 44 px touch-target minimum on phones and touch tablets.

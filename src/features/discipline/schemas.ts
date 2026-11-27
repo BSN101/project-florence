@@ -164,3 +164,19 @@ export const applyMeritsSchema = z.object({
 });
 
 export type ApplyMeritsInput = z.infer<typeof applyMeritsSchema>;
+
+// ---------------------------------------------------------------------------
+// Demerit waiver schemas (FL-034 / T-046)
+// ---------------------------------------------------------------------------
+
+const waiveDemeritReasonSchema = z
+  .string()
+  .trim()
+  .min(3, "Waiver reason must be at least 3 characters.")
+  .max(500, "Waiver reason cannot exceed 500 characters.");
+
+export const waiveDemeritSchema = z.object({
+  requestKey: z.string().uuid("Invalid request key."),
+  demeritId: z.string().uuid("Invalid demerit identifier."),
+  reason: waiveDemeritReasonSchema,
+});
