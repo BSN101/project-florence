@@ -599,7 +599,7 @@ export async function getMyPendingEndorsementsElsewhere(semesterId: string): Pro
  * Access guard for RLE Coordinator External CI records (FL-035).
  * Requires an active Faculty workspace session holding both `RLE Coordinator` and `Clinical Instructor`.
  */
-export async function requireRleCoordinator() {
+async function requireRleCoordinator() {
   const access = await requireWorkspace("faculty");
   if (!access.roles.includes("RLE Coordinator") || !access.roles.includes("Clinical Instructor")) {
     throw new AccessDeniedError("forbidden");

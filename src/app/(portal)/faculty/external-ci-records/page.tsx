@@ -22,6 +22,23 @@ export const instant = false;
 
 const path = "/faculty/external-ci-records";
 
+function toActiveRecipients(
+  roster: Awaited<ReturnType<typeof getRoster>>,
+  actorId: string
+): AwardRecipientOption[] {
+  return roster
+    .filter((s) => s.account_status === "active" && s.student_id !== actorId)
+    .map(({ student_id, university_id, first_name, middle_name, last_name, suffix, year_level }) => ({
+      student_id,
+      university_id,
+      first_name,
+      middle_name,
+      last_name,
+      suffix,
+      year_level,
+    }));
+}
+
 export default async function FacultyExternalCiRecordsPage({
   searchParams,
 }: {
@@ -91,20 +108,9 @@ export default async function FacultyExternalCiRecordsPage({
     if (!roster || !misconductOptions) {
       content = loadError;
     } else {
-      const students: AwardRecipientOption[] = roster
-        .filter((s) => s.account_status === "active" && s.student_id !== access.profile.id)
-        .map(({ student_id, university_id, first_name, middle_name, last_name, suffix, year_level }) => ({
-          student_id,
-          university_id,
-          first_name,
-          middle_name,
-          last_name,
-          suffix,
-          year_level,
-        }));
       content = (
         <RecordExternalCiDemeritsFlow
-          students={students}
+          students={toActiveRecipients(roster, access.profile.id)}
           misconductOptions={misconductOptions}
           semesterLabel={semesterLabel}
           startsOn={selected.starts_on}
@@ -118,20 +124,9 @@ export default async function FacultyExternalCiRecordsPage({
     if (!roster) {
       content = loadError;
     } else {
-      const students: AwardRecipientOption[] = roster
-        .filter((s) => s.account_status === "active" && s.student_id !== access.profile.id)
-        .map(({ student_id, university_id, first_name, middle_name, last_name, suffix, year_level }) => ({
-          student_id,
-          university_id,
-          first_name,
-          middle_name,
-          last_name,
-          suffix,
-          year_level,
-        }));
       content = (
         <RecordExternalCiMeritsFlow
-          students={students}
+          students={toActiveRecipients(roster, access.profile.id)}
           semesterLabel={semesterLabel}
           startsOn={selected.starts_on}
           endsOn={selected.ends_on}

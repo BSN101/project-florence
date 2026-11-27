@@ -50,7 +50,7 @@ export function ExternalCiMeritsTable({
         placeholder="Filter by student, external CI, or reason..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="pl-9 sm:h-8 sm:text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+        className="pl-10 sm:h-8 sm:text-xs max-sm:min-h-11 pointer-coarse:min-h-11 pointer-coarse:text-base"
         aria-label="Filter external CI merits by student, external CI, or reason"
       />
     </div>

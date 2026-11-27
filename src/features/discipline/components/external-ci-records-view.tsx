@@ -60,6 +60,7 @@ export function ExternalCiRecordsView({
             type="button"
             variant={activeTab === "merits" ? "default" : "ghost"}
             size="sm"
+            aria-pressed={activeTab === "merits"}
             onClick={() => handleTabChange("merits")}
             className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
           >
@@ -71,6 +72,7 @@ export function ExternalCiRecordsView({
             type="button"
             variant={activeTab === "demerits" ? "default" : "ghost"}
             size="sm"
+            aria-pressed={activeTab === "demerits"}
             onClick={() => handleTabChange("demerits")}
             className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
           >
