@@ -28,7 +28,8 @@ import { BucketBadge } from "./disciplinary-badges";
  * Reusable across Faculty My entries, Council Conduct, and External CI records (T-047).
  * Enforces a 3-500 character reason, preserves the idempotency requestKey across
  * retryable transport failures, and calls `router.refresh()` on start-over or dismissal
- * from `retryableError` in case a dropped response committed on the server.
+ * from `retryableError` in case a dropped response committed on the server, and on
+ * dismissal after a refusal so the refusal stays readable until then.
  */
 export function WaiveDemeritDialog({
   demerit,
@@ -48,6 +49,7 @@ export function WaiveDemeritDialog({
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryableError, setRetryableError] = useState(false);
+  const [refreshOnClose, setRefreshOnClose] = useState(false);
 
   const reasonId = useId();
   const helpId = useId();
@@ -63,6 +65,7 @@ export function WaiveDemeritDialog({
     if (error !== null) setError(null);
     if (reason !== "") setReason("");
     if (requestKey !== null) setRequestKey(null);
+    if (refreshOnClose) setRefreshOnClose(false);
     if (locked || retryableError) {
       setLocked(false);
       setRetryableError(false);
@@ -125,14 +128,15 @@ export function WaiveDemeritDialog({
             setRetryableError(false);
             setRequestKey(null);
             setError(res.error);
-            router.refresh();
+            // Refreshing now could unmount this row's dialog before the refusal is read; refresh on close.
+            setRefreshOnClose(true);
           }
           return;
         }
 
+        // The action's revalidatePath already refreshed the page in this response.
         setOpen(false);
         resetAll();
-        router.refresh();
       } catch (err) {
         if (
           err instanceof Error &&
@@ -163,6 +167,10 @@ export function WaiveDemeritDialog({
               router.refresh();
             } else {
               setError(null);
+              if (refreshOnClose) {
+                setRefreshOnClose(false);
+                router.refresh();
+              }
             }
           }
         }
