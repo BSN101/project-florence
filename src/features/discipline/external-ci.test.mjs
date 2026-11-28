@@ -5,6 +5,7 @@ import {
   awardExternalCiMeritsSchema,
   logExternalCiDemeritsSchema,
 } from "./schemas.ts";
+import { reconcileBatchOutcome } from "./batch-retry.ts";
 
 const KEY_1 = "11111111-1111-4111-8111-111111111111";
 const KEY_2 = "44444444-4444-4444-8444-444444444444";
@@ -68,7 +69,8 @@ test("awardExternalCiMeritsSchema accepts valid awards and coerces whole days", 
   assert.equal(parseMerit().success, true);
   const coerced = parseMerit({ days: "4" });
   assert.equal(coerced.success && coerced.data.days, 4);
-  assert.equal(parseMerit({ days: 30 }).success, true);
+  assert.equal(parseMerit({ days: 5 }).success, true);
+  assert.equal(parseMerit({ days: 6 }).success, false);
 });
 
 test("awardExternalCiMeritsSchema rejects non-whole or non-positive days", () => {
@@ -143,7 +145,7 @@ test("logExternalCiDemeritsSchema requires 3 to 500 trimmed characters when isOt
 
 test("logExternalCiDemeritsSchema validates misconduct, days, incident date, recipients, and strips bucket", () => {
   assert.equal(parseDemerit({ misconductId: "not-a-uuid" }).success, false);
-  for (const days of [0, -2, 2.5, "", "abc"]) {
+  for (const days of [0, -2, 2.5, 6, "", "abc"]) {
     assert.equal(parseDemerit({ days }).success, false, `days=${days}`);
   }
   for (const incidentOn of ["16-11-2026", "invalid", "2026-02-29"]) {
@@ -164,4 +166,67 @@ test("logExternalCiDemeritsSchema validates misconduct, days, incident date, rec
   const stripped = parseDemerit({ bucket: "office" });
   assert.equal(stripped.success, true);
   assert.equal("bucket" in stripped.data, false);
+});
+
+// --- reconcileBatchOutcome (retry and idempotency state) ---------------
+
+const prepared = [
+  { studentId: STUDENT_1, requestKey: KEY_1 },
+  { studentId: STUDENT_2, requestKey: KEY_2 },
+];
+const reconcile = (patch) =>
+  reconcileBatchOutcome({ preparedRecipients: prepared, success: false, succeededIds: [], failures: [], wasLocked: false, ...patch });
+
+test("reconcileBatchOutcome clears keys on a first-attempt pre-RPC rejection", () => {
+  const r = reconcile({ error: "Denied." });
+  assert.equal(r.kind, "pre_rpc_error");
+  assert.equal(r.locked, false);
+  assert.equal(r.error, "Denied.");
+  assert.deepEqual(r.picked.map((p) => p.requestKey), [null, null]);
+});
+
+test("reconcileBatchOutcome keeps keys on a locked pre-RPC rejection", () => {
+  const r = reconcile({ wasLocked: true });
+  assert.equal(r.kind, "pre_rpc_error");
+  assert.equal(r.locked, true);
+  assert.deepEqual(r.picked, prepared);
+});
+
+test("reconcileBatchOutcome unlocks and empties the queue on clean success", () => {
+  const r = reconcile({ success: true, succeededIds: [STUDENT_1, STUDENT_2] });
+  assert.equal(r.kind, "result");
+  assert.equal(r.locked, false);
+  assert.deepEqual(r.picked, []);
+  assert.deepEqual(r.succeededIds, [STUDENT_1, STUDENT_2]);
+});
+
+test("reconcileBatchOutcome keeps only retryable recipients, with their keys, locked", () => {
+  const r = reconcile({
+    succeededIds: [STUDENT_1],
+    failures: [{ studentId: STUDENT_2, error: "Unreachable.", retryable: true }],
+  });
+  assert.equal(r.locked, true);
+  assert.equal(r.hadTransportUncertainty, true);
+  assert.deepEqual(r.picked, [{ studentId: STUDENT_2, requestKey: KEY_2 }]);
+});
+
+test("reconcileBatchOutcome drops deterministic failures and unlocks", () => {
+  const r = reconcile({
+    succeededIds: [STUDENT_1],
+    failures: [{ studentId: STUDENT_2, error: "Not enrolled." }],
+  });
+  assert.equal(r.locked, false);
+  assert.deepEqual(r.picked, []);
+});
+
+test("reconcileBatchOutcome keeps earlier successes across a retry", () => {
+  const r = reconcileBatchOutcome({
+    preparedRecipients: [{ studentId: STUDENT_2, requestKey: KEY_2 }],
+    success: true,
+    succeededIds: [STUDENT_2],
+    failures: [],
+    wasLocked: true,
+    previousSucceededIds: [STUDENT_1],
+  });
+  assert.deepEqual(r.succeededIds, [STUDENT_1, STUDENT_2]);
 });
