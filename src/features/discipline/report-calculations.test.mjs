@@ -549,6 +549,8 @@ test("serializeDisciplinaryReportCsv includes UTF-8 BOM, CRLF, Council masking, 
   // Council masking & External CI preserved, row IDs absent
   assert.ok(csv.includes(",Council,"));
   assert.ok(csv.includes("External: Philippine Red Cross"));
+  assert.ok(csv.includes("\r\nActive Office Demerits,1\r\nActive RLE Demerits,0\r\n"));
+  assert.ok(csv.includes("\r\nMerits Available,0\r\nMerits Applied,1\r\nMerits Expired,0\r\n"));
   assert.equal(csv.includes(",d1,"), false);
   assert.equal(csv.includes(",m1,"), false);
   assert.equal(csv.includes(",c1,"), false);
