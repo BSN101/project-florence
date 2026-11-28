@@ -11,6 +11,8 @@ import {
   calculateDisciplinarySummary,
   canDecideMeritEndorsement,
   canWaiveDemerit,
+  COUNCIL,
+  demeritActors,
   evaluateMeritState,
   getAvailableMeritsFifo,
   getTodayManila,
@@ -61,9 +63,6 @@ function nameOf(names: Map<string, NameRow>, id: string | null) {
   return row ? displayName(row) : null;
 }
 
-// Council actors are students; display "Council" instead of their names. `issued_by` /
-// `waived_by` / `submitted_by` still carry the actual actors for attribution.
-const COUNCIL = "Council";
 
 function toDemerit<T extends { source: string; issued_by: string; waived_by: string | null; misconduct: { label: string } | null }>(
   { misconduct, ...d }: T,
@@ -77,10 +76,6 @@ function toDemerit<T extends { source: string; issued_by: string; waived_by: str
     waived_by_name: council ? (d.waived_by ? COUNCIL : null) : nameOf(names, d.waived_by),
   };
 }
-
-/** Actor ids whose names a demerit row displays (none for Council rows). */
-const demeritActors = (d: { source: string; issued_by: string; waived_by: string | null }) =>
-  d.source === "council" ? [] : [d.issued_by, d.waived_by];
 
 /**
  * One student's ledger. With `issuerId`, only entries that actor issued and no

@@ -8,6 +8,7 @@ import { createUserClient } from "@/server/db/user-client";
 
 import {
   calculateDisciplinarySummary,
+  demeritActors,
   evaluateMeritState,
   getTodayManila,
 } from "./calculations";
@@ -194,15 +195,8 @@ export async function getStudentDisciplinaryReportForAccess(
     resolvedPeriod.includedSemesterIds.has(c.semester_id)
   );
 
-  // Never pass Council student actor UUIDs (or External CI issuers whose external_source_name is already present) to florence_discipline_names.
-  const actorIdsToResolve: (string | null)[] = [];
-  for (const d of inPeriodDemerits) {
-    if (d.source === "council") continue;
-    if (d.source !== "external_ci" || !d.external_source_name?.trim()) {
-      actorIdsToResolve.push(d.issued_by);
-    }
-    actorIdsToResolve.push(d.waived_by);
-  }
+  // Same Council masking as the Conduct ledger: Council student actor UUIDs never reach florence_discipline_names.
+  const actorIdsToResolve: (string | null)[] = inPeriodDemerits.flatMap(demeritActors);
   for (const m of inPeriodMerits) {
     if (m.source !== "external_ci" || !m.external_source_name?.trim()) {
       actorIdsToResolve.push(m.awarded_by);

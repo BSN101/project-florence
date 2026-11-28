@@ -11,6 +11,14 @@ import type {
   StudentDisciplinarySummary,
 } from "./contracts";
 
+// Council actors are students; display "Council" instead of their names. `issued_by` /
+// `waived_by` / `submitted_by` still carry the actual actors for attribution.
+export const COUNCIL = "Council";
+
+/** Actor ids whose names a demerit row displays (none for Council rows). */
+export const demeritActors = (d: { source: string; issued_by: string; waived_by: string | null }) =>
+  d.source === "council" ? [] : [d.issued_by, d.waived_by];
+
 /** Whether a student may open the apply-merits wizard (optionally for one bucket). */
 export function canApplyMerits(
   summary: StudentDisciplinarySummary,
