@@ -1,0 +1,415 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useId, useTransition } from "react";
+import { ArrowLeft, Download, FileText, LoaderCircle } from "lucide-react";
+
+import { LinkPendingIndicator } from "@/components/layout/link-pending-indicator";
+import { RefreshButton } from "@/components/layout/refresh-button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatManilaDate, formatManilaDateTime } from "@/lib/manila-date";
+import { cn } from "@/lib/utils";
+
+import type { StudentDisciplinaryReportData } from "../report-contracts";
+import { BucketBadge } from "./disciplinary-badges";
+import { StudentDisciplinaryReportTables } from "./student-disciplinary-report-tables";
+
+const formatDays = (count: number) => `${count} ${count === 1 ? "day" : "days"}`;
+
+function buildReportViewHref(input: {
+  scope: "semester" | "year";
+  year?: number;
+  semesterQueryParam?: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set("report", input.scope);
+  if (input.scope === "year" && input.year !== undefined) {
+    params.set("year", String(input.year));
+  }
+  if (input.semesterQueryParam) {
+    params.set("semester", input.semesterQueryParam);
+  }
+  return `/student/merits-demerits-and-services?${params.toString()}`;
+}
+
+export function StudentDisciplinaryReport({
+  report,
+  backHref,
+  csvHref,
+  pdfHref,
+  semesterQueryParam,
+}: {
+  report: StudentDisciplinaryReportData;
+  backHref: string;
+  csvHref: string;
+  pdfHref: string;
+  semesterQueryParam?: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const yearSelectId = useId();
+
+  const semesterScopeHref = buildReportViewHref({
+    scope: "semester",
+    semesterQueryParam,
+  });
+  const yearScopeHref = buildReportViewHref({
+    scope: "year",
+    year: report.academicYearStart,
+    semesterQueryParam,
+  });
+
+  function handleYearChange(nextYearRaw: string | null) {
+    const parsed = Number.parseInt(nextYearRaw ?? "", 10);
+    if (!Number.isInteger(parsed) || parsed === report.academicYearStart || isPending) return;
+    startTransition(() => {
+      router.push(buildReportViewHref({ scope: "year", year: parsed, semesterQueryParam }));
+    });
+  }
+
+  const yearItems = report.availableAcademicYears.map((option) => ({
+    value: String(option.academicYearStart),
+    label: `${option.label} (${option.termCount} ${option.termCount === 1 ? "term" : "terms"})`,
+  }));
+
+  const { office, rle, merits } = report.cumulativeSummary;
+  const { periodSummary } = report;
+  const enrolledTerms = report.coveredTerms.filter(
+    (term) => term.yearLevel !== null && term.academicStatus !== null
+  );
+
+  return (
+    <div className="flex w-full flex-col gap-6">
+      {/* Navigation, scope controls, and export bar */}
+      <div
+        className="flex w-full flex-col gap-4"
+        aria-busy={isPending}
+      >
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={backHref} />}
+            className="w-fit gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            <span>Back to conduct ledger</span>
+          </Button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <RefreshButton renderedAt={report.generatedAt} />
+
+            <a
+              href={csvHref}
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+              )}
+            >
+              <Download className="size-4" aria-hidden="true" />
+              <span>Download CSV</span>
+            </a>
+
+            <a
+              href={pdfHref}
+              className={cn(
+                buttonVariants({ size: "sm" }),
+                "gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+              )}
+            >
+              <FileText className="size-4" aria-hidden="true" />
+              <span>Download PDF</span>
+            </a>
+          </div>
+        </div>
+
+        <Card className="flex w-full flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Report period:</span>
+            <div
+              role="group"
+              aria-label="Report period scope"
+              className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background p-1"
+            >
+              {(
+                [
+                  ["semester", "Selected semester", semesterScopeHref],
+                  ["year", "Academic year", yearScopeHref],
+                ] as const
+              ).map(([scope, label, href]) => (
+                <Button
+                  key={scope}
+                  variant={report.scope === scope ? "secondary" : "ghost"}
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href={href} aria-current={report.scope === scope ? "page" : undefined} />}
+                  className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+                >
+                  {label}
+                  <LinkPendingIndicator />
+                </Button>
+              ))}
+            </div>
+
+            {isPending && (
+              <span
+                role="status"
+                className="inline-flex items-center gap-2 text-xs text-muted-foreground"
+              >
+                <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
+                <span>Updating report…</span>
+              </span>
+            )}
+          </div>
+
+          {report.scope === "year" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor={yearSelectId} className="text-xs font-medium text-foreground">
+                Academic year
+              </label>
+              <Select
+                items={yearItems}
+                value={String(report.academicYearStart)}
+                onValueChange={handleYearChange}
+                disabled={isPending}
+              >
+                <SelectTrigger id={yearSelectId} className="w-full sm:w-auto sm:min-w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {yearItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Plain Document Header */}
+      <Card className="flex w-full flex-col gap-4 p-4 sm:p-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">
+              Project Florence · Faculty of Nursing
+            </p>
+            <h2 className="section-title mt-1">Student Disciplinary Report</h2>
+          </div>
+          <span className="text-xs font-medium text-foreground tabular-nums">
+            {report.scope === "year" ? "Academic Year Scope" : "Single Semester Scope"} ·{" "}
+            {report.periodLabel}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 border-t border-border/60 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground">Student</span>
+            <span className="whitespace-normal break-words font-medium text-foreground">
+              {report.student.fullName}
+            </span>
+            <span className="font-mono text-muted-foreground tabular-nums">
+              {report.student.universityId ?? "—"}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground">Covered Terms</span>
+            {report.coveredTerms.map((term) => (
+              <span
+                key={`${term.academicYearStart}-${term.term}`}
+                className="whitespace-normal break-words text-foreground tabular-nums"
+              >
+                <span className="font-medium">{term.term}</span> (
+                {formatManilaDate(term.startsOn)} – {formatManilaDate(term.endsOn)})
+              </span>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground">Enrollment Context</span>
+            {enrolledTerms.length === 0 ? (
+              <span className="text-muted-foreground">No enrollment in selected period</span>
+            ) : (
+              enrolledTerms.map((term) => (
+                <span
+                  key={`enroll-${term.academicYearStart}-${term.term}`}
+                  className="whitespace-normal break-words text-foreground tabular-nums"
+                >
+                  {report.coveredTerms.length > 1 ? `${term.term}: ` : ""}Year {term.yearLevel} ·{" "}
+                  {term.academicStatus === "irregular" ? "Irregular" : "Regular"}
+                </span>
+              ))
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground">Generated (Asia/Manila)</span>
+            <span
+              className="font-medium text-foreground tabular-nums"
+              suppressHydrationWarning
+            >
+              {formatManilaDateTime(report.generatedAt)}
+            </span>
+          </div>
+        </div>
+
+        <p className="border-t border-border/60 pt-4 text-xs text-muted-foreground">
+          Informational record only. Not an official certified document.
+        </p>
+      </Card>
+
+      {/* Current Cumulative Standing (All Semesters) */}
+      <section className="flex w-full flex-col gap-2">
+        <div
+          className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
+        >
+          <h3 className="section-title">Current Cumulative Standing</h3>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            Cumulative across all semesters as of {formatManilaDate(report.asOfDateManila)}{" "}
+            (Asia/Manila)
+          </span>
+        </div>
+
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card className="flex flex-col gap-2 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Office Duty Balance</span>
+              <BucketBadge bucket="office" className="font-medium" />
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-heading text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+                {formatDays(Math.max(0, office.balance))}
+              </span>
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  office.balance > 0 ? "text-destructive" : "text-success-foreground"
+                )}
+              >
+                {office.balance > 0 ? "Sanction pending" : "Clear"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {office.activeDemerits} active · {office.waivedDemerits} waived ·{" "}
+              {office.appliedMerits} applied merits · {office.activeServiceCredits} duty credits
+              {office.revokedServiceCredits > 0 ? ` (${office.revokedServiceCredits} revoked)` : ""}
+            </p>
+          </Card>
+
+          <Card className="flex flex-col gap-2 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Clinical (RLE) Duty Balance
+              </span>
+              <BucketBadge bucket="rle" className="font-medium" />
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-heading text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+                {formatDays(Math.max(0, rle.balance))}
+              </span>
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  rle.balance > 0 ? "text-destructive" : "text-success-foreground"
+                )}
+              >
+                {rle.balance > 0 ? "Sanction pending" : "Clear"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {rle.activeDemerits} active · {rle.waivedDemerits} waived · {rle.appliedMerits}{" "}
+              applied merits · {rle.activeServiceCredits} duty credits
+              {rle.revokedServiceCredits > 0 ? ` (${rle.revokedServiceCredits} revoked)` : ""}
+            </p>
+          </Card>
+
+          <Card className="flex flex-col gap-2 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Available Merits</span>
+              <span className="text-xs text-muted-foreground tabular-nums">1-yr validity</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-heading text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+                {formatDays(merits.available)}
+              </span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {merits.totalApplied} applied
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {merits.totalAwarded} total awarded · {merits.expired} expired
+            </p>
+          </Card>
+        </div>
+      </section>
+
+      {/* Period Activity Summary */}
+      <section className="flex w-full flex-col gap-2">
+        <div
+          className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
+        >
+          <h3 className="section-title">Period Activity Summary</h3>
+          <span className="text-xs text-muted-foreground tabular-nums">{report.periodLabel}</span>
+        </div>
+
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card className="flex flex-col gap-1 p-4">
+            <span className="text-xs font-medium text-muted-foreground">Demerits Recorded</span>
+            <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
+              {formatDays(periodSummary.demeritsRecorded)}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {periodSummary.demeritsActive} active ({periodSummary.officeDemeritsActive} Office,{" "}
+              {periodSummary.rleDemeritsActive} RLE)
+              {" · "}
+              {periodSummary.demeritsWaived} waived
+            </span>
+          </Card>
+
+          <Card className="flex flex-col gap-1 p-4">
+            <span className="text-xs font-medium text-muted-foreground">Merits Awarded</span>
+            <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
+              {formatDays(periodSummary.meritsAwarded)}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {periodSummary.meritsAvailable} available · {periodSummary.meritsApplied} applied ·{" "}
+              {periodSummary.meritsExpired} expired
+            </span>
+          </Card>
+
+          <Card className="flex flex-col gap-1 p-4">
+            <span className="text-xs font-medium text-muted-foreground">
+              Service Credits Earned
+            </span>
+            <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
+              {formatDays(periodSummary.serviceCreditsEarned)}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {periodSummary.serviceCreditsActive} active · {periodSummary.serviceCreditsRevoked}{" "}
+              revoked
+            </span>
+          </Card>
+        </div>
+      </section>
+
+      {/* Period Tables */}
+      <StudentDisciplinaryReportTables
+        demerits={report.demerits}
+        merits={report.merits}
+        serviceCredits={report.serviceCredits}
+        showTermColumn={report.scope === "year"}
+      />
+    </div>
+  );
+}

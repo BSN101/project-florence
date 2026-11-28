@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { Award, Clock, FileWarning } from "lucide-react";
+import { Award, Clock, FileText, FileWarning } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { canApplyMerits } from "../calculations";
@@ -26,6 +26,7 @@ export function StudentDisciplinaryView({
   availableMeritCount = 0,
   defaultTab = "demerits",
   applyBaseHref = "/student/merits-demerits-and-services",
+  reportHref,
 }: {
   summary: StudentDisciplinarySummary;
   demerits: DemeritRecord[];
@@ -35,6 +36,7 @@ export function StudentDisciplinaryView({
   availableMeritCount?: number;
   defaultTab?: "demerits" | "merits" | "services";
   applyBaseHref?: string;
+  reportHref?: string;
 }) {
   const [prevDefaultTab, setPrevDefaultTab] = useState(defaultTab);
   const [activeTab, setActiveTab] = useState<"demerits" | "merits" | "services">(defaultTab);
@@ -82,7 +84,7 @@ export function StudentDisciplinaryView({
       : undefined;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       {/* Authoritative Balance Cards */}
       <DisciplinaryBalanceCards
         summary={summary}
@@ -91,66 +93,93 @@ export function StudentDisciplinaryView({
       />
 
       {/* Tabs navigation and actions */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-2">
-          <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex w-full flex-col gap-4">
+        <div className="flex flex-col gap-2 border-b border-border pb-2 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            role="group"
+            aria-label="Conduct record categories"
+            className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <Button
               type="button"
-              variant={activeTab === "demerits" ? "default" : "ghost"}
+              variant={activeTab === "demerits" ? "secondary" : "ghost"}
               size="sm"
+              aria-pressed={activeTab === "demerits"}
               onClick={() => handleTabChange("demerits")}
-              className="shrink-0 gap-2 text-xs max-sm:min-h-11"
+              className="shrink-0 gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
             >
-              <FileWarning className="size-3.5" />
-              <span>Demerits ({demerits.length})</span>
+              <FileWarning className="size-4" aria-hidden="true" />
+              <span className="tabular-nums">Demerits ({demerits.length})</span>
             </Button>
 
             <Button
               type="button"
-              variant={activeTab === "merits" ? "default" : "ghost"}
+              variant={activeTab === "merits" ? "secondary" : "ghost"}
               size="sm"
+              aria-pressed={activeTab === "merits"}
               onClick={() => handleTabChange("merits")}
-              className="shrink-0 gap-2 text-xs max-sm:min-h-11"
+              className="shrink-0 gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
             >
-              <Award className="size-3.5" />
-              <span>Merits ({merits.length})</span>
+              <Award className="size-4" aria-hidden="true" />
+              <span className="tabular-nums">Merits ({merits.length})</span>
             </Button>
 
             <Button
               type="button"
-              variant={activeTab === "services" ? "default" : "ghost"}
+              variant={activeTab === "services" ? "secondary" : "ghost"}
               size="sm"
+              aria-pressed={activeTab === "services"}
               onClick={() => handleTabChange("services")}
-              className="shrink-0 gap-2 text-xs max-sm:min-h-11"
+              className="shrink-0 gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
             >
-              <Clock className="size-3.5" />
-              <span className="sm:hidden">Services ({serviceCredits.length})</span>
-              <span className="hidden sm:inline">Service Credits ({serviceCredits.length})</span>
+              <Clock className="size-4" aria-hidden="true" />
+              <span className="tabular-nums sm:hidden">Services ({serviceCredits.length})</span>
+              <span className="hidden tabular-nums sm:inline">
+                Service Credits ({serviceCredits.length})
+              </span>
             </Button>
           </div>
 
           <div className="flex shrink-0 flex-col gap-1 max-sm:w-full sm:items-end">
-            {isEligible ? (
-              <Link
-                href={applyHref}
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 text-xs max-sm:min-h-11 max-sm:w-full")}
-              >
-                <Award className="size-3.5" />
-                Apply merits
-              </Link>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled
-                className="gap-1.5 text-xs max-sm:min-h-11 max-sm:w-full"
-                aria-describedby={reasonId}
-              >
-                <Award className="size-3.5" />
-                Apply merits
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+              {reportHref && (
+                <Link
+                  href={reportHref}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "gap-2 text-xs max-sm:min-h-11 max-sm:flex-1 pointer-coarse:min-h-11"
+                  )}
+                >
+                  <FileText className="size-4" aria-hidden="true" />
+                  <span>Disciplinary report</span>
+                </Link>
+              )}
+
+              {isEligible ? (
+                <Link
+                  href={applyHref}
+                  className={cn(
+                    buttonVariants({ variant: "default", size: "sm" }),
+                    "gap-2 text-xs max-sm:min-h-11 max-sm:flex-1 pointer-coarse:min-h-11"
+                  )}
+                >
+                  <Award className="size-4" aria-hidden="true" />
+                  <span>Apply merits</span>
+                </Link>
+              ) : (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  disabled
+                  className="gap-2 text-xs max-sm:min-h-11 max-sm:flex-1 pointer-coarse:min-h-11"
+                  aria-describedby={reasonId}
+                >
+                  <Award className="size-4" aria-hidden="true" />
+                  <span>Apply merits</span>
+                </Button>
+              )}
+            </div>
             {!isEligible && ineligibilityReason && (
               <p id={reasonId} className="text-xs text-muted-foreground">
                 {ineligibilityReason}

@@ -9,13 +9,17 @@ import {
   MeritApplicationResultCard,
 } from "@/features/discipline/components/apply-merits-flow";
 import { canApplyMerits } from "@/features/discipline/calculations";
+import { StudentDisciplinaryReport } from "@/features/discipline/components/student-disciplinary-report";
 import { StudentDisciplinaryView } from "@/features/discipline/components/student-disciplinary-view";
 import {
   getMyDisciplinaryRecords,
   getMyMeritApplicationGroup,
 } from "@/features/discipline/queries";
-import { semesterFilterSchema } from "@/features/semesters/schemas";
+import { parseReportRouteParams } from "@/features/discipline/report-calculations";
+import { getStudentDisciplinaryReportForAccess } from "@/features/discipline/report-queries";
+import { resolveSelectedSemester } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
+import { AccessDeniedError } from "@/server/auth/require-workspace";
 
 export const instant = false;
 
@@ -28,10 +32,12 @@ export default async function StudentMeritsDemeritsAndServicesPage({
     apply?: string | string[];
     applied?: string | string[];
     bucket?: string | string[];
+    report?: string | string[];
+    year?: string | string[];
   }>;
 }) {
   await connection();
-  const { semester, tab, apply, applied, bucket } = await searchParams;
+  const { semester, tab, apply, applied, bucket, report, year } = await searchParams;
   const access = await getAccessContext();
 
   if (access.status !== "ready" || !access.workspaces.includes("student")) {
@@ -47,98 +53,171 @@ export default async function StudentMeritsDemeritsAndServicesPage({
   const enrolled = access.semesters.filter((s) =>
     access.enrollments.some((e) => e.semester_id === s.id)
   );
-  const filter = semesterFilterSchema.safeParse({ semester });
-  const selected = !filter.success
-    ? undefined
-    : filter.data.semester
-    ? enrolled.find((s) => s.id === filter.data.semester)
-    : enrolled.find((s) => s.is_current) ?? enrolled[0];
-  const semesterId = selected?.id;
-  const canAct = Boolean(selected?.is_current);
+  const selected = resolveSelectedSemester(enrolled, semester);
 
-  const path = "/student/merits-demerits-and-services";
-  const baseHref = filter.data?.semester ? `${path}?semester=${filter.data.semester}` : path;
-  const listHref = baseHref.includes("?")
-    ? `${baseHref}&tab=merits`
-    : `${baseHref}?tab=merits`;
-
-  let data: Awaited<ReturnType<typeof getMyDisciplinaryRecords>> | null = null;
-  let loadFailed = false;
-  if (semesterId) {
-    try {
-      data = await getMyDisciplinaryRecords(semesterId);
-    } catch {
-      loadFailed = true;
-    }
+  // Malformed or non-enrolled `?semester=` is handled by WorkspaceShell's 404 gate.
+  if (selected === null) {
+    return (
+      <WorkspaceShell
+        workspace="student"
+        destination="merits-demerits-and-services"
+        semester={semester}
+      />
+    );
   }
 
-  // WorkspaceShell 404s unknown semesters and explains when none exist.
+  const explicitSemesterParam = typeof semester === "string" && selected ? selected.id : undefined;
+  const path = "/student/merits-demerits-and-services";
+  const baseHref = explicitSemesterParam ? `${path}?semester=${explicitSemesterParam}` : path;
+
   let content: React.ReactNode = null;
 
-  if (!semesterId) {
-    content = null;
-  } else if (loadFailed || !data) {
-    content = (
-      <Card role="alert" className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-        <AlertCircle className="size-8 text-destructive" />
-        <p className="text-xs text-muted-foreground">
-          Unable to load disciplinary records and balances. Refresh the page to try again.
-        </p>
-      </Card>
-    );
-  } else {
-    const getParam = (val: string | string[] | undefined) =>
-      Array.isArray(val) ? val[0] : val;
+  if (report !== undefined && applied === undefined && apply === undefined) {
+    const parsedReport = parseReportRouteParams({ report, year });
+    if (!parsedReport) {
+      redirect(baseHref);
+    }
 
-    const appliedParam = getParam(applied);
-    const bucketParam = getParam(bucket);
-    const tabParam = getParam(tab);
+    const snapshot = new Date();
 
-    if (appliedParam !== undefined) {
-      const application = await getMyMeritApplicationGroup(appliedParam);
-      if (!application) {
-        redirect(baseHref);
-      }
+    let reportData: Awaited<ReturnType<typeof getStudentDisciplinaryReportForAccess>> = null;
+    let reportLoadFailed = false;
+
+    try {
+      reportData = await getStudentDisciplinaryReportForAccess(
+        access,
+        {
+          scope: parsedReport.scope,
+          semesterId: selected?.id ?? null,
+          academicYearStart: parsedReport.academicYearStart,
+        },
+        snapshot
+      );
+    } catch (error) {
+      // Access denial is not a load failure; refreshing would not help.
+      if (error instanceof AccessDeniedError) throw error;
+      reportLoadFailed = true;
+    }
+
+    if (reportLoadFailed) {
       content = (
-        <MeritApplicationResultCard
-          application={application}
-          summary={data.summary}
-          remainingAvailableMerits={data.availableMerits.length}
-          listHref={listHref}
+        <Card
+          role="alert"
+          className="flex flex-col items-center justify-center gap-2 p-8 text-center"
+        >
+          <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
+          <p className="text-xs text-muted-foreground">
+            Unable to load disciplinary report. Refresh the page to try again.
+          </p>
+        </Card>
+      );
+    } else if (!reportData) {
+      redirect(baseHref);
+    } else {
+      const downloadQuery =
+        reportData.scope === "semester" && selected
+          ? `scope=semester&semester=${encodeURIComponent(selected.id)}`
+          : `scope=year&year=${encodeURIComponent(String(reportData.academicYearStart))}`;
+
+      content = (
+        <StudentDisciplinaryReport
+          report={reportData}
+          backHref={baseHref}
+          csvHref={`${path}/report.csv?${downloadQuery}`}
+          pdfHref={`${path}/report.pdf?${downloadQuery}`}
+          semesterQueryParam={explicitSemesterParam}
         />
       );
-    } else if (apply !== undefined) {
-      if (!canApplyMerits(data.summary, data.availableMerits.length, canAct)) {
-        redirect(baseHref);
+    }
+  } else {
+    const semesterId = selected?.id;
+    const canAct = Boolean(selected?.is_current);
+    const listHref = baseHref.includes("?")
+      ? `${baseHref}&tab=merits`
+      : `${baseHref}?tab=merits`;
+    const reportHref = explicitSemesterParam
+      ? `${path}?semester=${explicitSemesterParam}&report=semester`
+      : `${path}?report=semester`;
+
+    let data: Awaited<ReturnType<typeof getMyDisciplinaryRecords>> | null = null;
+    let loadFailed = false;
+    if (semesterId) {
+      try {
+        data = await getMyDisciplinaryRecords(semesterId);
+      } catch {
+        loadFailed = true;
       }
+    }
 
-      const initialBucket =
-        bucketParam === "office" || bucketParam === "rle" ? bucketParam : null;
-
+    if (!semesterId) {
+      content = null;
+    } else if (loadFailed || !data) {
       content = (
-        <ApplyMeritsFlow
-          availableMerits={data.availableMerits}
-          summary={data.summary}
-          initialBucket={initialBucket}
-          listHref={baseHref}
-        />
+        <Card
+          role="alert"
+          className="flex flex-col items-center justify-center gap-2 p-8 text-center"
+        >
+          <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
+          <p className="text-xs text-muted-foreground">
+            Unable to load disciplinary records and balances. Refresh the page to try again.
+          </p>
+        </Card>
       );
     } else {
-      const defaultTab: "demerits" | "merits" | "services" =
-        tabParam === "merits" || tabParam === "services" ? tabParam : "demerits";
+      const getParam = (val: string | string[] | undefined) =>
+        Array.isArray(val) ? val[0] : val;
 
-      content = (
-        <StudentDisciplinaryView
-          summary={data.summary}
-          demerits={data.demerits}
-          merits={data.merits}
-          serviceCredits={data.serviceCredits}
-          canAct={canAct}
-          availableMeritCount={data.availableMerits.length}
-          defaultTab={defaultTab}
-          applyBaseHref={baseHref}
-        />
-      );
+      const appliedParam = getParam(applied);
+      const bucketParam = getParam(bucket);
+      const tabParam = getParam(tab);
+
+      if (appliedParam !== undefined) {
+        const application = await getMyMeritApplicationGroup(appliedParam);
+        if (!application) {
+          redirect(baseHref);
+        }
+        content = (
+          <MeritApplicationResultCard
+            application={application}
+            summary={data.summary}
+            remainingAvailableMerits={data.availableMerits.length}
+            listHref={listHref}
+          />
+        );
+      } else if (apply !== undefined) {
+        if (!canApplyMerits(data.summary, data.availableMerits.length, canAct)) {
+          redirect(baseHref);
+        }
+
+        const initialBucket =
+          bucketParam === "office" || bucketParam === "rle" ? bucketParam : null;
+
+        content = (
+          <ApplyMeritsFlow
+            availableMerits={data.availableMerits}
+            summary={data.summary}
+            initialBucket={initialBucket}
+            listHref={baseHref}
+          />
+        );
+      } else {
+        const defaultTab: "demerits" | "merits" | "services" =
+          tabParam === "merits" || tabParam === "services" ? tabParam : "demerits";
+
+        content = (
+          <StudentDisciplinaryView
+            summary={data.summary}
+            demerits={data.demerits}
+            merits={data.merits}
+            serviceCredits={data.serviceCredits}
+            canAct={canAct}
+            availableMeritCount={data.availableMerits.length}
+            defaultTab={defaultTab}
+            applyBaseHref={baseHref}
+            reportHref={reportHref}
+          />
+        );
+      }
     }
   }
 

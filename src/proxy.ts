@@ -3,12 +3,35 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import type { Database } from "./server/db/database.types";
 
+function downloadTextResponse(
+  body: string,
+  status: number,
+  sourceCookies?: ReturnType<NextResponse["cookies"]["getAll"]>
+) {
+  const res = new NextResponse(body, {
+    status,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+  sourceCookies?.forEach((cookie) => res.cookies.set(cookie));
+  return res;
+}
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const protectedPath = /^\/(student|council|faculty|admin|account)(\/|$)/.test(request.nextUrl.pathname);
+  const isFileDownload = protectedPath && /\.(csv|pdf)$/.test(request.nextUrl.pathname);
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
-    if (/^\/(student|council|faculty|admin|account)(\/|$)/.test(request.nextUrl.pathname)) {
+    if (protectedPath) {
+      if (isFileDownload) {
+        return downloadTextResponse("Unable to verify access. Try again later.", 503);
+      }
       return new NextResponse(null, { status: 503, headers: { "Cache-Control": "private, no-store" } });
     }
     return response;
@@ -30,12 +53,21 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data, error } = await client.auth.getClaims();
-  const protectedPath = /^\/(student|council|faculty|admin|account)(\/|$)/.test(request.nextUrl.pathname);
   if (protectedPath && error && error.name !== "AuthSessionMissingError" && error.status !== 401 && error.status !== 403) {
+    if (isFileDownload) {
+      return downloadTextResponse(
+        "Unable to verify access. Try again later.",
+        503,
+        response.cookies.getAll()
+      );
+    }
     response.headers.set("Cache-Control", "private, no-store");
     return new NextResponse(null, { status: 503, headers: response.headers });
   }
   if (protectedPath && (!data?.claims || data.claims.is_anonymous)) {
+    if (isFileDownload) {
+      return downloadTextResponse("Authentication required.", 401, response.cookies.getAll());
+    }
     const destination = new URL("/sign-in", request.url);
     if (["/student", "/council", "/faculty", "/admin", "/account"].includes(request.nextUrl.pathname)) {
       destination.searchParams.set("next", request.nextUrl.pathname);
