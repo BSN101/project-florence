@@ -243,7 +243,7 @@ The student creates a pending transfer submission covering selected obligations 
 2. The system verifies instructor access and shows the instructor's direct awards for the selected semester with an "Award merits" action.
 3. The Instructor chooses "Award merits". The award page (`?award`) opens on the Students step, with the student already selected when started from that student's details.
 4. **Students:** the Instructor searches the current semester roster (`florence_roster`, excluding the instructor) and selects one or more students.
-5. **Details:** the Instructor enters whole days per student, the award date (default: today in `Asia/Manila`, limited to the current semester and not in the future) and the reason. The page shows the resulting expiry date.
+5. **Details:** the Instructor enters whole days per student (1 to 5), the award date (default: today in `Asia/Manila`, limited to the current semester and not in the future) and the reason. The page shows the resulting expiry date.
 6. **Review:** the page lists every selected student, the days, award date, expiry and reason. The Instructor confirms with a button naming the total (for example, "Award 2 days to 3 students").
 7. The system validates the input server-side and runs `award_merits` once per student through the command client. Each student has its own request key, made when the student was selected.
 8. The database inserts one row per whole-day unit into `public.merits` with `source = 'direct'` and `expires_on` one year after `awarded_on`, and creates an in-app notice (`merit_received`) for each recipient.
@@ -290,7 +290,7 @@ The awarded merits appear immediately in the instructor's history, students rece
 2. The system verifies instructor access and shows the instructor's issued demerits and merits for the selected semester with "Log demerit" and "Award merits" actions.
 3. The Instructor chooses "Log demerit". The demerit page (`?demerit`) opens on the Students step, with the student already selected when started from that student's details or directory row.
 4. **Students:** the Instructor searches the current semester roster (`florence_roster`, excluding the instructor) and selects one or more students.
-5. **Details:** the page shows the bucket fixed by the instructor role (Office for Academic Instructors, RLE for Clinical Instructors); the Instructor selects an active catalog misconduct violation (standard options listed alphabetically, with "Other" listed last), enters whole-day units (defaulting to 1), sets the incident date (default: today in `Asia/Manila`, limited to the current semester and not in the future), and enters incident details (required for "Other", optional for standard catalog items).
+5. **Details:** the page shows the bucket fixed by the instructor role (Office for Academic Instructors, RLE for Clinical Instructors); the Instructor selects an active catalog misconduct violation (standard options listed alphabetically, with "Other" listed last), enters whole-day units (1 to 5, defaulting to 1), sets the incident date (default: today in `Asia/Manila`, limited to the current semester and not in the future), and enters incident details (required for "Other", optional for standard catalog items).
 6. **Review:** the page lists the applicable bucket, violation, units, incident date, details, and every selected student. The Instructor confirms with a button naming the total (for example, "Log 2 days for 3 students").
 7. The system validates the input server-side and runs `log_demerits` once per student through the command client. Each student has its own request key, made when the student was selected.
 8. The database inserts one row per whole-day unit into `public.demerits` sharing the `incident_group_id` with `source = 'faculty'`, `incident_unit_index` 1..N, attributed to `issued_by`, and creates an in-app notice (`demerit_incurred`) for each recipient.
@@ -1124,6 +1124,48 @@ The selected demerit unit changes permanently from active to **Waived**, reduces
 - Multi-day Faculty incidents display 1 row per unit (`Unit 1 of 3`, `Unit 2 of 3`, etc.), kept together in unit order, so individual units can be waived independently without hiding partially waived state.
 - Self-waivers, already-waived units, zero-balance waivers and blank or sub-3-character reasons are refused.
 - Row **Waive** buttons, tab buttons, search inputs and dialog controls meet the 44 px touch-target minimum on phones and touch tablets.
+
+## Record external CI merits and demerits
+
+- **Author:** Andrei Catigan
+- **Actors:** RLE Coordinator (paired with an active Clinical Instructor assignment); Student (receives the merit or demerit record and in-app notification).
+- **Starts at:** Faculty workspace > External CI records (`/faculty/external-ci-records`), defaulting to the current semester.
+- **References:** FL-035, FL-034, FL-033, FL-030, FL-029, FL-044, FL-048; schema §8.2 (`demerits`), §9.2 (`merits`).
+
+### Main flow
+
+1. The RLE Coordinator opens **External CI records** (`/faculty/external-ci-records`) for the selected semester and reviews existing **External Merits** (grouped per award batch) and **External Demerits** (1 row per 1-day unit), searching by student, external CI name, entering coordinator, description, or waiver note, and filtering demerits by status (`All`, `Active`, or `Waived`).
+2. To record merits in the current semester, the coordinator selects **Record external merit**, picks one or more active enrolled students, enters the external CI source name (2 to 120 characters), whole-day count (1 to 5), non-future award date within the current semester, and reason (3 to 500 characters), reviews the summary, and confirms.
+3. To record RLE demerits in the current semester, the coordinator selects **Record external demerit**, picks one or more active enrolled students, enters the external CI source name (2 to 120 characters), chooses an active misconduct option (with a required 3 to 500 character description when **Other** is selected, or optional notes otherwise), enters whole-day count (1 to 5) and a non-future incident date within the current semester, reviews the RLE summary, and confirms.
+4. On any active external CI demerit unit that they personally entered, the RLE Coordinator may choose **Waive**, enter a 3 to 500 character reason, and confirm the permanent one-way waiver while the student's current cumulative RLE balance is positive.
+5. The records list refreshes to show the new external CI attribution (`External CI` and `Entered by`), multi-day demerit units kept together in unit order (`Unit 1 of 3`, `Unit 2 of 3`, etc.), or the updated **Waived** status and `Asia/Manila` waiver timestamp.
+
+### System involvement
+
+- External CI merits expire 1 year after their award date, can offset either Office or RLE balances when applied by the student, and notify each recipient in Florence.
+- External CI demerits are locked to the **RLE** bucket, increase each recipient's RLE balance immediately, and notify each recipient in Florence.
+- Any active RLE Coordinator can view all external CI records for the semester (including entries from another or former RLE Coordinator) with both external CI and entering coordinator attribution, while **Waive** actions and server authorization remain strictly limited to the RLE Coordinator who entered the unit.
+- Recording entries refreshes External CI records and the affected student Home, Notifications, Conduct, and Clearance views; recording RLE demerits or waiving them also refreshes Faculty RLE clearance.
+
+### Outcome
+
+External CI merits and RLE demerits are permanently recorded with external CI and entering RLE Coordinator attribution, notify the students, stay separate from ordinary Faculty **My entries**, and allow only the entering RLE Coordinator to waive eligible external CI demerit units.
+
+### Important alternatives
+
+- **Another coordinator's external CI demerit:** Entries entered by another or former RLE Coordinator remain visible in the semester list for handoff continuity, show no **Waive** control, and are refused by the server if targeted.
+- **Waiver refusal (zero balance, already waived, or self-waiver):** If the student's cumulative RLE balance is already zero or the unit was already waived, the waiver dialog stays open showing the refusal reason and refreshes the list when closed.
+- **Past-semester view:** When viewing a closed semester, **Record external merit** and **Record external demerit** are disabled and the page notes that new entries require the current semester, while waiving eligible past-semester external CI demerits entered by the coordinator remains allowed.
+- **Archived or ineligible students:** Archived students are excluded from the student picker and refused per recipient on submission; self-entry is also refused.
+- **Lost connection during batch entry or waiver:** On a dropped reply, already-recorded students drop from the pending selection while affected recipients retain their locked details and request keys for a safe retry without duplicating committed records. Choosing **Start over** or closing a retryable waiver dialog refreshes the list to show anything that committed.
+
+### Acceptance checks
+
+- Only an active RLE Coordinator paired with Clinical Instructor access can open `/faculty/external-ci-records` or record external CI merits and RLE demerits; other Faculty roles receive not-found and server refusals.
+- External CI merits and demerits appear on External CI records, Student Conduct, and Coordinator views with external CI attribution and stay excluded from Faculty **My entries**.
+- Multi-day external CI demerits display 1 row per unit kept together in unit order, and only the entering RLE Coordinator sees **Waive** and can waive an unwaived unit when the student's cumulative RLE balance is positive.
+- Recording merits or demerits sends an in-app notification to each recipient; waiving demerits sends no notification.
+- Entry action buttons, tab buttons, search inputs, student picker rows, and waiver controls meet the 44 px touch-target minimum on phones and touch tablets.
 
 ## Generate own disciplinary report
 

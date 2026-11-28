@@ -22,6 +22,8 @@ import type {
   CouncilDisciplinaryViewData,
   DisciplinaryBucket,
   DisciplinaryLedger,
+  ExternalCiDemeritUnitRecord,
+  ExternalCiMeritGroupRecord,
   FacultyDemeritUnitRecord,
   FacultyDisciplinaryViewData,
   FacultyMeritEndorsementRecord,
@@ -591,4 +593,145 @@ export async function getMyPendingEndorsementsElsewhere(semesterId: string): Pro
         .range(from, to),
     "Unable to load pending endorsements in other semesters"
   );
+}
+
+/**
+ * Access guard for RLE Coordinator External CI records (FL-035).
+ * Requires an active Faculty workspace session holding both `RLE Coordinator` and `Clinical Instructor`.
+ */
+async function requireRleCoordinator() {
+  const access = await requireWorkspace("faculty");
+  if (!access.roles.includes("RLE Coordinator") || !access.roles.includes("Clinical Instructor")) {
+    throw new AccessDeniedError("forbidden");
+  }
+  return access;
+}
+
+/**
+ * External CI merits recorded in `semesterId` (FL-035).
+ * Reads `source = 'external_ci'` rows via `allRows` with deterministic Postgres ordering
+ * (`awarded_on DESC, created_at DESC, award_request_key ASC, award_unit_index ASC, id ASC`),
+ * aggregates multi-day awards by `award_request_key` in `Map` insertion order (zero JS re-sorts),
+ * keys each group by unit-1 `id`, and strips all raw student/actor/request UUIDs.
+ */
+export async function getExternalCiMerits(semesterId: string): Promise<ExternalCiMeritGroupRecord[]> {
+  await requireRleCoordinator();
+  const client = await createUserClient();
+
+  const data = await allRows(
+    (from, to) =>
+      client
+        .from("merits")
+        .select(
+          "id, student_id, description, awarded_on, expires_on, awarded_by, external_source_name, created_at, award_request_key, award_unit_index"
+        )
+        .eq("source", "external_ci")
+        .eq("semester_id", semesterId)
+        .order("awarded_on", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("award_request_key", { ascending: true })
+        .order("award_unit_index", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    "Unable to load external CI merit records"
+  );
+
+  if (data.length === 0) return [];
+
+  const names = await loadNames(client, [
+    ...data.map((m) => m.student_id),
+    ...data.map((m) => m.awarded_by),
+  ]);
+
+  const groupsMap = new Map<string, ExternalCiMeritGroupRecord>();
+  for (const row of data) {
+    const groupKey = row.award_request_key ?? row.id;
+    const existing = groupsMap.get(groupKey);
+    if (!existing) {
+      groupsMap.set(groupKey, {
+        id: row.id,
+        student_name: nameOf(names, row.student_id),
+        student_university_id: names.get(row.student_id)?.university_id ?? null,
+        external_source_name: row.external_source_name ?? null,
+        entered_by_name: nameOf(names, row.awarded_by),
+        description: row.description,
+        awarded_on: row.awarded_on,
+        expires_on: row.expires_on,
+        days: 1,
+        created_at: row.created_at,
+      });
+    } else {
+      existing.days += 1;
+    }
+  }
+
+  return Array.from(groupsMap.values());
+}
+
+/**
+ * External CI RLE demerits recorded in `semesterId` (FL-034 / FL-035).
+ * Reads `source = 'external_ci'` rows via `allRows` with deterministic Postgres ordering
+ * (`incident_on DESC, created_at DESC, incident_group_id ASC, incident_unit_index ASC, id ASC`),
+ * computes `canWaive` strictly via `canWaiveDemerit` so only the entering RLE Coordinator
+ * sees Waive controls, and strips all raw student/actor/group/catalog UUIDs.
+ */
+export async function getExternalCiDemerits(semesterId: string): Promise<ExternalCiDemeritUnitRecord[]> {
+  const access = await requireRleCoordinator();
+  const client = await createUserClient();
+
+  const data = await allRows(
+    (from, to) =>
+      client
+        .from("demerits")
+        .select(
+          "id, incident_group_id, incident_unit_index, student_id, bucket, source, description, incident_on, issued_by, external_source_name, waived_at, waived_by, waiver_reason, created_at"
+        )
+        .eq("source", "external_ci")
+        .eq("semester_id", semesterId)
+        .order("incident_on", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("incident_group_id", { ascending: true })
+        .order("incident_unit_index", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    "Unable to load external CI demerit records"
+  );
+
+  if (data.length === 0) return [];
+
+  const names = await loadNames(client, [
+    ...data.map((d) => d.student_id),
+    ...data.map((d) => d.issued_by),
+    ...data.map((d) => d.waived_by),
+  ]);
+
+  const groupCounts = new Map<string, number>();
+  for (const row of data) {
+    groupCounts.set(row.incident_group_id, (groupCounts.get(row.incident_group_id) ?? 0) + 1);
+  }
+
+  const actor = {
+    actorId: access.profile.id,
+    roles: access.roles,
+    councilRole: access.councilRole,
+  };
+
+  return data.map((row) => ({
+    id: row.id,
+    incident_unit_index: row.incident_unit_index,
+    group_unit_count: groupCounts.get(row.incident_group_id) ?? 1,
+    bucket: "rle",
+    source: "external_ci",
+    external_source_name: row.external_source_name ?? null,
+    entered_by_name: nameOf(names, row.issued_by),
+    description: row.description,
+    incident_on: row.incident_on,
+    waived_at: row.waived_at,
+    waiver_reason: row.waiver_reason,
+    created_at: row.created_at,
+    student_university_id: names.get(row.student_id)?.university_id ?? null,
+    student_name: nameOf(names, row.student_id),
+    waived_by_name: nameOf(names, row.waived_by),
+    canWaive: canWaiveDemerit(row, actor),
+  }));
 }

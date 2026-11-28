@@ -28,11 +28,11 @@ const parse = (patch) => logFacultyDemeritsSchema.safeParse({ ...valid, ...patch
 
 test("demeritDaysSchema accepts whole positive integers and coerces strings", () => {
   assert.equal(demeritDaysSchema.safeParse(1).success, true);
-  assert.equal(demeritDaysSchema.safeParse(50).success, true);
+  assert.equal(demeritDaysSchema.safeParse(5).success, true);
   const coerced = demeritDaysSchema.safeParse("3");
   assert.equal(coerced.success && coerced.data, 3);
-  // FL-033 sets no upper bound on whole days.
-  assert.equal(demeritDaysSchema.safeParse(100).success, true);
+  // Product cap: at most 5 days per entry.
+  assert.equal(demeritDaysSchema.safeParse(6).success, false);
 });
 
 test("demeritDaysSchema rejects non-whole or non-positive values", () => {

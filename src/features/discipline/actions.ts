@@ -8,14 +8,19 @@ import { getAccessContext } from "@/server/auth/access-context";
 import { createCommandClient } from "@/server/db/command-client";
 import { getTodayManila, hasInstructorRole, instructorBucket } from "./calculations";
 import type {
+  AwardExternalCiMeritsResult,
   DecideMeritEndorsementResult,
+  ExternalCiEntryFailure,
+  LogExternalCiDemeritsResult,
   MeritEndorsementDecision,
   WaiveDemeritResult,
 } from "./contracts";
 import {
   applyMeritsSchema,
   awardDirectMeritsSchema,
+  awardExternalCiMeritsSchema,
   decideMeritEndorsementSchema,
+  logExternalCiDemeritsSchema,
   logFacultyDemeritsSchema,
   submitMeritEndorsementsSchema,
   waiveDemeritSchema,
@@ -661,5 +666,374 @@ export async function waiveDemeritAction(rawInput: unknown): Promise<WaiveDemeri
     success: true,
     demeritId: d.demerit_id,
     waivedAt: d.waived_at,
+  };
+}
+
+// External CI wording for `award_merits` exceptions; shared messages fall through to RPC_MESSAGES.
+const AWARD_EXTERNAL_CI_MERITS_MESSAGES: [string, string][] = [
+  [
+    "External CI award requires entering RLE Coordinator and attribution",
+    "An active RLE Coordinator assignment and external CI source name are required.",
+  ],
+  ["Self award forbidden", "You cannot record merits for yourself."],
+  [
+    "Positive days, description and award date required",
+    "Enter at least 1 whole day, a reason, and a valid award date.",
+  ],
+  [
+    "Award date must be in current academic context and not future",
+    "The award date must fall within the current semester and cannot be in the future.",
+  ],
+  [
+    "Matching instructor assignment required",
+    "An active Clinical Instructor assignment is required to record external CI merits.",
+  ],
+  ["Commands require READ COMMITTED isolation", "Unable to record this external CI merit right now. Try again."],
+  [
+    "Active Auth-linked human actor required",
+    "An active authorized faculty account is required to record external CI merits.",
+  ],
+  ["Non-null request key/payload required", "Invalid merit request. Refresh the page and try again."],
+  [
+    "Request key reused with different command, actor or input",
+    "This merit request was already submitted with different details. Check External CI records before trying again.",
+  ],
+  [
+    "Incomplete command receipt; inspect transaction integration",
+    "A previous attempt did not finish cleanly. Refresh to check External CI records before retrying.",
+  ],
+  [
+    "Configure approved institutional timezone in f_cmd_private.settings",
+    "The institutional timezone is not configured. Contact an administrator.",
+  ],
+  [
+    "Unsupported command notification kind",
+    "Unable to send the student notification for this merit. Contact an administrator.",
+  ],
+  ["Command result cannot be null", "Unable to finalize this merit award. Refresh to check External CI records."],
+  ["Missing pending command receipt", "Unable to finalize this merit award. Refresh to check External CI records."],
+  ["Self merit award forbidden", "You cannot record merits for yourself."],
+  ["Invalid endorsement award", "This merit entry could not be recorded in its current state. Refresh and try again."],
+  [
+    "Merit award group must be contiguous and share context",
+    "The merit units could not be recorded consistently. Try again.",
+  ],
+  [
+    "Incomplete merit command unit count",
+    "The requested merit units could not all be recorded together. Try again.",
+  ],
+  ["Student enrollment in record semester required", "Not enrolled in the current semester."],
+  [
+    "Endorsement decision/award units inconsistent",
+    "The merit units could not be finalized consistently. Try again.",
+  ],
+  ...RPC_MESSAGES,
+];
+
+// External CI wording for `log_demerits` exceptions; shared messages fall through to RPC_MESSAGES.
+const LOG_EXTERNAL_CI_DEMERITS_MESSAGES: [string, string][] = [
+  ["Bucket required", "External CI demerits must be recorded in the RLE bucket."],
+  [
+    "External CI entry requires RLE Coordinator",
+    "An active RLE Coordinator assignment and external CI source name are required for RLE demerits.",
+  ],
+  ["Self disciplinary entry forbidden", "You cannot record demerits for yourself."],
+  ["Positive unit count and incident date required", "Enter at least 1 whole day and a valid incident date."],
+  [
+    "Active misconduct option required",
+    "The selected misconduct option is no longer active. Refresh and choose another option.",
+  ],
+  [
+    "Other requires a specific incident description",
+    "A specific incident description is required when Other is selected.",
+  ],
+  [
+    "Incident date must be within current context and not future",
+    "The incident date must fall within the current semester and cannot be in the future.",
+  ],
+  [
+    "Matching instructor assignment required",
+    "An active Clinical Instructor assignment is required to log RLE external CI demerits.",
+  ],
+  ["Commands require READ COMMITTED isolation", "Unable to record this external CI demerit right now. Try again."],
+  [
+    "Active Auth-linked human actor required",
+    "An active authorized faculty account is required to log external CI demerits.",
+  ],
+  ["Non-null request key/payload required", "Invalid demerit request. Refresh the page and try again."],
+  [
+    "Request key reused with different command, actor or input",
+    "This demerit request was already submitted with different details. Check External CI records before trying again.",
+  ],
+  [
+    "Incomplete command receipt; inspect transaction integration",
+    "A previous attempt did not finish cleanly. Refresh to check External CI records before retrying.",
+  ],
+  [
+    "Configure approved institutional timezone in f_cmd_private.settings",
+    "The institutional timezone is not configured. Contact an administrator.",
+  ],
+  [
+    "Unsupported command notification kind",
+    "Unable to send the student notification for this demerit. Contact an administrator.",
+  ],
+  ["Command result cannot be null", "Unable to finalize this demerit entry. Refresh to check External CI records."],
+  ["Missing pending command receipt", "Unable to finalize this demerit entry. Refresh to check External CI records."],
+  ["Balance mutations require READ COMMITTED", "Unable to update the student balance right now. Try again."],
+  ["Insufficient matching balance", "Unable to update the student balance for this entry. Refresh and try again."],
+  [
+    "Demerit group must be contiguous and share context",
+    "The demerit units could not be recorded consistently. Try again.",
+  ],
+  [
+    "Incomplete demerit command unit count",
+    "The requested demerit units could not all be recorded together. Try again.",
+  ],
+  ["Student enrollment in record semester required", "Not enrolled in the current semester."],
+  ...RPC_MESSAGES,
+];
+
+const EXTERNAL_CI_RETRYABLE_ERROR =
+  "Unable to reach the server. Confirming again will safely skip any already recorded.";
+
+async function requireRleCoordinatorActor(
+  deniedMessage: string
+): Promise<{ ok: true; actorId: string } | { ok: false; error: string }> {
+  try {
+    const context = await requireWorkspace("faculty");
+    if (!context.roles.includes("RLE Coordinator") || !context.roles.includes("Clinical Instructor")) {
+      return { ok: false, error: deniedMessage };
+    }
+    return { ok: true, actorId: context.profile.id };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof AccessDeniedError ? deniedMessage : "Unable to verify your access. Try again.",
+    };
+  }
+}
+
+// Bounded parallel RPCs keep a large batch inside the server action time limit.
+const RECIPIENT_CONCURRENCY = 5;
+
+async function forEachInChunks<T>(items: T[], run: (item: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < items.length; i += RECIPIENT_CONCURRENCY) {
+    await Promise.all(items.slice(i, i + RECIPIENT_CONCURRENCY).map(run));
+  }
+}
+
+// `f_cmd_student` allows archived students, so this read is the only archived guard.
+// shortcut: not in the RPC transaction, so a student archived between this read and the RPC still
+// gets the entry, and a locked retry of an already-committed entry for a since-archived student is
+// reported as not recorded; move the check into the RPCs when they next change.
+async function findArchivedRecipientIds(
+  client: ReturnType<typeof createCommandClient>,
+  studentIds: string[]
+): Promise<{ ok: true; archivedIds: Set<string> } | { ok: false }> {
+  try {
+    const { data, error } = await client
+      .from("profiles")
+      .select("id")
+      .in("id", studentIds)
+      .eq("account_status", "archived");
+    if (error || !data) return { ok: false };
+    return { ok: true, archivedIds: new Set(data.map((row) => row.id)) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Records externally attributed whole-day merits for each student (FL-035).
+ * Requires active `RLE Coordinator` + `Clinical Instructor` roles, rejects archived and self
+ * recipients, runs `public.award_merits` per recipient with zero pre-RPC `merits` status lookup,
+ * and emits `merit_received` student notifications (FL-044).
+ */
+export async function awardExternalCiMeritsAction(rawInput: unknown): Promise<AwardExternalCiMeritsResult> {
+  const rejectedResult = (error: string): AwardExternalCiMeritsResult => ({
+    success: false,
+    error,
+    awardedIds: [],
+    failures: [],
+  });
+
+  const actor = await requireRleCoordinatorActor("Only RLE Coordinators can record external CI merits.");
+  if (!actor.ok) return rejectedResult(actor.error);
+
+  const parsed = awardExternalCiMeritsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return rejectedResult(parsed.error.issues[0]?.message ?? "Check the external CI merit details.");
+  }
+
+  const { recipients, externalSource, days, awardedOn, description } = parsed.data;
+  if (awardedOn > getTodayManila()) return rejectedResult("Award date cannot be in the future.");
+  if (recipients.some((r) => r.studentId === actor.actorId)) {
+    return rejectedResult("You cannot record merits for yourself.");
+  }
+
+  const client = createCommandClient();
+  const archivedCheck = await findArchivedRecipientIds(
+    client,
+    recipients.map((r) => r.studentId)
+  );
+  if (!archivedCheck.ok) return rejectedResult("Unable to verify the selected students. Try again.");
+
+  const trimmedSource = externalSource.trim();
+  const trimmedDescription = description.trim();
+  const awardedIds: string[] = [];
+  const failures: ExternalCiEntryFailure[] = [];
+
+  await forEachInChunks(recipients, async ({ studentId, requestKey }) => {
+    if (archivedCheck.archivedIds.has(studentId)) {
+      failures.push({ studentId, error: "Archived students cannot receive external CI merits." });
+      return;
+    }
+    try {
+      const { error } = await client.rpc("award_merits", {
+        p_key: requestKey,
+        p_actor: actor.actorId,
+        p_student: studentId,
+        p_days: days,
+        p_description: trimmedDescription,
+        p_awarded_on: awardedOn,
+        p_external_source: trimmedSource,
+      });
+      if (error) {
+        if (!error.code) {
+          failures.push({ studentId, error: EXTERNAL_CI_RETRYABLE_ERROR, retryable: true });
+        } else {
+          failures.push({
+            studentId,
+            error: formatRpcError(
+              error.message,
+              "Unable to record this external CI merit. Try again.",
+              AWARD_EXTERNAL_CI_MERITS_MESSAGES
+            ),
+          });
+        }
+      } else {
+        awardedIds.push(studentId);
+      }
+    } catch {
+      failures.push({ studentId, error: EXTERNAL_CI_RETRYABLE_ERROR, retryable: true });
+    }
+  });
+
+  if (awardedIds.length) {
+    revalidatePath("/faculty/external-ci-records");
+    revalidatePath("/student");
+    revalidatePath("/student", "layout");
+    revalidatePath("/student/notifications");
+    revalidatePath("/student/merits-demerits-and-services");
+    revalidatePath("/student/clearance");
+  }
+
+  if (!failures.length) return { success: true, awardedIds };
+  return {
+    success: false,
+    error: awardedIds.length
+      ? "Some external CI merits were not recorded."
+      : "No external CI merits were recorded.",
+    awardedIds,
+    failures,
+  };
+}
+
+/**
+ * Records externally attributed whole-day RLE demerits for each student (FL-035).
+ * Requires active `RLE Coordinator` + `Clinical Instructor` roles, locks `p_bucket` to `'rle'`,
+ * rejects archived and self recipients, runs `public.log_demerits` per recipient with zero pre-RPC
+ * `demerits` status lookup, and emits `demerit_incurred` student notifications (FL-044).
+ */
+export async function logExternalCiDemeritsAction(rawInput: unknown): Promise<LogExternalCiDemeritsResult> {
+  const rejectedResult = (error: string): LogExternalCiDemeritsResult => ({
+    success: false,
+    error,
+    recordedIds: [],
+    failures: [],
+  });
+
+  const actor = await requireRleCoordinatorActor("Only RLE Coordinators can log external CI demerits.");
+  if (!actor.ok) return rejectedResult(actor.error);
+
+  const parsed = logExternalCiDemeritsSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return rejectedResult(parsed.error.issues[0]?.message ?? "Check the external CI demerit details.");
+  }
+
+  const { recipients, externalSource, days, misconductId, incidentOn, notes } = parsed.data;
+  if (incidentOn > getTodayManila()) return rejectedResult("Incident date cannot be in the future.");
+  if (recipients.some((r) => r.studentId === actor.actorId)) {
+    return rejectedResult("You cannot record demerits for yourself.");
+  }
+
+  const client = createCommandClient();
+  const archivedCheck = await findArchivedRecipientIds(
+    client,
+    recipients.map((r) => r.studentId)
+  );
+  if (!archivedCheck.ok) return rejectedResult("Unable to verify the selected students. Try again.");
+
+  const trimmedSource = externalSource.trim();
+  const descriptionInput = notes ?? "";
+  const recordedIds: string[] = [];
+  const failures: ExternalCiEntryFailure[] = [];
+
+  await forEachInChunks(recipients, async ({ studentId, requestKey }) => {
+    if (archivedCheck.archivedIds.has(studentId)) {
+      failures.push({ studentId, error: "Archived students cannot receive external CI demerits." });
+      return;
+    }
+    try {
+      const { error } = await client.rpc("log_demerits", {
+        p_key: requestKey,
+        p_actor: actor.actorId,
+        p_student: studentId,
+        p_bucket: "rle",
+        p_days: days,
+        p_misconduct: misconductId,
+        p_description: descriptionInput,
+        p_incident_on: incidentOn,
+        p_external_source: trimmedSource,
+      });
+      if (error) {
+        if (!error.code) {
+          failures.push({ studentId, error: EXTERNAL_CI_RETRYABLE_ERROR, retryable: true });
+        } else {
+          failures.push({
+            studentId,
+            error: formatRpcError(
+              error.message,
+              "Unable to record this external CI demerit. Try again.",
+              LOG_EXTERNAL_CI_DEMERITS_MESSAGES
+            ),
+          });
+        }
+      } else {
+        recordedIds.push(studentId);
+      }
+    } catch {
+      failures.push({ studentId, error: EXTERNAL_CI_RETRYABLE_ERROR, retryable: true });
+    }
+  });
+
+  if (recordedIds.length) {
+    revalidatePath("/faculty/external-ci-records");
+    revalidatePath("/student");
+    revalidatePath("/student", "layout");
+    revalidatePath("/student/notifications");
+    revalidatePath("/student/merits-demerits-and-services");
+    revalidatePath("/student/clearance");
+    revalidatePath("/faculty/rle-clearance");
+  }
+
+  if (!failures.length) return { success: true, recordedIds };
+  return {
+    success: false,
+    error: recordedIds.length
+      ? "Some external CI demerits were not recorded."
+      : "No external CI demerits were recorded.",
+    recordedIds,
+    failures,
   };
 }

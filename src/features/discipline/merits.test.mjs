@@ -21,8 +21,8 @@ test("awardDirectMeritsSchema accepts a valid award and coerces days", () => {
   assert.equal(parse({}).success, true);
   const coerced = parse({ days: "5" });
   assert.equal(coerced.success && coerced.data.days, 5);
-  // FL-030 sets no upper bound on whole days.
-  assert.equal(parse({ days: 45 }).success, true);
+  // Product cap: at most 5 days per entry.
+  assert.equal(parse({ days: 6 }).success, false);
 });
 
 test("awardDirectMeritsSchema rejects non-whole or non-positive days", () => {
