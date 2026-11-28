@@ -44,9 +44,9 @@ export async function WorkspaceShell({ workspace, destination = "", semester, ch
 
   return (
     <PageTransition>
-      <div className={`min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-8 lg:px-10 ${tabBar ? "max-md:pb-[calc(6rem+env(safe-area-inset-bottom))]" : ""}`}>
+      <div data-workspace-shell-frame className={`min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-8 lg:px-10 ${tabBar ? "max-md:pb-[calc(6rem+env(safe-area-inset-bottom))]" : ""}`}>
         <div className={`mx-auto flex flex-col gap-6 sm:gap-8 ${focused ? "max-w-2xl" : "max-w-5xl"}`}>
-          <section className="flex flex-col gap-3 sm:gap-5">
+          <section data-workspace-shell-header className="flex flex-col gap-3 sm:gap-5">
             <div>
               <p className="hidden text-sm font-medium text-muted-foreground md:block">{workspaceLabels[workspace]} workspace</p>
               <ScrollEdge><h1 id="page-title" className="page-title">{currentItem.label}</h1></ScrollEdge>

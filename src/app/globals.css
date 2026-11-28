@@ -269,3 +269,57 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Printable document views (e.g. FL-045 disciplinary report). Scoped strictly to pages rendering
+   [data-print-document] so screen layouts and ordinary page printing remain unchanged. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body:has([data-print-document]) {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  body:has([data-print-document]) .group\/sidebar-wrapper {
+    display: block !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body:has([data-print-document]) [data-slot="sidebar"],
+  body:has([data-print-document]) [data-slot="sidebar-gap"],
+  body:has([data-print-document]) [data-workspace-shell-header] {
+    display: none !important;
+  }
+
+  body:has([data-print-document]) [data-slot="sidebar-inset"] {
+    display: block !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  body:has([data-print-document]) [data-workspace-shell-frame] {
+    padding: 0 !important;
+  }
+
+  body:has([data-print-document]) [data-print-document],
+  body:has([data-print-document]) [data-print-scroll] {
+    overflow: visible !important;
+  }
+
+  body:has([data-print-document]) thead {
+    display: table-header-group;
+  }
+
+  body:has([data-print-document]) [data-print-avoid-break],
+  body:has([data-print-document]) tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

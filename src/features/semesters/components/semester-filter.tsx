@@ -39,7 +39,7 @@ export function SemesterFilter({ semesters, selectedId, enrollmentLimited = fals
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3" aria-busy={isPending}>
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 print:hidden" aria-busy={isPending}>
       <label className="font-medium" htmlFor="semester-filter">View semester</label>
       <Select items={items} value={selectedId} onValueChange={selectSemester} disabled={isPending}>
         <SelectTrigger id="semester-filter" className="w-full sm:w-auto sm:min-w-64">

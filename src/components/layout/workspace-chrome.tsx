@@ -26,7 +26,7 @@ export async function WorkspaceChrome({ workspace, children }: { workspace: Work
     <SidebarProvider>
       {!focused && <AppSidebar workspace={workspace} navigation={navigation} access={access} unreadNotifications={unreadNotifications} />}
       {/* Inset panel (md+): covers the 8px gap above the sticky header so content never shows through it. */}
-      {!focused && <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-30 hidden h-2 bg-sidebar md:block" />}
+      {!focused && <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-30 hidden h-2 bg-sidebar md:block print:hidden" />}
       <SidebarInset className="min-w-0">
         <WorkspaceHeader workspace={workspace} navigation={navigation} access={access}
           unreadNotifications={unreadNotifications} tabBar={tabBar} focused={focused} />

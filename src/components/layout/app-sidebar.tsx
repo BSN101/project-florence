@@ -99,7 +99,7 @@ export function AppSidebar({ workspace, navigation, access, unreadNotifications 
   }
 
   return (
-    <Sidebar variant="inset" collapsible="icon" className="pl-[env(safe-area-inset-left)]">
+    <Sidebar variant="inset" collapsible="icon" className="pl-[env(safe-area-inset-left)] print:hidden">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
