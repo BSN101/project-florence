@@ -88,7 +88,8 @@ export default async function FacultyExternalCiRecordsPage({
       ? `${path}?semester=${filter.data.semester}`
       : path;
 
-  let content: React.ReactNode = null;
+  // Not null: WorkspaceShell shows placeholder copy for null children.
+  let content: React.ReactNode = <></>;
   const loadError = (
     <Card role="alert" className="flex flex-col items-center justify-center gap-4 p-8 text-center">
       <AlertCircle className="size-8 text-destructive" aria-hidden="true" />
