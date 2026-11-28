@@ -5,9 +5,17 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useTransition } from "react";
 import { ArrowLeft, Download, LoaderCircle, Printer } from "lucide-react";
 
+import { LinkPendingIndicator } from "@/components/layout/link-pending-indicator";
 import { RefreshButton } from "@/components/layout/refresh-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatManilaDate, formatManilaDateTime } from "@/lib/manila-date";
 import { cn } from "@/lib/utils";
 
@@ -65,24 +73,18 @@ export function StudentDisciplinaryReport({
     semesterQueryParam,
   });
 
-  function navigateToScope(href: string) {
-    if (isPending) return;
+  function handleYearChange(nextYearRaw: string | null) {
+    const parsed = Number.parseInt(nextYearRaw ?? "", 10);
+    if (!Number.isInteger(parsed) || parsed === report.academicYearStart || isPending) return;
     startTransition(() => {
-      router.push(href);
+      router.push(buildReportViewHref({ scope: "year", year: parsed, semesterQueryParam }));
     });
   }
 
-  function handleYearChange(nextYearRaw: string) {
-    const parsed = Number.parseInt(nextYearRaw, 10);
-    if (!Number.isInteger(parsed) || parsed === report.academicYearStart || isPending) return;
-    navigateToScope(
-      buildReportViewHref({
-        scope: "year",
-        year: parsed,
-        semesterQueryParam,
-      })
-    );
-  }
+  const yearItems = report.availableAcademicYears.map((option) => ({
+    value: String(option.academicYearStart),
+    label: `${option.label} (${option.termCount} ${option.termCount === 1 ? "term" : "terms"})`,
+  }));
 
   const { office, rle, merits } = report.cumulativeSummary;
   const { periodSummary } = report;
@@ -144,32 +146,24 @@ export function StudentDisciplinaryReport({
               aria-label="Report period scope"
               className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background p-1"
             >
-              <Button
-                type="button"
-                variant={report.scope === "semester" ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={report.scope === "semester"}
-                disabled={isPending}
-                onClick={() => {
-                  if (report.scope !== "semester") navigateToScope(semesterScopeHref);
-                }}
-                className="text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
-              >
-                Selected semester
-              </Button>
-              <Button
-                type="button"
-                variant={report.scope === "year" ? "secondary" : "ghost"}
-                size="sm"
-                aria-pressed={report.scope === "year"}
-                disabled={isPending}
-                onClick={() => {
-                  if (report.scope !== "year") navigateToScope(yearScopeHref);
-                }}
-                className="text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
-              >
-                Academic year
-              </Button>
+              {(
+                [
+                  ["semester", "Selected semester", semesterScopeHref],
+                  ["year", "Academic year", yearScopeHref],
+                ] as const
+              ).map(([scope, label, href]) => (
+                <Button
+                  key={scope}
+                  variant={report.scope === scope ? "secondary" : "ghost"}
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href={href} aria-current={report.scope === scope ? "page" : undefined} />}
+                  className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+                >
+                  {label}
+                  <LinkPendingIndicator />
+                </Button>
+              ))}
             </div>
 
             {isPending && (
@@ -188,19 +182,21 @@ export function StudentDisciplinaryReport({
               <label htmlFor={yearSelectId} className="text-xs font-medium text-foreground">
                 Academic year
               </label>
-              <select
-                id={yearSelectId}
+              <Select
+                items={yearItems}
                 value={String(report.academicYearStart)}
+                onValueChange={handleYearChange}
                 disabled={isPending}
-                onChange={(event) => handleYearChange(event.target.value)}
-                className="h-10 max-w-full rounded-lg border border-input bg-background px-2 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 md:text-sm pointer-coarse:text-base max-sm:min-h-11 pointer-coarse:min-h-11"
               >
-                {report.availableAcademicYears.map((option) => (
-                  <option key={option.academicYearStart} value={String(option.academicYearStart)}>
-                    {option.label} ({option.termCount} {option.termCount === 1 ? "term" : "terms"})
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id={yearSelectId} className="w-full sm:w-auto sm:min-w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {yearItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </Card>
