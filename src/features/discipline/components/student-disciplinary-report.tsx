@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useTransition } from "react";
-import { ArrowLeft, Download, LoaderCircle, Printer } from "lucide-react";
+import { useId, useTransition } from "react";
+import { ArrowLeft, Download, FileText, LoaderCircle } from "lucide-react";
 
 import { LinkPendingIndicator } from "@/components/layout/link-pending-indicator";
 import { RefreshButton } from "@/components/layout/refresh-button";
@@ -45,23 +45,18 @@ export function StudentDisciplinaryReport({
   report,
   backHref,
   csvHref,
+  pdfHref,
   semesterQueryParam,
 }: {
   report: StudentDisciplinaryReportData;
   backHref: string;
   csvHref: string;
+  pdfHref: string;
   semesterQueryParam?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const yearSelectId = useId();
-
-  useEffect(() => {
-    document.body.dataset.printDocumentActive = "true";
-    return () => {
-      delete document.body.dataset.printDocumentActive;
-    };
-  }, []);
 
   const semesterScopeHref = buildReportViewHref({
     scope: "semester",
@@ -93,11 +88,10 @@ export function StudentDisciplinaryReport({
   );
 
   return (
-    <div data-print-document className="flex w-full flex-col gap-6">
-      {/* Non-print navigation, scope controls, and export bar */}
+    <div className="flex w-full flex-col gap-6">
+      {/* Navigation, scope controls, and export bar */}
       <div
-        data-print-chrome
-        className="flex w-full flex-col gap-4 print:hidden"
+        className="flex w-full flex-col gap-4"
         aria-busy={isPending}
       >
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -126,15 +120,16 @@ export function StudentDisciplinaryReport({
               <span>Download CSV</span>
             </a>
 
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => window.print()}
-              className="gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+            <a
+              href={pdfHref}
+              className={cn(
+                buttonVariants({ size: "sm" }),
+                "gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
+              )}
             >
-              <Printer className="size-4" aria-hidden="true" />
-              <span>Print / Save as PDF</span>
-            </Button>
+              <FileText className="size-4" aria-hidden="true" />
+              <span>Download PDF</span>
+            </a>
           </div>
         </div>
 
@@ -203,7 +198,7 @@ export function StudentDisciplinaryReport({
       </div>
 
       {/* Plain Document Header */}
-      <Card data-print-avoid-break className="flex w-full flex-col gap-4 p-4 sm:p-6">
+      <Card className="flex w-full flex-col gap-4 p-4 sm:p-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">
@@ -275,12 +270,11 @@ export function StudentDisciplinaryReport({
       </Card>
 
       {/* Current Cumulative Standing (All Semesters) */}
-      <section data-print-avoid-break className="flex w-full flex-col gap-2">
+      <section className="flex w-full flex-col gap-2">
         <div
-          data-print-heading
-          className="flex flex-col gap-1 break-after-avoid sm:flex-row sm:items-baseline sm:justify-between"
+          className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
         >
-          <h3 className="section-title break-after-avoid">Current Cumulative Standing</h3>
+          <h3 className="section-title">Current Cumulative Standing</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             Cumulative across all semesters as of {formatManilaDate(report.asOfDateManila)}{" "}
             (Asia/Manila)
@@ -288,7 +282,7 @@ export function StudentDisciplinaryReport({
         </div>
 
         <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card data-print-avoid-break className="flex flex-col gap-2 p-4">
+          <Card className="flex flex-col gap-2 p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-foreground">Office Duty Balance</span>
               <BucketBadge bucket="office" className="font-medium" />
@@ -313,7 +307,7 @@ export function StudentDisciplinaryReport({
             </p>
           </Card>
 
-          <Card data-print-avoid-break className="flex flex-col gap-2 p-4">
+          <Card className="flex flex-col gap-2 p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-foreground">
                 Clinical (RLE) Duty Balance
@@ -340,7 +334,7 @@ export function StudentDisciplinaryReport({
             </p>
           </Card>
 
-          <Card data-print-avoid-break className="flex flex-col gap-2 p-4">
+          <Card className="flex flex-col gap-2 p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-foreground">Available Merits</span>
               <span className="text-xs text-muted-foreground tabular-nums">1-yr validity</span>
@@ -361,17 +355,16 @@ export function StudentDisciplinaryReport({
       </section>
 
       {/* Period Activity Summary */}
-      <section data-print-avoid-break className="flex w-full flex-col gap-2">
+      <section className="flex w-full flex-col gap-2">
         <div
-          data-print-heading
-          className="flex flex-col gap-1 break-after-avoid sm:flex-row sm:items-baseline sm:justify-between"
+          className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
         >
-          <h3 className="section-title break-after-avoid">Period Activity Summary</h3>
+          <h3 className="section-title">Period Activity Summary</h3>
           <span className="text-xs text-muted-foreground tabular-nums">{report.periodLabel}</span>
         </div>
 
         <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card data-print-avoid-break className="flex flex-col gap-1 p-4">
+          <Card className="flex flex-col gap-1 p-4">
             <span className="text-xs font-medium text-muted-foreground">Demerits Recorded</span>
             <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
               {formatDays(periodSummary.demeritsRecorded)}
@@ -384,7 +377,7 @@ export function StudentDisciplinaryReport({
             </span>
           </Card>
 
-          <Card data-print-avoid-break className="flex flex-col gap-1 p-4">
+          <Card className="flex flex-col gap-1 p-4">
             <span className="text-xs font-medium text-muted-foreground">Merits Awarded</span>
             <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
               {formatDays(periodSummary.meritsAwarded)}
@@ -395,7 +388,7 @@ export function StudentDisciplinaryReport({
             </span>
           </Card>
 
-          <Card data-print-avoid-break className="flex flex-col gap-1 p-4">
+          <Card className="flex flex-col gap-1 p-4">
             <span className="text-xs font-medium text-muted-foreground">
               Service Credits Earned
             </span>

@@ -114,16 +114,17 @@ export default async function StudentMeritsDemeritsAndServicesPage({
     } else if (!reportData) {
       redirect(baseHref);
     } else {
-      const csvHref =
+      const downloadQuery =
         reportData.scope === "semester" && selected
-          ? `${path}/report.csv?scope=semester&semester=${encodeURIComponent(selected.id)}`
-          : `${path}/report.csv?scope=year&year=${encodeURIComponent(String(reportData.academicYearStart))}`;
+          ? `scope=semester&semester=${encodeURIComponent(selected.id)}`
+          : `scope=year&year=${encodeURIComponent(String(reportData.academicYearStart))}`;
 
       content = (
         <StudentDisciplinaryReport
           report={reportData}
           backHref={baseHref}
-          csvHref={csvHref}
+          csvHref={`${path}/report.csv?${downloadQuery}`}
+          pdfHref={`${path}/report.pdf?${downloadQuery}`}
           semesterQueryParam={explicitSemesterParam}
         />
       );

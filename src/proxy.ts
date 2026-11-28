@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import type { Database } from "./server/db/database.types";
 
-function csvTextResponse(
+function downloadTextResponse(
   body: string,
   status: number,
   sourceCookies?: ReturnType<NextResponse["cookies"]["getAll"]>
@@ -23,14 +23,14 @@ function csvTextResponse(
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const protectedPath = /^\/(student|council|faculty|admin|account)(\/|$)/.test(request.nextUrl.pathname);
-  const isCsvDownload = protectedPath && request.nextUrl.pathname.endsWith(".csv");
+  const isFileDownload = protectedPath && /\.(csv|pdf)$/.test(request.nextUrl.pathname);
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     if (protectedPath) {
-      if (isCsvDownload) {
-        return csvTextResponse("Unable to verify access. Try again later.", 503);
+      if (isFileDownload) {
+        return downloadTextResponse("Unable to verify access. Try again later.", 503);
       }
       return new NextResponse(null, { status: 503, headers: { "Cache-Control": "private, no-store" } });
     }
@@ -54,8 +54,8 @@ export async function proxy(request: NextRequest) {
 
   const { data, error } = await client.auth.getClaims();
   if (protectedPath && error && error.name !== "AuthSessionMissingError" && error.status !== 401 && error.status !== 403) {
-    if (isCsvDownload) {
-      return csvTextResponse(
+    if (isFileDownload) {
+      return downloadTextResponse(
         "Unable to verify access. Try again later.",
         503,
         response.cookies.getAll()
@@ -65,8 +65,8 @@ export async function proxy(request: NextRequest) {
     return new NextResponse(null, { status: 503, headers: response.headers });
   }
   if (protectedPath && (!data?.claims || data.claims.is_anonymous)) {
-    if (isCsvDownload) {
-      return csvTextResponse("Authentication required.", 401, response.cookies.getAll());
+    if (isFileDownload) {
+      return downloadTextResponse("Authentication required.", 401, response.cookies.getAll());
     }
     const destination = new URL("/sign-in", request.url);
     if (["/student", "/council", "/faculty", "/admin", "/account"].includes(request.nextUrl.pathname)) {
