@@ -31,11 +31,34 @@ export async function proxy(request: NextRequest) {
 
   const { data, error } = await client.auth.getClaims();
   const protectedPath = /^\/(student|council|faculty|admin|account)(\/|$)/.test(request.nextUrl.pathname);
+  const isCsvDownload = protectedPath && request.nextUrl.pathname.endsWith(".csv");
   if (protectedPath && error && error.name !== "AuthSessionMissingError" && error.status !== 401 && error.status !== 403) {
+    if (isCsvDownload) {
+      return new NextResponse("Unable to verify access. Try again later.", {
+        status: 503,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
     response.headers.set("Cache-Control", "private, no-store");
     return new NextResponse(null, { status: 503, headers: response.headers });
   }
   if (protectedPath && (!data?.claims || data.claims.is_anonymous)) {
+    if (isCsvDownload) {
+      const unauthorized = new NextResponse("Authentication required.", {
+        status: 401,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+      response.cookies.getAll().forEach((cookie) => unauthorized.cookies.set(cookie));
+      return unauthorized;
+    }
     const destination = new URL("/sign-in", request.url);
     if (["/student", "/council", "/faculty", "/admin", "/account"].includes(request.nextUrl.pathname)) {
       destination.searchParams.set("next", request.nextUrl.pathname);
