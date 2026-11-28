@@ -96,7 +96,7 @@ export type StudentDisciplinaryReportData = {
   asOfDateManila: string;
   student: {
     fullName: string;
-    universityId: string;
+    universityId: string | null;
   };
   coveredTerms: ReportCoveredTerm[];
   availableAcademicYears: ReportAcademicYearOption[];

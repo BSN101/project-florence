@@ -103,7 +103,7 @@ export function serializeDisciplinaryReportCsv(
   const rows: (string | number | null | undefined)[][] = [
     ["Project Florence \u2014 Student Disciplinary Report"],
     ["Student Name", report.student.fullName],
-    ["University Number", report.student.universityId],
+    ["University Number", report.student.universityId ?? "—"],
     ["Report Scope", report.scope === "year" ? "Academic Year" : "Single Semester"],
     ["Period", report.periodLabel],
     ["Covered Terms", formatCoveredTermsSummary(report.coveredTerms, formatDate)],

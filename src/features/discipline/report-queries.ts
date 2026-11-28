@@ -101,9 +101,6 @@ export async function getStudentDisciplinaryReportForAccess(
 
   const studentId = access.profile.id;
   const universityId = access.profile.university_id;
-  if (!universityId) {
-    throw new AccessDeniedError("forbidden");
-  }
 
   const client = await createUserClient();
 

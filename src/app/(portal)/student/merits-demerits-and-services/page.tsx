@@ -19,6 +19,7 @@ import { parseReportRouteParams } from "@/features/discipline/report-calculation
 import { getStudentDisciplinaryReportForAccess } from "@/features/discipline/report-queries";
 import { resolveSelectedSemester } from "@/features/semesters/schemas";
 import { getAccessContext } from "@/server/auth/access-context";
+import { AccessDeniedError } from "@/server/auth/require-workspace";
 
 export const instant = false;
 
@@ -92,7 +93,9 @@ export default async function StudentMeritsDemeritsAndServicesPage({
         },
         snapshot
       );
-    } catch {
+    } catch (error) {
+      // Access denial is not a load failure; refreshing would not help.
+      if (error instanceof AccessDeniedError) throw error;
       reportLoadFailed = true;
     }
 

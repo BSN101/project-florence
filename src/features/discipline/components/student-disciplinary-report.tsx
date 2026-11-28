@@ -228,7 +228,7 @@ export function StudentDisciplinaryReport({
               {report.student.fullName}
             </span>
             <span className="font-mono text-muted-foreground tabular-nums">
-              {report.student.universityId}
+              {report.student.universityId ?? "—"}
             </span>
           </div>
 
