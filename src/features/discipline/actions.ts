@@ -669,7 +669,7 @@ export async function waiveDemeritAction(rawInput: unknown): Promise<WaiveDemeri
   };
 }
 
-// Standalone External CI merit error map (all 22 direct, helper, and trigger exceptions of `award_merits`).
+// External CI wording for `award_merits` exceptions; shared messages fall through to RPC_MESSAGES.
 const AWARD_EXTERNAL_CI_MERITS_MESSAGES: [string, string][] = [
   [
     "External CI award requires entering RLE Coordinator and attribution",
@@ -702,8 +702,6 @@ const AWARD_EXTERNAL_CI_MERITS_MESSAGES: [string, string][] = [
     "Incomplete command receipt; inspect transaction integration",
     "A previous attempt did not finish cleanly. Refresh to check External CI records before retrying.",
   ],
-  ["Activate a semester before creating academic records", "There is no active semester configured."],
-  ["Student enrollment in the specified semester required", "Not enrolled in the current semester."],
   [
     "Configure approved institutional timezone in f_cmd_private.settings",
     "The institutional timezone is not configured. Contact an administrator.",
@@ -729,9 +727,10 @@ const AWARD_EXTERNAL_CI_MERITS_MESSAGES: [string, string][] = [
     "Endorsement decision/award units inconsistent",
     "The merit units could not be finalized consistently. Try again.",
   ],
+  ...RPC_MESSAGES,
 ];
 
-// Standalone External CI demerit error map (all 26 direct, helper, and trigger exceptions of `log_demerits`).
+// External CI wording for `log_demerits` exceptions; shared messages fall through to RPC_MESSAGES.
 const LOG_EXTERNAL_CI_DEMERITS_MESSAGES: [string, string][] = [
   ["Bucket required", "External CI demerits must be recorded in the RLE bucket."],
   [
@@ -770,8 +769,6 @@ const LOG_EXTERNAL_CI_DEMERITS_MESSAGES: [string, string][] = [
     "Incomplete command receipt; inspect transaction integration",
     "A previous attempt did not finish cleanly. Refresh to check External CI records before retrying.",
   ],
-  ["Activate a semester before creating academic records", "There is no active semester configured."],
-  ["Student enrollment in the specified semester required", "Not enrolled in the current semester."],
   [
     "Configure approved institutional timezone in f_cmd_private.settings",
     "The institutional timezone is not configured. Contact an administrator.",
@@ -784,11 +781,6 @@ const LOG_EXTERNAL_CI_DEMERITS_MESSAGES: [string, string][] = [
   ["Missing pending command receipt", "Unable to finalize this demerit entry. Refresh to check External CI records."],
   ["Balance mutations require READ COMMITTED", "Unable to update the student balance right now. Try again."],
   ["Insufficient matching balance", "Unable to update the student balance for this entry. Refresh and try again."],
-  ["Self waiver forbidden", "You cannot waive a demerit on your own student record."],
-  [
-    "Only original issuer may waive Faculty entry",
-    "Only the entering coordinator can waive this external CI demerit.",
-  ],
   [
     "Demerit group must be contiguous and share context",
     "The demerit units could not be recorded consistently. Try again.",
@@ -798,6 +790,7 @@ const LOG_EXTERNAL_CI_DEMERITS_MESSAGES: [string, string][] = [
     "The requested demerit units could not all be recorded together. Try again.",
   ],
   ["Student enrollment in record semester required", "Not enrolled in the current semester."],
+  ...RPC_MESSAGES,
 ];
 
 const EXTERNAL_CI_RETRYABLE_ERROR =
@@ -820,6 +813,19 @@ async function requireRleCoordinatorActor(
   }
 }
 
+// Bounded parallel RPCs keep a large batch inside the server action time limit.
+const RECIPIENT_CONCURRENCY = 5;
+
+async function forEachInChunks<T>(items: T[], run: (item: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < items.length; i += RECIPIENT_CONCURRENCY) {
+    await Promise.all(items.slice(i, i + RECIPIENT_CONCURRENCY).map(run));
+  }
+}
+
+// `f_cmd_student` allows archived students, so this read is the only archived guard.
+// shortcut: not in the RPC transaction, so a student archived between this read and the RPC still
+// gets the entry, and a locked retry of an already-committed entry for a since-archived student is
+// reported as not recorded; move the check into the RPCs when they next change.
 async function findArchivedRecipientIds(
   client: ReturnType<typeof createCommandClient>,
   studentIds: string[]
@@ -877,10 +883,10 @@ export async function awardExternalCiMeritsAction(rawInput: unknown): Promise<Aw
   const awardedIds: string[] = [];
   const failures: ExternalCiEntryFailure[] = [];
 
-  for (const { studentId, requestKey } of recipients) {
+  await forEachInChunks(recipients, async ({ studentId, requestKey }) => {
     if (archivedCheck.archivedIds.has(studentId)) {
       failures.push({ studentId, error: "Archived students cannot receive external CI merits." });
-      continue;
+      return;
     }
     try {
       const { error } = await client.rpc("award_merits", {
@@ -911,7 +917,7 @@ export async function awardExternalCiMeritsAction(rawInput: unknown): Promise<Aw
     } catch {
       failures.push({ studentId, error: EXTERNAL_CI_RETRYABLE_ERROR, retryable: true });
     }
-  }
+  });
 
   if (awardedIds.length) {
     revalidatePath("/faculty/external-ci-records");
@@ -973,10 +979,10 @@ export async function logExternalCiDemeritsAction(rawInput: unknown): Promise<Lo
   const recordedIds: string[] = [];
   const failures: ExternalCiEntryFailure[] = [];
 
-  for (const { studentId, requestKey } of recipients) {
+  await forEachInChunks(recipients, async ({ studentId, requestKey }) => {
     if (archivedCheck.archivedIds.has(studentId)) {
       failures.push({ studentId, error: "Archived students cannot receive external CI demerits." });
-      continue;
+      return;
     }
     try {
       const { error } = await client.rpc("log_demerits", {
@@ -1009,7 +1015,7 @@ export async function logExternalCiDemeritsAction(rawInput: unknown): Promise<Lo
     } catch {
       failures.push({ studentId, error: EXTERNAL_CI_RETRYABLE_ERROR, retryable: true });
     }
-  }
+  });
 
   if (recordedIds.length) {
     revalidatePath("/faculty/external-ci-records");
