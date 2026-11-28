@@ -88,37 +88,53 @@ async function loadLedger(
   const client = await createUserClient();
   const today = getTodayManila();
 
-  let demeritsQuery = client.from("demerits").select(DEMERIT_COLUMNS).eq("student_id", studentId);
-  let meritsQuery = client.from("merits").select(MERIT_COLUMNS).eq("student_id", studentId);
-  let creditsQuery = client.from("service_credits").select(CREDIT_COLUMNS).eq("student_id", studentId);
-  if (issuerId) {
-    demeritsQuery = demeritsQuery.eq("issued_by", issuerId);
-    meritsQuery = meritsQuery.eq("awarded_by", issuerId);
-    creditsQuery = creditsQuery.eq("issued_by", issuerId);
-  }
+  // Fresh builders per page: PostgREST builders mutate in place.
+  const demeritsQuery = () => {
+    const q = client.from("demerits").select(DEMERIT_COLUMNS).eq("student_id", studentId);
+    return issuerId ? q.eq("issued_by", issuerId) : q;
+  };
+  const meritsQuery = () => {
+    const q = client.from("merits").select(MERIT_COLUMNS).eq("student_id", studentId);
+    return issuerId ? q.eq("awarded_by", issuerId) : q;
+  };
+  const creditsQuery = () => {
+    const q = client.from("service_credits").select(CREDIT_COLUMNS).eq("student_id", studentId);
+    return issuerId ? q.eq("issued_by", issuerId) : q;
+  };
 
-  const [demeritsRes, meritsRes, creditsRes, applicationsRes] = await Promise.all([
-    demeritsQuery.order("incident_on", { ascending: false }),
-    meritsQuery.order("awarded_on", { ascending: false }),
-    creditsQuery.order("issued_at", { ascending: false }),
+  // `id` tie-breaks keep pages stable; unpaged reads stop at PostgREST's 1000-row cap.
+  const [demeritRows, meritRows, creditRows, applications] = await Promise.all([
+    allRows(
+      (from, to) => demeritsQuery().order("incident_on", { ascending: false }).order("id").range(from, to),
+      "Unable to load demerits"
+    ),
+    allRows(
+      (from, to) => meritsQuery().order("awarded_on", { ascending: false }).order("id").range(from, to),
+      "Unable to load merits"
+    ),
+    allRows(
+      (from, to) => creditsQuery().order("issued_at", { ascending: false }).order("id").range(from, to),
+      "Unable to load service credits"
+    ),
     issuerId
-      ? null
-      : client
-          .from("merit_applications")
-          .select("id, application_group_id, student_id, merit_id, bucket, applied_at")
-          .eq("student_id", studentId),
+      ? []
+      : allRows(
+          (from, to) =>
+            client
+              .from("merit_applications")
+              .select("id, application_group_id, student_id, merit_id, bucket, applied_at")
+              .eq("student_id", studentId)
+              .order("id")
+              .range(from, to),
+          "Unable to load merit applications"
+        ),
   ]);
-  if (demeritsRes.error) throw new Error("Unable to load demerits");
-  if (meritsRes.error) throw new Error("Unable to load merits");
-  if (creditsRes.error) throw new Error("Unable to load service credits");
-  if (applicationsRes?.error) throw new Error("Unable to load merit applications");
 
   const names = await loadNames(client, [
-    ...demeritsRes.data.flatMap(demeritActors),
-    ...meritsRes.data.map((m) => m.awarded_by),
-    ...creditsRes.data.map((c) => c.issued_by),
+    ...demeritRows.flatMap(demeritActors),
+    ...meritRows.map((m) => m.awarded_by),
+    ...creditRows.map((c) => c.issued_by),
   ]);
-  const applications = applicationsRes?.data ?? [];
   const appliedMeritIds = new Set(applications.map((a) => a.merit_id));
   const appliedBuckets = new Map<string, DisciplinaryBucket>();
   if (!issuerId) {
@@ -127,15 +143,15 @@ async function loadLedger(
     }
   }
 
-  const demerits = demeritsRes.data.map((d) => toDemerit(d, names));
-  const merits = meritsRes.data.map((m) => {
+  const demerits = demeritRows.map((d) => toDemerit(d, names));
+  const merits = meritRows.map((m) => {
     const record = { ...m, awarder_name: nameOf(names, m.awarded_by) };
     if (issuerId) return record;
     const { isApplied, isExpired } = evaluateMeritState(m, appliedMeritIds, today);
     const appliedBucket = isApplied ? appliedBuckets.get(m.id) ?? null : null;
     return { ...record, isApplied, isExpired, appliedBucket };
   });
-  const serviceCredits = creditsRes.data.map((c) => ({ ...c, issuer_name: nameOf(names, c.issued_by) }));
+  const serviceCredits = creditRows.map((c) => ({ ...c, issuer_name: nameOf(names, c.issued_by) }));
 
   const summary = issuerId
     ? null
