@@ -37,7 +37,7 @@ export function WorkspaceHeader({
   const title = navigation.find((item) => item.slug === slug)?.label ?? workspaceLabels[workspace];
   return (
     // Phones: flat at the top, frosted with a hairline and a centred compact title once the page title scrolls under it.
-    <header data-print-chrome className="group/header sticky top-0 z-20 md:top-2 md:rounded-t-xl flex min-h-14 items-center justify-between border-b border-border bg-background/95 px-4 py-1.5 backdrop-blur transition-[background-color,border-color] duration-200 max-md:border-transparent max-md:bg-background max-md:data-scrolled:border-border max-md:data-scrolled:bg-background/80 max-md:data-scrolled:backdrop-blur-xl sm:px-6 md:min-h-16 md:py-3" style={{ viewTransitionName: "workspace-header" }} data-scroll-edge>
+    <header className="group/header sticky top-0 z-20 md:top-2 md:rounded-t-xl flex min-h-14 items-center justify-between border-b border-border bg-background/95 px-4 py-1.5 backdrop-blur transition-[background-color,border-color] duration-200 max-md:border-transparent max-md:bg-background max-md:data-scrolled:border-border max-md:data-scrolled:bg-background/80 max-md:data-scrolled:backdrop-blur-xl sm:px-6 md:min-h-16 md:py-3" style={{ viewTransitionName: "workspace-header" }} data-scroll-edge>
       <div className="flex items-center gap-3 min-w-0">
         {focused ? (
           <Link href={`/${workspace}`} className="flex items-center gap-2.5 rounded-lg" aria-label="Project Florence">

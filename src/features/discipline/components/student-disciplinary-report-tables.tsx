@@ -34,14 +34,13 @@ export function StudentDisciplinaryReportTables({
   showTermColumn: boolean;
 }) {
   return (
-    <div data-print-table-group className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       {/* Demerits in Period */}
-      <section data-print-table-section className="flex w-full flex-col gap-2">
+      <section className="flex w-full flex-col gap-2">
         <div
-          data-print-heading
-          className="flex items-baseline justify-between gap-2 break-after-avoid"
+          className="flex items-baseline justify-between gap-2"
         >
-          <h3 className="section-title break-after-avoid">Demerits in Period</h3>
+          <h3 className="section-title">Demerits in Period</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             {demerits.length} {demerits.length === 1 ? "record" : "records"}
           </span>
@@ -49,14 +48,12 @@ export function StudentDisciplinaryReportTables({
 
         {demerits.length === 0 ? (
           <Card
-            data-print-avoid-break
             className="w-full p-6 text-center text-xs text-muted-foreground"
           >
             No demerit records in this period.
           </Card>
         ) : (
           <div
-            data-print-scroll
             className="w-full overflow-x-auto rounded-xl border border-border bg-card"
           >
             <table className="w-full text-left text-xs">
@@ -166,12 +163,11 @@ export function StudentDisciplinaryReportTables({
       </section>
 
       {/* Merits in Period */}
-      <section data-print-table-section className="flex w-full flex-col gap-2">
+      <section className="flex w-full flex-col gap-2">
         <div
-          data-print-heading
-          className="flex items-baseline justify-between gap-2 break-after-avoid"
+          className="flex items-baseline justify-between gap-2"
         >
-          <h3 className="section-title break-after-avoid">Merits in Period</h3>
+          <h3 className="section-title">Merits in Period</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             {merits.length} {merits.length === 1 ? "award" : "awards"}
           </span>
@@ -179,14 +175,12 @@ export function StudentDisciplinaryReportTables({
 
         {merits.length === 0 ? (
           <Card
-            data-print-avoid-break
             className="w-full p-6 text-center text-xs text-muted-foreground"
           >
             No merit awards in this period.
           </Card>
         ) : (
           <div
-            data-print-scroll
             className="w-full overflow-x-auto rounded-xl border border-border bg-card"
           >
             <table className="w-full text-left text-xs">
@@ -268,12 +262,11 @@ export function StudentDisciplinaryReportTables({
       </section>
 
       {/* Service Credits in Period */}
-      <section data-print-table-section className="flex w-full flex-col gap-2">
+      <section className="flex w-full flex-col gap-2">
         <div
-          data-print-heading
-          className="flex items-baseline justify-between gap-2 break-after-avoid"
+          className="flex items-baseline justify-between gap-2"
         >
-          <h3 className="section-title break-after-avoid">Service Credits in Period</h3>
+          <h3 className="section-title">Service Credits in Period</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             {serviceCredits.length} {serviceCredits.length === 1 ? "credit" : "credits"}
           </span>
@@ -281,14 +274,12 @@ export function StudentDisciplinaryReportTables({
 
         {serviceCredits.length === 0 ? (
           <Card
-            data-print-avoid-break
             className="w-full p-6 text-center text-xs text-muted-foreground"
           >
             No service duty credits in this period.
           </Card>
         ) : (
           <div
-            data-print-scroll
             className="w-full overflow-x-auto rounded-xl border border-border bg-card"
           >
             <table className="w-full text-left text-xs">
