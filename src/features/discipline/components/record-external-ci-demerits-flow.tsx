@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, CircleAlert, FileWarning, Loader2 } from "lucide-react";
 
@@ -12,22 +12,21 @@ import { sortName } from "@/lib/format-name";
 import { formatManilaDate } from "@/lib/manila-date";
 
 import { logExternalCiDemeritsAction } from "../actions";
+import { reconcileBatchOutcome, type PickedRecipient } from "../batch-retry";
 import type {
   AwardRecipientOption,
   LogExternalCiDemeritsResult,
   MisconductOption,
 } from "../contracts";
-import { demeritDaysSchema, logExternalCiDemeritsSchema } from "../schemas";
+import { demeritDaysSchema, logExternalCiDemeritsSchema, MAX_ENTRY_DAYS } from "../schemas";
 import {
   computeLatestManilaDate,
-  ExternalCiFlowResultCard,
-  ExternalCiFlowStepper,
-  ExternalCiStudentPickerStep,
+  EntryFlowResultCard,
+  EntryFlowStepper,
+  StudentPickerStep,
   plural,
-  reconcileBatchOutcome,
-  type ExternalCiFlowStep,
-  type PickedRecipient,
-} from "./external-ci-flow-shared";
+  type EntryFlowStep,
+} from "./entry-flow-shared";
 
 export function RecordExternalCiDemeritsFlow({
   students,
@@ -46,7 +45,7 @@ export function RecordExternalCiDemeritsFlow({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [step, setStep] = useState<ExternalCiFlowStep>("students");
+  const [step, setStep] = useState<EntryFlowStep>("students");
   const [picked, setPicked] = useState<PickedRecipient[]>([]);
   const [search, setSearch] = useState("");
   const [externalSource, setExternalSource] = useState("");
@@ -56,6 +55,8 @@ export function RecordExternalCiDemeritsFlow({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<LogExternalCiDemeritsResult | null>(null);
+  // Students recorded across every attempt of this batch, so a retry does not hide earlier successes.
+  const [succeededIds, setSucceededIds] = useState<string[]>([]);
   const [locked, setLocked] = useState(false);
   const [hadTransportUncertainty, setHadTransportUncertainty] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -69,20 +70,24 @@ export function RecordExternalCiDemeritsFlow({
     notes: useId(),
   };
 
-  function resetState() {
+  const resetState = useCallback(() => {
     setPicked([]);
     setSearch("");
     setExternalSource("");
-    setMisconductId(misconductOptions[0]?.id ?? "");
+    setMisconductId(""); // falls back to the first option
     setDays("1");
     setIncidentOn("");
     setNotes("");
     setError(null);
     setResult(null);
+    setSucceededIds([]);
     setLocked(false);
     setHadTransportUncertainty(false);
     setStep("students");
-  }
+  }, []);
+
+  // A preserved route hidden under <Activity> runs effect cleanup: leave no stale result or locked step behind.
+  useEffect(() => resetState, [resetState]);
 
   // Preserved routes keep state under <Activity>: reset transient flow state on route or semester change.
   const locationKey = `${pathname}:${semesterLabel}`;
@@ -139,7 +144,7 @@ export function RecordExternalCiDemeritsFlow({
     return null;
   }
 
-  function go(next: ExternalCiFlowStep) {
+  function go(next: EntryFlowStep) {
     if (next === "details") {
       if (!picked.length) {
         setError("Select at least one student.");
@@ -201,6 +206,7 @@ export function RecordExternalCiDemeritsFlow({
           failures: outcome.success ? [] : outcome.failures,
           error: outcome.success ? undefined : outcome.error,
           wasLocked,
+          previousSucceededIds: wasLocked ? succeededIds : [],
         });
 
         setPicked(reconciled.picked);
@@ -212,6 +218,7 @@ export function RecordExternalCiDemeritsFlow({
         }
 
         setHadTransportUncertainty(reconciled.hadTransportUncertainty);
+        setSucceededIds(reconciled.succeededIds);
         setResult(outcome);
         setStep("result");
         window.scrollTo({ top: 0 });
@@ -258,7 +265,7 @@ export function RecordExternalCiDemeritsFlow({
           </p>
         </div>
         {step !== "result" && (
-          <ExternalCiFlowStepper step={step} ariaLabel="External demerit steps" />
+          <EntryFlowStepper step={step} ariaLabel="External demerit steps" />
         )}
       </div>
 
@@ -273,7 +280,7 @@ export function RecordExternalCiDemeritsFlow({
       )}
 
       {step === "students" && (
-        <ExternalCiStudentPickerStep
+        <StudentPickerStep
           searchId={ids.search}
           students={students}
           picked={picked}
@@ -366,12 +373,13 @@ export function RecordExternalCiDemeritsFlow({
                 type="number"
                 inputMode="numeric"
                 min={1}
+                max={MAX_ENTRY_DAYS}
                 step={1}
                 value={days}
                 onChange={(e) => setDays(e.target.value)}
                 className="h-10 font-mono tabular-nums max-sm:min-h-11 pointer-coarse:min-h-11 pointer-coarse:text-base"
               />
-              <span className="text-xs text-muted-foreground">Whole days only. Defaults to 1.</span>
+              <span className="text-xs text-muted-foreground">Whole days only, up to {MAX_ENTRY_DAYS}. Defaults to 1.</span>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -529,13 +537,14 @@ export function RecordExternalCiDemeritsFlow({
       )}
 
       {step === "result" && result && (
-        <ExternalCiFlowResultCard
+        <EntryFlowResultCard
           success={result.success}
-          succeededIds={result.recordedIds}
+          succeededIds={succeededIds}
           failures={result.success ? [] : result.failures}
-          dayCount={dayCount}
+          successText={`Recorded ${plural(dayCount, "day")} for ${plural(succeededIds.length, "student")}`}
           retryableCount={locked ? picked.length : 0}
           listHref={listHref}
+          listLabel="View external CI records"
           recordMoreLabel="Record more demerits"
           labelOf={label}
           onRetry={() => {

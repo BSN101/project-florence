@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, Award, CircleAlert, Loader2 } from "lucide-react";
 
@@ -12,19 +12,23 @@ import { sortName } from "@/lib/format-name";
 import { formatManilaDate } from "@/lib/manila-date";
 
 import { awardExternalCiMeritsAction } from "../actions";
+import { reconcileBatchOutcome, type PickedRecipient } from "../batch-retry";
 import { meritExpiryDate } from "../calculations";
 import type { AwardExternalCiMeritsResult, AwardRecipientOption } from "../contracts";
-import { awardExternalCiMeritsSchema, meritDaysSchema, meritDescriptionSchema } from "../schemas";
+import {
+  awardExternalCiMeritsSchema,
+  MAX_ENTRY_DAYS,
+  meritDaysSchema,
+  meritDescriptionSchema,
+} from "../schemas";
 import {
   computeLatestManilaDate,
-  ExternalCiFlowResultCard,
-  ExternalCiFlowStepper,
-  ExternalCiStudentPickerStep,
+  EntryFlowResultCard,
+  EntryFlowStepper,
+  StudentPickerStep,
   plural,
-  reconcileBatchOutcome,
-  type ExternalCiFlowStep,
-  type PickedRecipient,
-} from "./external-ci-flow-shared";
+  type EntryFlowStep,
+} from "./entry-flow-shared";
 
 export function RecordExternalCiMeritsFlow({
   students,
@@ -41,7 +45,7 @@ export function RecordExternalCiMeritsFlow({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [step, setStep] = useState<ExternalCiFlowStep>("students");
+  const [step, setStep] = useState<EntryFlowStep>("students");
   const [picked, setPicked] = useState<PickedRecipient[]>([]);
   const [search, setSearch] = useState("");
   const [externalSource, setExternalSource] = useState("");
@@ -50,6 +54,8 @@ export function RecordExternalCiMeritsFlow({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AwardExternalCiMeritsResult | null>(null);
+  // Students recorded across every attempt of this batch, so a retry does not hide earlier successes.
+  const [succeededIds, setSucceededIds] = useState<string[]>([]);
   const [locked, setLocked] = useState(false);
   const [hadTransportUncertainty, setHadTransportUncertainty] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -62,7 +68,7 @@ export function RecordExternalCiMeritsFlow({
     reason: useId(),
   };
 
-  function resetState() {
+  const resetState = useCallback(() => {
     setPicked([]);
     setSearch("");
     setExternalSource("");
@@ -71,10 +77,14 @@ export function RecordExternalCiMeritsFlow({
     setDescription("");
     setError(null);
     setResult(null);
+    setSucceededIds([]);
     setLocked(false);
     setHadTransportUncertainty(false);
     setStep("students");
-  }
+  }, []);
+
+  // A preserved route hidden under <Activity> runs effect cleanup: leave no stale result or locked step behind.
+  useEffect(() => resetState, [resetState]);
 
   // Preserved routes keep state under <Activity>: reset transient flow state on route or semester change.
   const locationKey = `${pathname}:${semesterLabel}`;
@@ -115,7 +125,7 @@ export function RecordExternalCiMeritsFlow({
     return reasonCheck.success ? null : reasonCheck.error.issues[0].message;
   }
 
-  function go(next: ExternalCiFlowStep) {
+  function go(next: EntryFlowStep) {
     if (next === "details") {
       if (!picked.length) {
         setError("Select at least one student.");
@@ -175,6 +185,7 @@ export function RecordExternalCiMeritsFlow({
           failures: outcome.success ? [] : outcome.failures,
           error: outcome.success ? undefined : outcome.error,
           wasLocked,
+          previousSucceededIds: wasLocked ? succeededIds : [],
         });
 
         setPicked(reconciled.picked);
@@ -186,6 +197,7 @@ export function RecordExternalCiMeritsFlow({
         }
 
         setHadTransportUncertainty(reconciled.hadTransportUncertainty);
+        setSucceededIds(reconciled.succeededIds);
         setResult(outcome);
         setStep("result");
         window.scrollTo({ top: 0 });
@@ -232,7 +244,7 @@ export function RecordExternalCiMeritsFlow({
           </p>
         </div>
         {step !== "result" && (
-          <ExternalCiFlowStepper step={step} ariaLabel="External merit steps" />
+          <EntryFlowStepper step={step} ariaLabel="External merit steps" />
         )}
       </div>
 
@@ -247,7 +259,7 @@ export function RecordExternalCiMeritsFlow({
       )}
 
       {step === "students" && (
-        <ExternalCiStudentPickerStep
+        <StudentPickerStep
           searchId={ids.search}
           students={students}
           picked={picked}
@@ -294,12 +306,13 @@ export function RecordExternalCiMeritsFlow({
                 type="number"
                 inputMode="numeric"
                 min={1}
+                max={MAX_ENTRY_DAYS}
                 step={1}
                 value={days}
                 onChange={(e) => setDays(e.target.value)}
                 className="h-10 font-mono tabular-nums max-sm:min-h-11 pointer-coarse:min-h-11 pointer-coarse:text-base"
               />
-              <span className="text-xs text-muted-foreground">Whole days only.</span>
+              <span className="text-xs text-muted-foreground">Whole days only, up to {MAX_ENTRY_DAYS}.</span>
             </div>
             <div className="flex flex-col gap-2">
               <label htmlFor={ids.date} className="text-sm font-medium">
@@ -446,13 +459,14 @@ export function RecordExternalCiMeritsFlow({
       )}
 
       {step === "result" && result && (
-        <ExternalCiFlowResultCard
+        <EntryFlowResultCard
           success={result.success}
-          succeededIds={result.awardedIds}
+          succeededIds={succeededIds}
           failures={result.success ? [] : result.failures}
-          dayCount={dayCount}
+          successText={`Recorded ${plural(dayCount, "day")} for ${plural(succeededIds.length, "student")}`}
           retryableCount={locked ? picked.length : 0}
           listHref={listHref}
+          listLabel="View external CI records"
           recordMoreLabel="Record more merits"
           labelOf={label}
           onRetry={() => {

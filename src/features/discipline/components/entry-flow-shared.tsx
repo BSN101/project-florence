@@ -11,16 +11,18 @@ import { sortName } from "@/lib/format-name";
 import { cn } from "@/lib/utils";
 
 import { getTodayManila } from "../calculations";
-import type { AwardRecipientOption, ExternalCiEntryFailure } from "../contracts";
+import type { AwardRecipientOption } from "../contracts";
 
-export type ExternalCiFlowStep = "students" | "details" | "review" | "result";
-export type PickedRecipient = { studentId: string; requestKey: string | null };
+/** Shared steps, student picker and result card for the Faculty and External CI entry flows. */
+export type EntryFlowStep = "students" | "details" | "review" | "result";
+type EntryFailure = { studentId: string; error: string };
 
-const STEPS: { id: Exclude<ExternalCiFlowStep, "result">; label: string }[] = [
+const STEPS: { id: Exclude<EntryFlowStep, "result">; label: string }[] = [
   { id: "students", label: "Students" },
   { id: "details", label: "Details" },
   { id: "review", label: "Review" },
 ];
+// Matches render in the page flow (no inner scroll box), so long rosters are narrowed by search.
 const MATCH_LIMIT = 20;
 
 export function plural(count: number, word: string): string {
@@ -32,85 +34,11 @@ export function computeLatestManilaDate(endsOn: string): string {
   return endsOn < today ? endsOn : today;
 }
 
-type BatchReconciliation =
-  | {
-      kind: "pre_rpc_error";
-      picked: PickedRecipient[];
-      locked: boolean;
-      error: string;
-    }
-  | {
-      kind: "result";
-      picked: PickedRecipient[];
-      locked: boolean;
-      hadTransportUncertainty: boolean;
-    };
-
-/**
- * Reconciles a multi-recipient submission outcome into the next retry state:
- * - Pre-RPC rejections clear lazy keys only when `!wasLocked`, preserving UUIDs across locked retries.
- * - Clean success clears pending recipients and unlocks.
- * - Partial/full failures drop succeeded AND deterministic non-retryable recipients from the locked
- *   retry queue, preserving `requestKey` strictly for `retryable: true` recipients.
- */
-export function reconcileBatchOutcome({
-  preparedRecipients,
-  success,
-  succeededIds,
-  failures,
-  error,
-  wasLocked,
-}: {
-  preparedRecipients: PickedRecipient[];
-  success: boolean;
-  succeededIds: string[];
-  failures: ExternalCiEntryFailure[];
-  error?: string;
-  wasLocked: boolean;
-}): BatchReconciliation {
-  if (!success && succeededIds.length === 0 && failures.length === 0) {
-    return {
-      kind: "pre_rpc_error",
-      picked: wasLocked
-        ? preparedRecipients
-        : preparedRecipients.map((p) => ({ studentId: p.studentId, requestKey: null })),
-      locked: wasLocked,
-      error: error ?? "Unable to record these entries. Try again.",
-    };
-  }
-
-  if (success) {
-    return {
-      kind: "result",
-      picked: [],
-      locked: false,
-      hadTransportUncertainty: false,
-    };
-  }
-
-  const retryableIds = new Set(failures.filter((f) => f.retryable).map((f) => f.studentId));
-  if (retryableIds.size > 0) {
-    return {
-      kind: "result",
-      picked: preparedRecipients.filter((p) => retryableIds.has(p.studentId)),
-      locked: true,
-      hadTransportUncertainty: true,
-    };
-  }
-
-  return {
-    kind: "result",
-    picked: [],
-    locked: false,
-    hadTransportUncertainty: false,
-  };
-}
-
-export function ExternalCiFlowStepper({
+export function EntryFlowStepper({
   step,
   ariaLabel,
 }: {
-  step: Exclude<ExternalCiFlowStep, "result">;
+  step: Exclude<EntryFlowStep, "result">;
   ariaLabel: string;
 }) {
   const current = STEPS.findIndex((s) => s.id === step);
@@ -147,7 +75,7 @@ export function ExternalCiFlowStepper({
   );
 }
 
-export function ExternalCiStudentPickerStep({
+export function StudentPickerStep({
   searchId,
   students,
   picked,
@@ -159,7 +87,7 @@ export function ExternalCiStudentPickerStep({
 }: {
   searchId: string;
   students: AwardRecipientOption[];
-  picked: PickedRecipient[];
+  picked: { studentId: string }[];
   search: string;
   onSearchChange: (value: string) => void;
   onToggle: (studentId: string) => void;
@@ -182,7 +110,7 @@ export function ExternalCiStudentPickerStep({
     <Card className="flex w-full flex-col gap-4 p-4 sm:p-6">
       <div className="flex flex-col gap-2">
         <label htmlFor={searchId} className="text-sm font-medium">
-          Find active enrolled students
+          Find enrolled students
         </label>
         <div className="relative">
           <Search
@@ -225,8 +153,8 @@ export function ExternalCiStudentPickerStep({
         {matches.length === 0 && (
           <li className="p-4 text-center text-sm text-muted-foreground">
             {students.length
-              ? "No active students match this search."
-              : "No active students are enrolled in the current semester."}
+              ? "No students match this search."
+              : "No students are enrolled in the current semester."}
           </li>
         )}
         {matches.slice(0, MATCH_LIMIT).map((s) => {
@@ -282,13 +210,14 @@ export function ExternalCiStudentPickerStep({
   );
 }
 
-export function ExternalCiFlowResultCard({
+export function EntryFlowResultCard({
   success,
   succeededIds,
   failures,
-  dayCount,
+  successText,
   retryableCount,
   listHref,
+  listLabel,
   recordMoreLabel,
   labelOf,
   onRetry,
@@ -296,10 +225,12 @@ export function ExternalCiFlowResultCard({
 }: {
   success: boolean;
   succeededIds: string[];
-  failures: ExternalCiEntryFailure[];
-  dayCount: number;
+  failures: EntryFailure[];
+  /** For example "Recorded 2 days for 3 students". */
+  successText: string;
   retryableCount: number;
   listHref: string;
+  listLabel: string;
   recordMoreLabel: string;
   labelOf: (studentId: string) => string;
   onRetry: () => void;
@@ -311,9 +242,7 @@ export function ExternalCiFlowResultCard({
         <div className="flex flex-col gap-2">
           <p className="flex items-center gap-2 font-medium text-emerald-700">
             <Check className="size-4 shrink-0" aria-hidden="true" />
-            <span>
-              Recorded {plural(dayCount, "day")} for {plural(succeededIds.length, "student")}
-            </span>
+            <span>{successText}</span>
           </p>
           <ul className="divide-y divide-border/60 rounded-lg border border-border text-sm">
             {succeededIds.map((id) => (
@@ -351,7 +280,7 @@ export function ExternalCiFlowResultCard({
           render={<Link href={listHref} />}
           className="max-sm:min-h-11 pointer-coarse:min-h-11"
         >
-          View external CI records
+          {listLabel}
         </Button>
         {retryableCount > 0 ? (
           <>
