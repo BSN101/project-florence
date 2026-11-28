@@ -1177,7 +1177,7 @@ External CI merits and RLE demerits are permanently recorded with external CI an
 ### Main flow
 
 1. The student opens **Conduct** (`/student/merits-demerits-and-services`) for an enrolled semester and chooses **Disciplinary report**.
-2. The report view opens for the selected semester, keeping a **Back to conduct ledger** link that returns to the same semester context, a refresh control showing the `Asia/Manila` render time, a **Report period** switch (**Selected semester** or **Academic year**), **Download CSV**, and **Print / Save as PDF**.
+2. The report view opens for the selected semester, keeping a **Back to conduct ledger** link that returns to the same semester context, a refresh control showing the `Asia/Manila` render time, a **Report period** switch (**Selected semester** or **Academic year**), **Download CSV**, and **Download PDF**.
 3. The student may switch between **Selected semester** (following the page's semester selector) and **Academic year** (choosing from academic years in which the student was enrolled or holds disciplinary records, grouping all covered terms of that academic year).
 4. The document header displays the student's full name, university number, scope and period label, covered terms with date ranges, enrollment year level and academic status where enrolled, the `Asia/Manila` generation time, and the notice **"Informational record only. Not an official certified document."** with no signature blocks or certification wording.
 5. **Current Cumulative Standing** displays the student's all-time Office duty balance, Clinical (RLE) duty balance, and currently available merits as of today in `Asia/Manila`, clearly labeled as cumulative across all semesters alongside active, waived, applied, and service-credit counts.
@@ -1185,28 +1185,28 @@ External CI merits and RLE demerits are permanently recorded with external CI an
    - **Demerits:** incident date, Office or RLE bucket, violation and description, multi-day unit label (`Unit 1 of 3`) or Council consequence unit, active or waived status with waiver reason and `Asia/Manila` waiver time, and issuer (**Council** on Council-generated entries and waivers, `External: <source>` on external clinical entries, or the issuing Faculty instructor's name).
    - **Merits:** award date, description and origin, 1-year validity date, current status (**Available**, **Applied** with target bucket and `Asia/Manila` application time, or **Expired**), and awarding instructor or external clinical source (showing the approving instructor on Council-endorsed merits).
    - **Service credits:** `Asia/Manila` issue date and time, duty bucket, active or revoked status (with revocation note and time when revoked), and supervising instructor.
-7. Choosing **Print / Save as PDF** opens the browser print dialog with workspace navigation, filters, and action toolbars hidden, repeating table headers across pages without clipping multi-page listings. Choosing **Download CSV** downloads a UTF-8 spreadsheet containing the same metadata, cumulative standing, period summary, and period listings with a sanitized ASCII filename.
+7. Choosing **Download PDF** downloads a formal A4 document (black on white, 12 pt Arial-style sans-serif) with the student details, current cumulative standing, a one-paragraph period summary, and the demerit, merit, and service-credit listings; table headers repeat across pages, rows are never split, and every page carries the informational-record notice and a page number. Choosing **Download CSV** downloads a UTF-8 spreadsheet containing the same metadata, cumulative standing, period summary, and period listings with a sanitized ASCII filename.
 
 ### System involvement
 
-- Reads only the signed-in student's own profile, enrollments, semesters, demerits, merits, merit applications, and service credits under user-scoped database access rules, using one server timestamp so cumulative standing, merit expiry, refresh status, and the printed generation time reflect the exact same `Asia/Manila` snapshot.
+- Reads only the signed-in student's own profile, enrollments, semesters, demerits, merits, merit applications, and service credits under user-scoped database access rules, using one server timestamp so cumulative standing, merit expiry, refresh status, and the downloaded generation date reflect the exact same `Asia/Manila` snapshot.
 - Resolves staff display names only for non-Council entries so individual Council student officers are never queried or disclosed, omits internal actor, group, and cross-record identifiers from browser responses, and omits all internal identifiers from CSV downloads.
-- Protects downloaded CSV cells that begin with spreadsheet formula characters (including after leading whitespace) with a leading apostrophe before standard CSV quoting, and creates no server-side PDF archive or signature record.
+- Protects downloaded CSV cells that begin with spreadsheet formula characters (including after leading whitespace) with a leading apostrophe before standard CSV quoting, and generates PDFs on request without storing them or adding any signature record.
 
 ### Outcome
 
-The student can review, print, save as PDF, or export as CSV a complete semester or academic-year record of their own disciplinary history alongside their current cumulative Office, Clinical (RLE), and merit standing.
+The student can review, download as PDF, or export as CSV a complete semester or academic-year record of their own disciplinary history alongside their current cumulative Office, Clinical (RLE), and merit standing.
 
 ### Important alternatives
 
 - **Zero records in the selected period:** Each empty section states that no demerits, merit awards, or service duty credits were recorded in that period, while **Current Cumulative Standing** still displays the student's current cross-semester balances; CSV downloads include the same empty-period notes.
 - **Malformed or unavailable report period:** Visiting a report link with an unrecognized scope or an academic year in which the student has neither enrollment nor records redirects cleanly back to the Conduct ledger; invalid semester selections continue to show not-found.
-- **Direct unauthorized or invalid CSV requests:** Signed-out requests to the CSV download address return a plain-text `401` response instead of redirecting to the sign-in page, non-student or inactive accounts receive `403`, and malformed or unavailable period parameters receive `400`.
+- **Direct unauthorized or invalid download requests:** Signed-out requests to the CSV or PDF download address return a plain-text `401` response instead of redirecting to the sign-in page, non-student or inactive accounts receive `403`, and malformed or unavailable period parameters receive `400`.
 
 ### Acceptance checks
 
 - Students can generate both single-semester and full academic-year reports showing only their own permitted records and accurate cumulative Office, RLE, and available-merit balances.
 - Council-generated demerits and waivers display **Council** as the actor label, Council-endorsed merits attribute the approving Faculty instructor, and external clinical entries display their external source label.
-- Printed and saved-PDF output hides workspace chrome, avoids splitting summary cards or table rows mid-line, and prints multi-page tables without clipping after page 1.
+- Downloaded PDFs are A4, keep table rows whole across page breaks, repeat table headers on continuation pages, and never return sign-in HTML on unauthenticated requests.
 - Downloaded CSV files open cleanly in spreadsheet software with UTF-8 encoding, neutralize leading formula characters, and never return sign-in HTML on unauthenticated requests.
 - Report navigation links, export actions, period switches, and academic-year selectors meet the 44 px touch-target minimum on phones and touch tablets.
