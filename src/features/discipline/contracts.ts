@@ -226,3 +226,55 @@ export type WaiveDemeritTarget = {
 export type WaiveDemeritResult =
   | { success: true; demeritId: string; waivedAt: string }
   | { success: false; error: string; retryable?: true };
+
+/**
+ * External CI merit award group row for `/faculty/external-ci-records` (FL-035).
+ * Keyed by unit-1 `id` and strips `student_id`, `semester_id`, `awarded_by`, and `award_request_key`
+ * so internal identifiers never reach the client.
+ */
+export type ExternalCiMeritGroupRecord = Pick<
+  Tables["merits"]["Row"],
+  "id" | "description" | "awarded_on" | "expires_on" | "external_source_name" | "created_at"
+> &
+  StudentIdentity & {
+    entered_by_name: string | null;
+    days: number;
+  };
+
+/**
+ * External CI demerit unit row for `/faculty/external-ci-records` (FL-034 / FL-035).
+ * Strips internal actor/student/group/attendance/catalog UUIDs so only rendered fields and `id` reach the client.
+ */
+export type ExternalCiDemeritUnitRecord = Pick<
+  Tables["demerits"]["Row"],
+  | "id"
+  | "incident_unit_index"
+  | "description"
+  | "incident_on"
+  | "external_source_name"
+  | "waived_at"
+  | "waiver_reason"
+  | "created_at"
+> &
+  StudentIdentity & {
+    bucket: "rle";
+    source: "external_ci";
+    group_unit_count: number;
+    entered_by_name: string | null;
+    waived_by_name: string | null;
+    canWaive: boolean;
+  };
+
+export type ExternalCiEntryFailure = {
+  studentId: string;
+  error: string;
+  retryable?: true;
+};
+
+export type AwardExternalCiMeritsResult =
+  | { success: true; awardedIds: string[] }
+  | { success: false; error: string; awardedIds: string[]; failures: ExternalCiEntryFailure[] };
+
+export type LogExternalCiDemeritsResult =
+  | { success: true; recordedIds: string[] }
+  | { success: false; error: string; recordedIds: string[]; failures: ExternalCiEntryFailure[] };

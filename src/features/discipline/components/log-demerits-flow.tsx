@@ -2,28 +2,24 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState, useTransition } from "react";
-import { ArrowLeft, Check, CircleAlert, FileWarning, Loader2, Search, X } from "lucide-react";
+import { ArrowLeft, CircleAlert, FileWarning, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { sortName } from "@/lib/format-name";
-import { cn } from "@/lib/utils";
 import { logFacultyDemeritsAction, type LogFacultyDemeritsResult } from "../actions";
 import type { AwardRecipientOption, DisciplinaryBucket, MisconductOption } from "../contracts";
-import { demeritDaysSchema } from "../schemas";
+import { demeritDaysSchema, MAX_ENTRY_DAYS } from "../schemas";
+import {
+  EntryFlowResultCard,
+  EntryFlowStepper,
+  plural,
+  StudentPickerStep,
+  type EntryFlowStep as Step,
+} from "./entry-flow-shared";
 
-type Step = "students" | "details" | "review" | "result";
 type Picked = { studentId: string; requestKey: string };
-
-const STEPS: { id: Exclude<Step, "result">; label: string }[] = [
-  { id: "students", label: "Students" },
-  { id: "details", label: "Details" },
-  { id: "review", label: "Review" },
-];
-
-const MATCH_LIMIT = 20;
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 export function LogDemeritsFlow({
   students,
@@ -70,24 +66,12 @@ export function LogDemeritsFlow({
   };
 
   const byId = useMemo(() => new Map(students.map((s) => [s.student_id, s])), [students]);
-  const pickedIds = new Set(picked.map((p) => p.studentId));
 
   const selectedMisconduct = useMemo(
     () => misconductOptions.find((m) => m.id === misconductId) ?? misconductOptions[0],
     [misconductOptions, misconductId]
   );
   const isOther = Boolean(selectedMisconduct?.is_other);
-
-  const matches = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return q
-      ? students.filter(
-          (s) =>
-            sortName(s).toLowerCase().includes(q) ||
-            s.university_id.toLowerCase().includes(q)
-        )
-      : students;
-  }, [students, search]);
 
   const label = (id: string) => {
     const s = byId.get(id);
@@ -198,38 +182,7 @@ export function LogDemeritsFlow({
             Whole-day incident sanctions for {semesterLabel}. Multi-day entries record individual 1-day units sharing the incident context.
           </p>
         </div>
-        {step !== "result" && (
-          <ol className="flex items-center gap-2 text-sm" aria-label="Demerit logging steps">
-            {STEPS.map((item, index) => {
-              const current = STEPS.findIndex((s) => s.id === step);
-              return (
-                <li
-                  key={item.id}
-                  aria-current={index === current ? "step" : undefined}
-                  className={cn(
-                    "flex items-center gap-2",
-                    index === current ? "font-semibold text-foreground" : "text-muted-foreground"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-6 items-center justify-center rounded-full border text-xs",
-                      index < current
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : index === current
-                        ? "border-primary text-primary"
-                        : "border-border"
-                    )}
-                  >
-                    {index < current ? <Check className="size-3.5" /> : index + 1}
-                  </span>
-                  {item.label}
-                  {index < STEPS.length - 1 && <span aria-hidden className="h-px w-6 bg-border" />}
-                </li>
-              );
-            })}
-          </ol>
-        )}
+        {step !== "result" && <EntryFlowStepper step={step} ariaLabel="Demerit logging steps" />}
       </div>
 
       {error && (
@@ -242,94 +195,16 @@ export function LogDemeritsFlow({
       )}
 
       {step === "students" && (
-        <Card className="flex flex-col gap-4 p-4 sm:p-6">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={ids.search} className="text-sm font-medium">
-              Find enrolled students
-            </label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id={ids.search}
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name or student number"
-                className="h-10 pl-8"
-              />
-            </div>
-          </div>
-
-          {picked.length > 0 && (
-            <div className="flex flex-wrap gap-1.5" aria-label="Selected students">
-              {picked.map((p) => (
-                <span
-                  key={p.studentId}
-                  className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 py-0.5 pl-2.5 pr-1 text-xs"
-                >
-                  {label(p.studentId)}
-                  <button
-                    type="button"
-                    onClick={() => toggle(p.studentId)}
-                    aria-label={`Remove ${label(p.studentId)}`}
-                    className="flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          <ul className="divide-y divide-border/60 rounded-lg border border-border">
-            {matches.length === 0 && (
-              <li className="p-4 text-center text-sm text-muted-foreground">
-                {students.length ? "No students match this search." : "No students are enrolled in the current semester."}
-              </li>
-            )}
-            {matches.slice(0, MATCH_LIMIT).map((s) => {
-              const selected = pickedIds.has(s.student_id);
-              return (
-                <li key={s.student_id}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(s.student_id)}
-                    aria-pressed={selected}
-                    className={cn(
-                      "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
-                      selected ? "bg-primary/10" : "hover:bg-muted/50"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex size-5 shrink-0 items-center justify-center rounded border",
-                        selected
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/40"
-                      )}
-                    >
-                      {selected && <Check className="size-3.5" />}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-medium">{sortName(s)}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{s.university_id}</span>
-                    <span className="text-xs text-muted-foreground max-sm:hidden">Year {s.year_level}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {matches.length > MATCH_LIMIT && (
-            <p className="text-xs text-muted-foreground">
-              Showing {MATCH_LIMIT} of {matches.length}. Search by name or number to find others.
-            </p>
-          )}
-
-          <div className="flex justify-end">
-            <Button onClick={() => go("details")} className="max-sm:w-full">
-              Continue with {plural(picked.length, "student")}
-            </Button>
-          </div>
-        </Card>
+        <StudentPickerStep
+          searchId={ids.search}
+          students={students}
+          picked={picked}
+          search={search}
+          onSearchChange={setSearch}
+          onToggle={toggle}
+          onContinue={() => go("details")}
+          labelOf={label}
+        />
       )}
 
       {step === "details" && (
@@ -372,12 +247,13 @@ export function LogDemeritsFlow({
                 type="number"
                 inputMode="numeric"
                 min={1}
+                max={MAX_ENTRY_DAYS}
                 step={1}
                 value={days}
                 onChange={(e) => setDays(e.target.value)}
                 className="h-10 font-mono"
               />
-              <span className="text-xs text-muted-foreground">Whole days only. Defaults to 1.</span>
+              <span className="text-xs text-muted-foreground">Whole days only, up to {MAX_ENTRY_DAYS}. Defaults to 1.</span>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -494,51 +370,19 @@ export function LogDemeritsFlow({
       )}
 
       {step === "result" && result && (
-        <Card className="flex flex-col gap-5 p-4 sm:p-6" role="status">
-          {result.recordedIds.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <p className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
-                <Check className="size-4" /> Logged {plural(dayCount, "day")} for {plural(result.recordedIds.length, "student")}
-              </p>
-              <ul className="divide-y divide-border/60 rounded-lg border border-border text-sm">
-                {result.recordedIds.map((id) => (
-                  <li key={id} className="px-3 py-2">
-                    {label(id)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {!result.success && (
-            <div className="flex flex-col gap-2">
-              <p className="flex items-center gap-2 font-semibold text-destructive">
-                <CircleAlert className="size-4" /> Not recorded for {plural(result.failures.length, "student")}
-              </p>
-              <ul className="divide-y divide-border/60 rounded-lg border border-border text-sm">
-                {result.failures.map((f) => (
-                  <li key={f.studentId} className="flex flex-col px-3 py-2">
-                    <span>{label(f.studentId)}</span>
-                    <span className="text-xs text-muted-foreground">{f.error}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" nativeButton={false} render={<Link href={listHref} />}>
-              View my entries
-            </Button>
-            {result.success ? (
-              <Button onClick={startOver}>Log more</Button>
-            ) : (
-              <Button onClick={() => setStep("review")}>
-                Review the remaining {plural(picked.length, "student")}
-              </Button>
-            )}
-          </div>
-        </Card>
+        <EntryFlowResultCard
+          success={result.success}
+          succeededIds={result.recordedIds}
+          failures={result.success ? [] : result.failures}
+          successText={`Logged ${plural(dayCount, "day")} for ${plural(result.recordedIds.length, "student")}`}
+          retryableCount={result.success ? 0 : picked.length}
+          listHref={listHref}
+          listLabel="View my entries"
+          recordMoreLabel="Log more"
+          labelOf={label}
+          onRetry={() => setStep("review")}
+          onStartOver={startOver}
+        />
       )}
     </div>
   );

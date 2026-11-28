@@ -1,10 +1,15 @@
 import { z } from "zod";
 
-/** Whole-day units: FL-030 sets no upper bound, and neither does `award_merits`. */
-export const meritDaysSchema = z.coerce
+const wholeDaysSchema = z.coerce
   .number()
   .int("Days must be a whole number.")
   .min(1, "Days must be at least 1.");
+
+/** Product cap per merit or demerit entry; the RPCs create one row per day, so a typo must not mint thousands. */
+export const MAX_ENTRY_DAYS = 5;
+
+/** Whole-day units, 1 to MAX_ENTRY_DAYS. FL-030 and `award_merits` set no upper bound. */
+export const meritDaysSchema = wholeDaysSchema.max(MAX_ENTRY_DAYS, `Days cannot exceed ${MAX_ENTRY_DAYS}.`);
 
 export const meritDescriptionSchema = z
   .string()
@@ -32,11 +37,8 @@ export type AwardDirectMeritsInput = z.infer<typeof awardDirectMeritsSchema>;
 // Demerit logging schemas (FL-033 / T-045)
 // ---------------------------------------------------------------------------
 
-/** Whole-day units: FL-033 sets no upper bound, and neither does `log_demerits`. */
-export const demeritDaysSchema = z.coerce
-  .number()
-  .int("Days must be a whole number.")
-  .min(1, "Days must be at least 1.");
+/** Whole-day units, 1 to MAX_ENTRY_DAYS. FL-033 and `log_demerits` set no upper bound. */
+export const demeritDaysSchema = meritDaysSchema;
 
 /**
  * Incident description: required when the catalog option is "Other"; optional
@@ -160,7 +162,7 @@ export const disciplinaryBucketSchema = z.enum(["office", "rle"], {
 export const applyMeritsSchema = z.object({
   requestKey: z.string().uuid("Invalid request key."),
   bucket: disciplinaryBucketSchema,
-  days: meritDaysSchema.max(2147483647, "Days is too large."), // Postgres integer limit
+  days: wholeDaysSchema.max(2147483647, "Days is too large."), // Postgres integer limit; applying is not an entry, so no entry cap
 });
 
 export type ApplyMeritsInput = z.infer<typeof applyMeritsSchema>;
@@ -180,3 +182,61 @@ export const waiveDemeritSchema = z.object({
   demeritId: z.string().uuid("Invalid demerit identifier."),
   reason: waiveDemeritReasonSchema,
 });
+
+// ---------------------------------------------------------------------------
+// External CI merit and demerit schemas (FL-035 / T-047)
+// ---------------------------------------------------------------------------
+
+const externalCiRecipientsSchema = z
+  .array(
+    z.object({
+      studentId: z.string().uuid("Invalid student identifier."),
+      requestKey: z.string().uuid("Invalid request key."),
+    })
+  )
+  .min(1, "Select at least one student.")
+  .refine(
+    (list) => new Set(list.map((r) => r.studentId)).size === list.length,
+    "Each student can be selected once."
+  );
+
+const externalCiSourceNameSchema = z
+  .string()
+  .trim()
+  .min(2, "External CI name must be at least 2 characters.")
+  .max(120, "External CI name cannot exceed 120 characters.");
+
+const externalCiDemeritNotesSchema = z
+  .string()
+  .trim()
+  .max(500, "Notes cannot exceed 500 characters.")
+  .nullish()
+  .transform((val) => (val && val.length > 0 ? val : null));
+
+export const awardExternalCiMeritsSchema = z.object({
+  recipients: externalCiRecipientsSchema,
+  externalSource: externalCiSourceNameSchema,
+  days: meritDaysSchema,
+  awardedOn: z.iso.date("Award date must be a valid date."),
+  description: meritDescriptionSchema,
+});
+
+export const logExternalCiDemeritsSchema = z
+  .object({
+    recipients: externalCiRecipientsSchema,
+    externalSource: externalCiSourceNameSchema,
+    days: demeritDaysSchema,
+    misconductId: z.string().uuid("Select a misconduct option."),
+    isOther: z.boolean(),
+    incidentOn: z.iso.date("Incident date must be a valid date."),
+    notes: externalCiDemeritNotesSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.isOther && (!data.notes || data.notes.length < 3)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["notes"],
+        message: "Describe the specific misconduct when selecting Other (at least 3 characters).",
+      });
+    }
+  });
