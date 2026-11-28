@@ -1,10 +1,15 @@
 import { z } from "zod";
 
-/** Whole-day units: FL-030 sets no upper bound, and neither does `award_merits`. */
-export const meritDaysSchema = z.coerce
+const wholeDaysSchema = z.coerce
   .number()
   .int("Days must be a whole number.")
   .min(1, "Days must be at least 1.");
+
+/** Product cap per merit or demerit entry; the RPCs create one row per day, so a typo must not mint thousands. */
+export const MAX_ENTRY_DAYS = 5;
+
+/** Whole-day units, 1 to MAX_ENTRY_DAYS. FL-030 and `award_merits` set no upper bound. */
+export const meritDaysSchema = wholeDaysSchema.max(MAX_ENTRY_DAYS, `Days cannot exceed ${MAX_ENTRY_DAYS}.`);
 
 export const meritDescriptionSchema = z
   .string()
@@ -32,11 +37,8 @@ export type AwardDirectMeritsInput = z.infer<typeof awardDirectMeritsSchema>;
 // Demerit logging schemas (FL-033 / T-045)
 // ---------------------------------------------------------------------------
 
-/** Whole-day units: FL-033 sets no upper bound, and neither does `log_demerits`. */
-export const demeritDaysSchema = z.coerce
-  .number()
-  .int("Days must be a whole number.")
-  .min(1, "Days must be at least 1.");
+/** Whole-day units, 1 to MAX_ENTRY_DAYS. FL-033 and `log_demerits` set no upper bound. */
+export const demeritDaysSchema = meritDaysSchema;
 
 /**
  * Incident description: required when the catalog option is "Other"; optional
@@ -160,7 +162,7 @@ export const disciplinaryBucketSchema = z.enum(["office", "rle"], {
 export const applyMeritsSchema = z.object({
   requestKey: z.string().uuid("Invalid request key."),
   bucket: disciplinaryBucketSchema,
-  days: meritDaysSchema.max(2147483647, "Days is too large."), // Postgres integer limit
+  days: wholeDaysSchema.max(2147483647, "Days is too large."), // Postgres integer limit; applying is not an entry, so no entry cap
 });
 
 export type ApplyMeritsInput = z.infer<typeof applyMeritsSchema>;
