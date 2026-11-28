@@ -1148,7 +1148,7 @@ The selected demerit unit changes permanently from active to **Waived**, reduces
 ### System involvement
 
 - Reads only the signed-in student's own profile, enrollments, semesters, demerits, merits, merit applications, and service credits under user-scoped database access rules, using one server timestamp so cumulative standing, merit expiry, refresh status, and the printed generation time reflect the exact same `Asia/Manila` snapshot.
-- Resolves staff display names only for non-Council entries so individual Council student officers are never queried or disclosed, and omits internal record and actor identifiers from both browser responses and CSV downloads.
+- Resolves staff display names only for non-Council entries so individual Council student officers are never queried or disclosed, omits internal actor, group, and cross-record identifiers from browser responses, and omits all internal identifiers from CSV downloads.
 - Protects downloaded CSV cells that begin with spreadsheet formula characters (including after leading whitespace) with a leading apostrophe before standard CSV quoting, and creates no server-side PDF archive or signature record.
 
 ### Outcome
@@ -1167,4 +1167,4 @@ The student can review, print, save as PDF, or export as CSV a complete semester
 - Council-generated demerits and waivers display **Council** as the actor label, Council-endorsed merits attribute the approving Faculty instructor, and external clinical entries display their external source label.
 - Printed and saved-PDF output hides workspace chrome, avoids splitting summary cards or table rows mid-line, and prints multi-page tables without clipping after page 1.
 - Downloaded CSV files open cleanly in spreadsheet software with UTF-8 encoding, neutralize leading formula characters, and never return sign-in HTML on unauthenticated requests.
-- Report controls, period switches, academic-year selectors, and links meet the 44 px touch-target minimum on phones and touch tablets.
+- Report navigation links, export actions, period switches, and academic-year selectors meet the 44 px touch-target minimum on phones and touch tablets.
