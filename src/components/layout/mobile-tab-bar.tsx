@@ -44,7 +44,7 @@ export function MobileTabBar({ workspace, navigation }: { workspace: Workspace; 
 
   return (
     // Floating capsule above the content (iOS 26 tab bar), clear of the home indicator and landscape notch.
-    <nav aria-label="Primary" className="fixed inset-x-[max(0.75rem,env(safe-area-inset-left))] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 rounded-full border-[0.5px] border-border/80 bg-background/75 p-1 shadow-[0_8px_24px_-8px_rgb(33_29_26/0.25)] backdrop-blur-xl backdrop-saturate-150 md:hidden print:hidden" style={{ viewTransitionName: "workspace-tab-bar" }}>
+    <nav aria-label="Primary" data-print-chrome className="fixed inset-x-[max(0.75rem,env(safe-area-inset-left))] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 rounded-full border-[0.5px] border-border/80 bg-background/75 p-1 shadow-[0_8px_24px_-8px_rgb(33_29_26/0.25)] backdrop-blur-xl backdrop-saturate-150 md:hidden" style={{ viewTransitionName: "workspace-tab-bar" }}>
       <ul className="relative grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
         {selected >= 0 && (
           // The lens: one capsule that glides to the selected tab; it moves on tap, before the page renders.

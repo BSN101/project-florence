@@ -180,7 +180,6 @@ export function resolveReportPeriod(input: {
   scope: DisciplinaryReportScope;
   periodLabel: string;
   academicYearStart: number;
-  selectedTerm: string | null;
   includedSemesterIds: Set<string>;
   coveredTerms: ReportCoveredTerm[];
   availableAcademicYears: ReportAcademicYearOption[];
@@ -218,7 +217,6 @@ export function resolveReportPeriod(input: {
       scope: "semester",
       periodLabel: formatReportTermLabel(target),
       academicYearStart: target.academic_year_start,
-      selectedTerm: target.term,
       includedSemesterIds: new Set([target.id]),
       coveredTerms: [toCoveredTerm(target)],
       availableAcademicYears,
@@ -253,7 +251,6 @@ export function resolveReportPeriod(input: {
     scope: "year",
     periodLabel: formatAcademicYearLabel(targetYear),
     academicYearStart: targetYear,
-    selectedTerm: null,
     includedSemesterIds: new Set(matchingSemesters.map((s) => s.id)),
     coveredTerms: matchingSemesters.map(toCoveredTerm),
     availableAcademicYears,

@@ -34,11 +34,14 @@ export function StudentDisciplinaryReportTables({
   showTermColumn: boolean;
 }) {
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div data-print-table-group className="flex w-full flex-col gap-6">
       {/* Demerits in Period */}
-      <section className="flex w-full flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="section-title">Demerits in Period</h3>
+      <section data-print-table-section className="flex w-full flex-col gap-2">
+        <div
+          data-print-heading
+          className="flex items-baseline justify-between gap-2 break-after-avoid"
+        >
+          <h3 className="section-title break-after-avoid">Demerits in Period</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             {demerits.length} {demerits.length === 1 ? "record" : "records"}
           </span>
@@ -59,12 +62,26 @@ export function StudentDisciplinaryReportTables({
             <table className="w-full text-left text-xs">
               <thead className={REPORT_THEAD_CLASS}>
                 <tr>
-                  {showTermColumn && <th className="px-4 py-2 font-medium">Term</th>}
-                  <th className="px-4 py-2 font-medium">Incident Date</th>
-                  <th className="px-4 py-2 font-medium">Bucket</th>
-                  <th className="px-4 py-2 font-medium">Misconduct &amp; Details</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Issuer / Source</th>
+                  {showTermColumn && (
+                    <th scope="col" className="px-4 py-2 font-medium">
+                      Term
+                    </th>
+                  )}
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Incident Date
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Bucket
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Misconduct &amp; Details
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Status
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Issuer / Source
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -80,7 +97,7 @@ export function StudentDisciplinaryReportTables({
                   return (
                     <tr key={demerit.id}>
                       {showTermColumn && (
-                        <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">
+                        <td className="px-4 py-2 whitespace-nowrap text-muted-foreground tabular-nums">
                           {demerit.term_label}
                         </td>
                       )}
@@ -105,20 +122,30 @@ export function StudentDisciplinaryReportTables({
                               {unitLabel}
                             </span>
                           )}
-                          {isWaived && demerit.waiver_reason && (
+                          {isWaived && (demerit.waiver_reason || demerit.waived_at) && (
                             <div className="mt-1 rounded-lg border border-border/60 bg-muted/50 p-2 text-[11px] text-muted-foreground">
-                              <p className="whitespace-normal break-words">
-                                <span className="font-medium text-foreground">Waiver reason:</span>{" "}
-                                {demerit.waiver_reason}
-                              </p>
-                              <p className="mt-1 tabular-nums">
-                                {demerit.waived_by_label
-                                  ? `Waived by ${demerit.waived_by_label} \u00b7 `
-                                  : "Waived "}
-                                <span suppressHydrationWarning>
-                                  {formatManilaDateTime(demerit.waived_at)}
-                                </span>
-                              </p>
+                              {demerit.waiver_reason && (
+                                <p className="whitespace-normal break-words">
+                                  <span className="font-medium text-foreground">
+                                    Waiver reason:
+                                  </span>{" "}
+                                  {demerit.waiver_reason}
+                                </p>
+                              )}
+                              {demerit.waived_at && (
+                                <p
+                                  className={
+                                    demerit.waiver_reason ? "mt-1 tabular-nums" : "tabular-nums"
+                                  }
+                                >
+                                  {demerit.waived_by_label
+                                    ? `Waived by ${demerit.waived_by_label} \u00b7 `
+                                    : "Waived "}
+                                  <span suppressHydrationWarning>
+                                    {formatManilaDateTime(demerit.waived_at)}
+                                  </span>
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -139,9 +166,12 @@ export function StudentDisciplinaryReportTables({
       </section>
 
       {/* Merits in Period */}
-      <section className="flex w-full flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="section-title">Merits in Period</h3>
+      <section data-print-table-section className="flex w-full flex-col gap-2">
+        <div
+          data-print-heading
+          className="flex items-baseline justify-between gap-2 break-after-avoid"
+        >
+          <h3 className="section-title break-after-avoid">Merits in Period</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             {merits.length} {merits.length === 1 ? "award" : "awards"}
           </span>
@@ -162,19 +192,33 @@ export function StudentDisciplinaryReportTables({
             <table className="w-full text-left text-xs">
               <thead className={REPORT_THEAD_CLASS}>
                 <tr>
-                  {showTermColumn && <th className="px-4 py-2 font-medium">Term</th>}
-                  <th className="px-4 py-2 font-medium">Award Date</th>
-                  <th className="px-4 py-2 font-medium">Description</th>
-                  <th className="px-4 py-2 font-medium">Valid Until</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Awarded By / Source</th>
+                  {showTermColumn && (
+                    <th scope="col" className="px-4 py-2 font-medium">
+                      Term
+                    </th>
+                  )}
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Award Date
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Description
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Valid Until
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Status
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Awarded By / Source
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
                 {merits.map((merit) => (
                   <tr key={merit.id}>
                     {showTermColumn && (
-                      <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">
+                      <td className="px-4 py-2 whitespace-nowrap text-muted-foreground tabular-nums">
                         {merit.term_label}
                       </td>
                     )}
@@ -224,9 +268,12 @@ export function StudentDisciplinaryReportTables({
       </section>
 
       {/* Service Credits in Period */}
-      <section className="flex w-full flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="section-title">Service Credits in Period</h3>
+      <section data-print-table-section className="flex w-full flex-col gap-2">
+        <div
+          data-print-heading
+          className="flex items-baseline justify-between gap-2 break-after-avoid"
+        >
+          <h3 className="section-title break-after-avoid">Service Credits in Period</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             {serviceCredits.length} {serviceCredits.length === 1 ? "credit" : "credits"}
           </span>
@@ -247,11 +294,23 @@ export function StudentDisciplinaryReportTables({
             <table className="w-full text-left text-xs">
               <thead className={REPORT_THEAD_CLASS}>
                 <tr>
-                  {showTermColumn && <th className="px-4 py-2 font-medium">Term</th>}
-                  <th className="px-4 py-2 font-medium">Issued Date</th>
-                  <th className="px-4 py-2 font-medium">Bucket</th>
-                  <th className="px-4 py-2 font-medium">Status &amp; Details</th>
-                  <th className="px-4 py-2 font-medium">Supervisor / Issuer</th>
+                  {showTermColumn && (
+                    <th scope="col" className="px-4 py-2 font-medium">
+                      Term
+                    </th>
+                  )}
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Issued Date
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Bucket
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Status &amp; Details
+                  </th>
+                  <th scope="col" className="px-4 py-2 font-medium">
+                    Supervisor / Issuer
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -260,7 +319,7 @@ export function StudentDisciplinaryReportTables({
                   return (
                     <tr key={credit.id}>
                       {showTermColumn && (
-                        <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">
+                        <td className="px-4 py-2 whitespace-nowrap text-muted-foreground tabular-nums">
                           {credit.term_label}
                         </td>
                       )}
@@ -276,16 +335,23 @@ export function StudentDisciplinaryReportTables({
                       <td className="px-4 py-2">
                         <div className="flex max-w-md flex-col gap-1">
                           <ServiceCreditBadge revoked={isRevoked} className="w-fit font-medium" />
-                          {isRevoked && credit.revocation_reason && (
+                          {isRevoked && (credit.revocation_reason || credit.revoked_at) && (
                             <div className="mt-1 rounded-lg border border-border/60 bg-muted/50 p-2 text-[11px] text-muted-foreground">
-                              <p className="whitespace-normal break-words">
-                                <span className="font-medium text-foreground">
-                                  Revocation note:
-                                </span>{" "}
-                                {credit.revocation_reason}
-                              </p>
+                              {credit.revocation_reason && (
+                                <p className="whitespace-normal break-words">
+                                  <span className="font-medium text-foreground">
+                                    Revocation note:
+                                  </span>{" "}
+                                  {credit.revocation_reason}
+                                </p>
+                              )}
                               {credit.revoked_at && (
-                                <p className="mt-1 tabular-nums" suppressHydrationWarning>
+                                <p
+                                  className={
+                                    credit.revocation_reason ? "mt-1 tabular-nums" : "tabular-nums"
+                                  }
+                                  suppressHydrationWarning
+                                >
                                   Revoked {formatManilaDateTime(credit.revoked_at)}
                                 </p>
                               )}

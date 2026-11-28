@@ -73,7 +73,7 @@ async function loadActorNames(
   });
   if (error) throw new Error("Unable to load disciplinary actor names");
 
-  for (const row of data) {
+  for (const row of data ?? []) {
     names.set(row.id, displayName(row));
   }
   return names;
@@ -194,15 +194,19 @@ export async function getStudentDisciplinaryReportForAccess(
     resolvedPeriod.includedSemesterIds.has(c.semester_id)
   );
 
-  // Never pass Council student actor UUIDs to florence_discipline_names.
+  // Never pass Council student actor UUIDs (or External CI issuers whose external_source_name is already present) to florence_discipline_names.
   const actorIdsToResolve: (string | null)[] = [];
   for (const d of inPeriodDemerits) {
-    if (d.source !== "council") {
-      actorIdsToResolve.push(d.issued_by, d.waived_by);
+    if (d.source === "council") continue;
+    if (d.source !== "external_ci" || !d.external_source_name?.trim()) {
+      actorIdsToResolve.push(d.issued_by);
     }
+    actorIdsToResolve.push(d.waived_by);
   }
   for (const m of inPeriodMerits) {
-    actorIdsToResolve.push(m.awarded_by);
+    if (m.source !== "external_ci" || !m.external_source_name?.trim()) {
+      actorIdsToResolve.push(m.awarded_by);
+    }
   }
   for (const c of inPeriodCredits) {
     actorIdsToResolve.push(c.issued_by);

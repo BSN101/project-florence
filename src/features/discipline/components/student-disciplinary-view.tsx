@@ -95,39 +95,48 @@ export function StudentDisciplinaryView({
       {/* Tabs navigation and actions */}
       <div className="flex w-full flex-col gap-4">
         <div className="flex flex-col gap-2 border-b border-border pb-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            role="group"
+            aria-label="Conduct record categories"
+            className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <Button
               type="button"
               variant={activeTab === "demerits" ? "secondary" : "ghost"}
               size="sm"
+              aria-pressed={activeTab === "demerits"}
               onClick={() => handleTabChange("demerits")}
               className="shrink-0 gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
             >
               <FileWarning className="size-4" aria-hidden="true" />
-              <span>Demerits ({demerits.length})</span>
+              <span className="tabular-nums">Demerits ({demerits.length})</span>
             </Button>
 
             <Button
               type="button"
               variant={activeTab === "merits" ? "secondary" : "ghost"}
               size="sm"
+              aria-pressed={activeTab === "merits"}
               onClick={() => handleTabChange("merits")}
               className="shrink-0 gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
             >
               <Award className="size-4" aria-hidden="true" />
-              <span>Merits ({merits.length})</span>
+              <span className="tabular-nums">Merits ({merits.length})</span>
             </Button>
 
             <Button
               type="button"
               variant={activeTab === "services" ? "secondary" : "ghost"}
               size="sm"
+              aria-pressed={activeTab === "services"}
               onClick={() => handleTabChange("services")}
               className="shrink-0 gap-2 text-xs max-sm:min-h-11 pointer-coarse:min-h-11"
             >
               <Clock className="size-4" aria-hidden="true" />
-              <span className="sm:hidden">Services ({serviceCredits.length})</span>
-              <span className="hidden sm:inline">Service Credits ({serviceCredits.length})</span>
+              <span className="tabular-nums sm:hidden">Services ({serviceCredits.length})</span>
+              <span className="hidden tabular-nums sm:inline">
+                Service Credits ({serviceCredits.length})
+              </span>
             </Button>
           </div>
 

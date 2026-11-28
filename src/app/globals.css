@@ -270,55 +270,81 @@
   }
 }
 
-/* Printable document views (e.g. FL-045 disciplinary report). Scoped strictly to pages rendering
-   [data-print-document] so screen layouts and ordinary page printing remain unchanged. */
+/* Printable document views (e.g. FL-045 disciplinary report). Gated on an effect-managed body
+   attribute so hidden Next.js <Activity> routes and ordinary page printing stay untouched. */
+@page florence-report {
+  margin: 12mm;
+}
+
 @media print {
-  @page {
-    margin: 12mm;
+  html:has(body[data-print-document-active="true"]) {
+    height: auto !important;
   }
 
-  body:has([data-print-document]) {
+  body[data-print-document-active="true"] {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
     padding: 0 !important;
   }
 
-  body:has([data-print-document]) .group\/sidebar-wrapper {
-    display: block !important;
-    min-height: 0 !important;
-    background: #ffffff !important;
-  }
-
-  body:has([data-print-document]) [data-slot="sidebar"],
-  body:has([data-print-document]) [data-slot="sidebar-gap"],
-  body:has([data-print-document]) [data-workspace-shell-header] {
+  body[data-print-document-active="true"] [data-print-chrome],
+  body[data-print-document-active="true"] [data-slot="sidebar"],
+  body[data-print-document-active="true"] [data-slot="sidebar-gap"],
+  body[data-print-document-active="true"] [data-workspace-shell-header] {
     display: none !important;
   }
 
-  body:has([data-print-document]) [data-slot="sidebar-inset"] {
+  body[data-print-document-active="true"] [data-slot="sidebar-wrapper"],
+  body[data-print-document-active="true"] [data-slot="sidebar-inset"] {
     display: block !important;
-    margin: 0 !important;
+    height: auto !important;
     min-height: 0 !important;
+    margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     background: #ffffff !important;
   }
 
-  body:has([data-print-document]) [data-workspace-shell-frame] {
+  body[data-print-document-active="true"] [data-workspace-shell-frame],
+  body[data-print-document-active="true"] [data-workspace-shell-frame] > div,
+  body[data-print-document-active="true"] [data-workspace-shell-frame] > div > section,
+  body[data-print-document-active="true"] [data-print-document],
+  body[data-print-document-active="true"] [data-print-table-group],
+  body[data-print-document-active="true"] [data-print-table-section] {
+    display: block !important;
+    height: auto !important;
     padding: 0 !important;
-  }
-
-  body:has([data-print-document]) [data-print-document],
-  body:has([data-print-document]) [data-print-scroll] {
     overflow: visible !important;
   }
 
-  body:has([data-print-document]) thead {
+  body[data-print-document-active="true"] [data-print-document] {
+    page: florence-report;
+  }
+
+  body[data-print-document-active="true"] [data-print-document] > * + *,
+  body[data-print-document-active="true"] [data-print-table-group] > * + * {
+    margin-top: 1rem !important;
+  }
+
+  body[data-print-document-active="true"] [data-print-heading] {
+    margin-bottom: 0.5rem !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  body[data-print-document-active="true"] [data-print-scroll] {
+    overflow: visible !important;
+  }
+
+  body[data-print-document-active="true"] thead {
     display: table-header-group;
   }
 
-  body:has([data-print-document]) [data-print-avoid-break],
-  body:has([data-print-document]) tr {
+  body[data-print-document-active="true"] [data-print-avoid-break],
+  body[data-print-document-active="true"] tr {
     break-inside: avoid;
     page-break-inside: avoid;
   }

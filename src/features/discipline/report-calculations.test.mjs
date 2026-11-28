@@ -188,7 +188,6 @@ test("resolveReportPeriod resolves semester and academic-year scopes and rejects
   assert.ok(semResult);
   assert.equal(semResult.periodLabel, "1st Semester \u00b7 AY 2025\u20132026");
   assert.equal(semResult.academicYearStart, 2025);
-  assert.equal(semResult.selectedTerm, "1st Semester");
   assert.deepEqual([...semResult.includedSemesterIds], [SEM_2025_1]);
   assert.equal(semResult.coveredTerms[0].yearLevel, 2);
   assert.equal(semResult.coveredTerms[0].academicStatus, "irregular");
@@ -541,7 +540,7 @@ test("serializeDisciplinaryReportCsv includes UTF-8 BOM, CRLF, Council masking, 
   assert.equal(csv.endsWith("\r\n"), true);
   assert.ok(csv.includes('"Maria Santos, Jr."'));
   assert.ok(csv.includes("Informational record only. Not an official certified document."));
-  // Leading-space formula neutralized and quoted
+  // Leading-space formula neutralized with leading apostrophe
   assert.ok(csv.includes(`'  =Event absence: General Assembly`));
   // Embedded quotes doubled
   assert.ok(csv.includes(`"Approved ""excuse"" letter"`));

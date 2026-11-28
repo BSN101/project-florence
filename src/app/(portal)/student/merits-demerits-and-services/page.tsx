@@ -77,8 +77,7 @@ export default async function StudentMeritsDemeritsAndServicesPage({
       redirect(baseHref);
     }
 
-    const generatedAt = new Date().toISOString();
-    const snapshot = new Date(generatedAt);
+    const snapshot = new Date();
 
     let reportData: Awaited<ReturnType<typeof getStudentDisciplinaryReportForAccess>> = null;
     let reportLoadFailed = false;

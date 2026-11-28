@@ -98,7 +98,7 @@ export function serializeDisciplinaryReportCsv(
 ): string {
   const { formatDate, formatDateTime } = formatters;
   const { office, rle, merits } = report.cumulativeSummary;
-  const p = report.periodSummary;
+  const { periodSummary } = report;
 
   const rows: (string | number | null | undefined)[][] = [
     ["Project Florence \u2014 Student Disciplinary Report"],
@@ -150,13 +150,13 @@ export function serializeDisciplinaryReportCsv(
     ],
     [],
     ["Period Activity Summary", report.periodLabel],
-    ["Demerits Recorded", p.demeritsRecorded],
-    ["Active Demerits", p.demeritsActive],
-    ["Waived Demerits", p.demeritsWaived],
-    ["Merits Awarded", p.meritsAwarded],
-    ["Service Credits Earned", p.serviceCreditsEarned],
-    ["Active Service Credits", p.serviceCreditsActive],
-    ["Revoked Service Credits", p.serviceCreditsRevoked],
+    ["Demerits Recorded", periodSummary.demeritsRecorded],
+    ["Active Demerits", periodSummary.demeritsActive],
+    ["Waived Demerits", periodSummary.demeritsWaived],
+    ["Merits Awarded", periodSummary.meritsAwarded],
+    ["Service Credits Earned", periodSummary.serviceCreditsEarned],
+    ["Active Service Credits", periodSummary.serviceCreditsActive],
+    ["Revoked Service Credits", periodSummary.serviceCreditsRevoked],
     [],
     ["Demerits in Period"],
     [

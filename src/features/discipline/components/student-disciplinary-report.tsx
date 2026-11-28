@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useTransition } from "react";
+import { useEffect, useId, useTransition } from "react";
 import { ArrowLeft, Download, LoaderCircle, Printer } from "lucide-react";
 
 import { RefreshButton } from "@/components/layout/refresh-button";
@@ -48,6 +48,13 @@ export function StudentDisciplinaryReport({
   const [isPending, startTransition] = useTransition();
   const yearSelectId = useId();
 
+  useEffect(() => {
+    document.body.dataset.printDocumentActive = "true";
+    return () => {
+      delete document.body.dataset.printDocumentActive;
+    };
+  }, []);
+
   const semesterScopeHref = buildReportViewHref({
     scope: "semester",
     semesterQueryParam,
@@ -78,7 +85,7 @@ export function StudentDisciplinaryReport({
   }
 
   const { office, rle, merits } = report.cumulativeSummary;
-  const p = report.periodSummary;
+  const { periodSummary } = report;
   const enrolledTerms = report.coveredTerms.filter(
     (term) => term.yearLevel !== null && term.academicStatus !== null
   );
@@ -86,7 +93,11 @@ export function StudentDisciplinaryReport({
   return (
     <div data-print-document className="flex w-full flex-col gap-6">
       {/* Non-print navigation, scope controls, and export bar */}
-      <div className="flex w-full flex-col gap-4 print:hidden" aria-busy={isPending}>
+      <div
+        data-print-chrome
+        className="flex w-full flex-col gap-4 print:hidden"
+        aria-busy={isPending}
+      >
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Button
             variant="ghost"
@@ -182,7 +193,7 @@ export function StudentDisciplinaryReport({
                 value={String(report.academicYearStart)}
                 disabled={isPending}
                 onChange={(event) => handleYearChange(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 md:text-sm pointer-coarse:text-base max-sm:min-h-11 pointer-coarse:min-h-11"
+                className="h-10 max-w-full rounded-lg border border-input bg-background px-2 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 md:text-sm pointer-coarse:text-base max-sm:min-h-11 pointer-coarse:min-h-11"
               >
                 {report.availableAcademicYears.map((option) => (
                   <option key={option.academicYearStart} value={String(option.academicYearStart)}>
@@ -204,7 +215,7 @@ export function StudentDisciplinaryReport({
             </p>
             <h2 className="section-title mt-1">Student Disciplinary Report</h2>
           </div>
-          <span className="text-xs font-medium text-foreground">
+          <span className="text-xs font-medium text-foreground tabular-nums">
             {report.scope === "year" ? "Academic Year Scope" : "Single Semester Scope"} ·{" "}
             {report.periodLabel}
           </span>
@@ -269,8 +280,11 @@ export function StudentDisciplinaryReport({
 
       {/* Current Cumulative Standing (All Semesters) */}
       <section data-print-avoid-break className="flex w-full flex-col gap-2">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-          <h3 className="section-title">Current Cumulative Standing</h3>
+        <div
+          data-print-heading
+          className="flex flex-col gap-1 break-after-avoid sm:flex-row sm:items-baseline sm:justify-between"
+        >
+          <h3 className="section-title break-after-avoid">Current Cumulative Standing</h3>
           <span className="text-xs text-muted-foreground tabular-nums">
             Cumulative across all semesters as of {formatManilaDate(report.asOfDateManila)}{" "}
             (Asia/Manila)
@@ -352,31 +366,36 @@ export function StudentDisciplinaryReport({
 
       {/* Period Activity Summary */}
       <section data-print-avoid-break className="flex w-full flex-col gap-2">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-          <h3 className="section-title">Period Activity Summary</h3>
-          <span className="text-xs text-muted-foreground">{report.periodLabel}</span>
+        <div
+          data-print-heading
+          className="flex flex-col gap-1 break-after-avoid sm:flex-row sm:items-baseline sm:justify-between"
+        >
+          <h3 className="section-title break-after-avoid">Period Activity Summary</h3>
+          <span className="text-xs text-muted-foreground tabular-nums">{report.periodLabel}</span>
         </div>
 
         <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3">
           <Card data-print-avoid-break className="flex flex-col gap-1 p-4">
             <span className="text-xs font-medium text-muted-foreground">Demerits Recorded</span>
             <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
-              {formatDays(p.demeritsRecorded)}
+              {formatDays(periodSummary.demeritsRecorded)}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {p.demeritsActive} active ({p.officeDemeritsActive} Office, {p.rleDemeritsActive} RLE)
+              {periodSummary.demeritsActive} active ({periodSummary.officeDemeritsActive} Office,{" "}
+              {periodSummary.rleDemeritsActive} RLE)
               {" · "}
-              {p.demeritsWaived} waived
+              {periodSummary.demeritsWaived} waived
             </span>
           </Card>
 
           <Card data-print-avoid-break className="flex flex-col gap-1 p-4">
             <span className="text-xs font-medium text-muted-foreground">Merits Awarded</span>
             <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
-              {formatDays(p.meritsAwarded)}
+              {formatDays(periodSummary.meritsAwarded)}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {p.meritsAvailable} available · {p.meritsApplied} applied · {p.meritsExpired} expired
+              {periodSummary.meritsAvailable} available · {periodSummary.meritsApplied} applied ·{" "}
+              {periodSummary.meritsExpired} expired
             </span>
           </Card>
 
@@ -385,10 +404,11 @@ export function StudentDisciplinaryReport({
               Service Credits Earned
             </span>
             <span className="font-heading text-xl font-semibold tracking-tight text-foreground tabular-nums">
-              {formatDays(p.serviceCreditsEarned)}
+              {formatDays(periodSummary.serviceCreditsEarned)}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {p.serviceCreditsActive} active · {p.serviceCreditsRevoked} revoked
+              {periodSummary.serviceCreditsActive} active · {periodSummary.serviceCreditsRevoked}{" "}
+              revoked
             </span>
           </Card>
         </div>
