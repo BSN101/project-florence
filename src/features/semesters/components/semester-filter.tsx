@@ -35,6 +35,8 @@ export function SemesterFilter({ semesters, selectedId, enrollmentLimited = fals
     if (!value || value === selectedId || isPending) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("semester", value);
+    // A pinned report year would override the new semester's year.
+    params.delete("year");
     startTransition(() => router.push(`${pathname}?${params.toString()}`));
   }
 
